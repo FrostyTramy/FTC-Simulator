@@ -1,0 +1,133 @@
+using System.Globalization;
+using System.Numerics;
+using YamlDotNet.Serialization;
+
+namespace Sim.Robots;
+
+/// <summary>Raised for a missing or malformed value in a robot YAML.</summary>
+public sealed class RobotConfigException(string message) : Exception(message);
+
+/// <summary>One drive wheel (robot frame: +X right, +Y up, −Z forward, metres).</summary>
+/// <param name="Slant">"left" or "right" roller slant (mecanum).</param>
+/// <param name="DriveSign">+1 if positive motor output rotation drives the wheel forward, −1 if mirrored.</param>
+public sealed record WheelDef(string Id, string Motor, Vector3 Position, string Slant, int DriveSign);
+
+/// <summary>One hardware device (exact hardwareMap name from the robot's code).</summary>
+public sealed record DeviceDef(
+    string Name,
+    string Type,
+    string SdkClass,
+    string? Model,
+    string Hub,
+    int? Port,
+    string? Drives,
+    string Direction,
+    string ZeroPower,
+    string? RunMode,
+    double[]? Pidf,
+    double SpeedRatio);
+
+/// <summary>Typed view of config/robots/&lt;name&gt;.yaml (spec 05) for the simulation.</summary>
+public sealed class RobotDefinition
+{
+    public required string Name { get; init; }
+    public required string DisplayName { get; init; }
+    public required double MassKg { get; init; }
+    public required Vector3 CenterOfMass { get; init; }
+
+    /// <summary>Principal moments (Ixx, Iyy = yaw, Izz) about the centre of mass, kg·m².</summary>
+    public required Vector3 Inertia { get; init; }
+
+    public required string DrivetrainType { get; init; }
+    public required double WheelRadius { get; init; }
+    public required double DriveGearing { get; init; }
+    public required double WheelMassKg { get; init; }
+    public required IReadOnlyList<WheelDef> Wheels { get; init; }
+    public required IReadOnlyList<DeviceDef> Devices { get; init; }
+    public required string BatteryModel { get; init; }
+
+    public DeviceDef Device(string name) =>
+        Devices.FirstOrDefault(d => d.Name == name) ?? throw new RobotConfigException($"{Name}: no device '{name}'");
+
+    public static RobotDefinition Load(string path)
+    {
+        var root = new DeserializerBuilder().Build().Deserialize<Dictionary<object, object>>(File.ReadAllText(path))
+            ?? throw new RobotConfigException($"{path} is empty");
+        var mass = Map(root, "mass");
+        var drive = Map(root, "drivetrain");
+        var wheels = ((List<object>)drive["wheels"]).Select(o =>
+        {
+            var w = (Dictionary<object, object>)o;
+            return new WheelDef(Str(w, "id"), Str(w, "motor"), Vec(w["position"]), Str(w, "slant"), (int)Num(w["drive_sign"]));
+        }).ToList();
+        var devices = ((List<object>)root["devices"]).Select(o =>
+        {
+            var d = (Dictionary<object, object>)o;
+            return new DeviceDef(
+                Str(d, "name"), Str(d, "type"), Str(d, "sdk_class"),
+                d.TryGetValue("model", out var model) ? model.ToString() : null,
+                Str(d, "hub"),
+                d.TryGetValue("port", out var port) ? (int)Num(port) : null,
+                d.TryGetValue("drives", out var drives) ? drives.ToString() : null,
+                d.TryGetValue("direction", out var dir) ? dir.ToString()! : "FORWARD",
+                d.TryGetValue("zero_power", out var zp) ? zp.ToString()! : "FLOAT",
+                d.TryGetValue("run_mode", out var rm) ? rm.ToString() : null,
+                d.TryGetValue("pidf", out var pidf) ? ((List<object>)pidf).Select(Num).ToArray() : null,
+                d.TryGetValue("speed_ratio", out var ratio) ? Num(ratio) : 1.0);
+        }).ToList();
+        return new RobotDefinition
+        {
+            Name = Str(root, "name"),
+            DisplayName = Str(root, "display_name"),
+            MassKg = Q(mass, "total"),
+            CenterOfMass = Vec(QRaw(mass, "center_of_mass")),
+            Inertia = Vec(QRaw(mass, "inertia_diagonal")),
+            DrivetrainType = Str(drive, "type"),
+            WheelRadius = Q(drive, "wheel_radius"),
+            DriveGearing = Q(drive, "drive_gearing"),
+            WheelMassKg = Q(drive, "wheel_mass"),
+            Wheels = wheels,
+            Devices = devices,
+            BatteryModel = QRaw(Map(root, "battery"), "model").ToString()!,
+        };
+    }
+
+    public static string FindConfig(string name)
+    {
+        for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
+        {
+            var candidate = Path.Combine(dir.FullName, "config", "robots", $"{name}.yaml");
+            if (File.Exists(candidate))
+            {
+                return candidate;
+            }
+        }
+        throw new RobotConfigException($"config/robots/{name}.yaml not found above {AppContext.BaseDirectory}");
+    }
+
+    private static Dictionary<object, object> Map(Dictionary<object, object> m, string key) =>
+        m.TryGetValue(key, out var v) && v is Dictionary<object, object> d ? d : throw new RobotConfigException($"missing section '{key}'");
+
+    private static string Str(Dictionary<object, object> m, string key) =>
+        m.TryGetValue(key, out var v) ? v.ToString()! : throw new RobotConfigException($"missing '{key}'");
+
+    private static object QRaw(Dictionary<object, object> m, string key)
+    {
+        var q = Map(m, key);
+        if (!q.ContainsKey("source"))
+        {
+            throw new RobotConfigException($"'{key}' has no source");
+        }
+        return q["value"];
+    }
+
+    private static double Q(Dictionary<object, object> m, string key) => Num(QRaw(m, key));
+
+    private static double Num(object raw) => double.Parse(raw.ToString()!, NumberStyles.Float, CultureInfo.InvariantCulture);
+
+    private static Vector3 Vec(object raw)
+    {
+        var v = ((List<object>)raw).Select(Num).ToArray();
+        return new Vector3((float)v[0], (float)v[1], (float)v[2]);
+    }
+}

@@ -129,6 +129,17 @@ def bbox_world(props: MassProps, world: np.ndarray) -> tuple[list[float], list[f
     return pts.min(0).round(6).tolist(), pts.max(0).round(6).tolist()
 
 
+def hull_proxy(mesh: Mesh) -> Mesh:
+    """Convex hull of a part's vertices, smooth-shaded below 35 degrees between faces."""
+    hull = trimesh.convex.convex_hull(mesh.vertices.astype(np.float64))
+    shaded = trimesh.graph.smooth_shade(hull, angle=np.radians(35), facet_minarea=None)
+    return Mesh(
+        shaded.vertices.astype(np.float32),
+        shaded.vertex_normals.astype(np.float32),
+        shaded.faces.astype(np.int32),
+    )
+
+
 class Pipeline:
     def __init__(self, config_path: Path, out_root: Path = REPO_ROOT, source_root: Path = REPO_ROOT):
         """out_root: where generated/ and godot/generated/ are written (tests use a temp dir)."""
@@ -149,6 +160,8 @@ class Pipeline:
         coll_cfg.pop("default", None)
         self.settings = coll.ColliderSettings(**coll_cfg)
         self.drop = [re.compile(p) for p in self.cfg.get("drop", [])]
+        self._proxy_cache: dict[str, Mesh] = {}
+        self._surfaces: dict[str, tuple[str, tuple[float, float, float] | None]] = {}
         self.timings: dict[str, float] = {}
 
     # ---------------------------------------------------------------- reading
@@ -196,7 +209,8 @@ class Pipeline:
     def _assign_groups(self) -> None:
         groups = self.cfg.get("groups", [])
         self.group_cfg = {g["name"]: g for g in groups}
-        self.group_cfg.setdefault("static", {"name": "static", "kind": "static"})
+        default = self.cfg.get("default_group", {"name": "static", "kind": "static"})
+        self.group_cfg.setdefault(default["name"], default)
         compiled = [
             (
                 g,
@@ -207,6 +221,7 @@ class Pipeline:
             for g in groups
         ]
         for inst in self.instances:
+            inst.group = default["name"]
             for g, part_re, path_re, excl in compiled:
                 if excl and excl.search(inst.name):
                     continue
@@ -264,6 +279,25 @@ class Pipeline:
                     path, v=meshes[key].vertices, n=meshes[key].normals, t=meshes[key].triangles
                 )
         return meshes
+
+    def _render_mesh(self, inst: Instance, mesh: Mesh) -> Mesh:
+        """Render mesh of a part: a smooth convex-hull proxy when a `render_proxies` rule matches its name
+        or it exceeds `max_part_triangles` (fine CAD detail such as gear teeth or tyre tread that is
+        invisible at our quality target, D-007). Colliders always use the full mesh."""
+        cfg = self.cfg.get("render_proxies", {})
+        limit = cfg.get("max_part_triangles")
+        by_rule = any(
+            re.search(r["regex"], inst.name) for r in cfg.get("rules", []) if r.get("mode") == "hull"
+        )
+        if not by_rule and not (limit and mesh.triangle_count > limit):
+            return mesh
+        key = f"{self._mesh_key(inst)}_hull"
+        if key not in self._proxy_cache:
+            self._proxy_cache[key] = hull_proxy(mesh)
+        proxy = self._proxy_cache[key]
+        before, after = self.proxied.get(inst.name, (0, 0))
+        self.proxied[inst.name] = (before + mesh.triangle_count, after + proxy.triangle_count)
+        return proxy
 
     def _fit_colliders(self, kept: list[Instance], meshes: dict[str, Mesh]) -> dict[str, list[dict]]:
         """Collider shapes per collider key; misses are computed in parallel worker processes."""
@@ -340,8 +374,9 @@ class Pipeline:
         self.element_meshes: dict[str, tuple[Mesh, str, list[dict]]] = {}
         self.element_instances: dict[str, list[Instance]] = collections.defaultdict(list)
         self.part_triangles: dict[str, int] = {}
+        self.proxied: dict[str, tuple[int, int]] = {}
         for inst in kept:
-            mesh = meshes[self._mesh_key(inst)]
+            mesh = self._render_mesh(inst, meshes[self._mesh_key(inst)])
             ckey = self.inst_collider_key[inst.id]
             shapes = collider_shapes[ckey] if ckey else []
             self.part_triangles[inst.id] = mesh.triangle_count
@@ -359,7 +394,7 @@ class Pipeline:
                     )
                 self.element_instances[inst.group].append(inst)
             else:
-                self.group_meshes[inst.group][inst.material].append(mesh.transformed(inst.world))
+                self.group_meshes[inst.group][self._surface(inst)].append(mesh.transformed(inst.world))
                 self.group_colliders[inst.group] += coll.place(shapes, inst.world)
         for name, g in self.group_cfg.items():
             if g.get("collider") == "floor":
@@ -390,6 +425,17 @@ class Pipeline:
             doubleSided=alpha < 1.0,
         )
 
+    def _surface(self, inst: Instance) -> str:
+        """Merge key of a part's render surface: the material, plus the CAD colour when the material takes
+        its albedo from the CAD (otherwise red and blue tape would merge into one colour)."""
+        m = self.materials_cfg["materials"].get(inst.material, self.materials_cfg["materials"]["unknown"])
+        if m["albedo"] != "cad" or inst.color is None:
+            key = inst.material
+        else:
+            key = f"{inst.material}__{inst.color[0]:.3f}_{inst.color[1]:.3f}_{inst.color[2]:.3f}"
+        self._surfaces[key] = (inst.material, inst.color)
+        return key
+
     def _material_color(self, group: str, material: str):
         for inst in self.instances:
             if inst.group == group and inst.material == material and not inst.dropped:
@@ -405,16 +451,15 @@ class Pipeline:
         for group, by_material in sorted(self.group_meshes.items()):
             scene = trimesh.Scene()
             tris = 0
-            for material, meshes in sorted(by_material.items()):
+            for surface, meshes in sorted(by_material.items()):
+                material, color = self._surfaces[surface]
                 merged = Mesh.concat(meshes)
                 tris += merged.triangle_count
                 tm = trimesh.Trimesh(
                     merged.vertices, merged.triangles, vertex_normals=merged.normals, process=False
                 )
-                tm.visual = trimesh.visual.TextureVisuals(
-                    material=self._material(material, self._material_color(group, material))
-                )
-                scene.add_geometry(tm, geom_name=f"{group}_{material}", node_name=f"{group}_{material}")
+                tm.visual = trimesh.visual.TextureVisuals(material=self._material(material, color))
+                scene.add_geometry(tm, geom_name=f"{group}_{surface}", node_name=f"{group}_{surface}")
             self._write_glb(scene, self.godot_out / f"{group}.glb")
             self.triangle_totals[group] = tris
             self._write_json(self.godot_out / f"{group}.colliders.json", self.group_colliders.get(group, []))
@@ -622,6 +667,17 @@ class Pipeline:
         for i in kept:
             tri_by_name[i.name] += self.part_triangles.get(i.id, 0)
         lines += [f"| {n} | {t:,} |" for n, t in tri_by_name.most_common(12)]
+        if self.proxied:
+            lines += [
+                "",
+                "## Render proxies (convex hulls; colliders use the full mesh)",
+                "| Part | Triangles before | after |",
+                "|---|---|---|",
+            ]
+            lines += [
+                f"| {n} | {b:,} | {a:,} |"
+                for n, (b, a) in sorted(self.proxied.items(), key=lambda kv: -kv[1][0])
+            ]
         lines += ["", "## Materials", "| Material | Parts |", "|---|---|"]
         lines += [f"| {m} | {c} |" for m, c in collections.Counter(i.material for i in kept).most_common()]
         lines += [

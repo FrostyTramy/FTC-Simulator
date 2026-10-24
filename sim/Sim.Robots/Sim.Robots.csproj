@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Robot definitions (config/robots/*.yaml) and drivetrain force models (spec 04 Drivetrains, spec 05).
+       Godot-independent: the Godot robot applies the forces computed here to its chassis body. -->
+  <ItemGroup>
+    <PackageReference Include="YamlDotNet" Version="18.1.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Sim.Hardware\Sim.Hardware.csproj" />
+  </ItemGroup>
+</Project>

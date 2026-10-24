@@ -149,7 +149,8 @@ drivetrain:
   model_default: {value: force, unit: label, source: "specs/04 Drivetrains (force model default)"}
   mecanum_roller_angle: {value: 45.0, unit: deg, source: "standard mecanum roller angle; goBILDA GripForce mecanum (11 rollers)"}
   mecanum_lateral_efficiency: {value: 0.85, unit: "1", source: "ASSUMED (roller friction losses make strafing slower; calibrate strafe ratio)"}
-  roller_rolling_friction: {value: 0.02, unit: "1", source: "ASSUMED (roller bearing/deformation loss along the free axis)"}
+  roller_rolling_friction: {value: 0.17, unit: "1", source: "ASSUMED: rolling loss of the free rollers (40A silicone on foam), chosen so the drivetrain benchmark gives the strafe/forward speed ratio mecanum_lateral_efficiency = 0.85; calibrate in Phase 11"}
+  full_slip_speed: {value: 0.05, unit: m/s, source: "ASSUMED: wheel slip speed at which full sliding friction acts (linear friction below; numerically stable at 240 Hz with 8 substeps)"}
   tire_peak_slip_ratio: {value: 0.12, unit: "1", source: "ASSUMED (tire-like friction curve peak)"}
   tire_slip_stiffness: {value: 12.0, unit: "1/slip (×μN)", source: "ASSUMED (force = min(μN, k·slip·μN) shape factor)"}
   weight_transfer: {value: true, unit: bool, source: "specs/04 Drivetrains"}

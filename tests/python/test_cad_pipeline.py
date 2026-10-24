@@ -39,6 +39,9 @@ def make_assembly(step_path: Path) -> None:
     assy.add(bracket, name="Angle Bracket", loc=cq.Location((500, 500, 0)))
     assy.add(ring, name="Flower Layer Ring", loc=cq.Location((-500, 0, 0)))
     assy.add(screw, name="Hex screw", loc=cq.Location((0, 0, 200)))
+    tape = cq.Workplane("XY").box(300, 25, 0.3)
+    assy.add(tape, name="Gaffer Tape Red", loc=cq.Location((0, 700, 0)), color=cq.Color(1, 0, 0))
+    assy.add(tape, name="Gaffer Tape Blue", loc=cq.Location((0, 800, 0)), color=cq.Color(0, 0, 1))
     assy.export(str(step_path))
 
 
@@ -190,3 +193,17 @@ def test_z_up_source_is_rotated_to_y_up(fixture_dir: Path) -> None:
     plate = manifest_parts(pipeline)["Box Plate A"][0]
     # The 200 mm side lies along CAD Z; with Z as the up axis it becomes Godot Y.
     assert extents(plate)[1] == pytest.approx(0.2, abs=1e-4)
+
+
+def test_cad_coloured_parts_keep_their_own_colours(result) -> None:
+    """Parts whose material takes the CAD colour (tape) must not merge into one colour."""
+    import pygltflib
+
+    pipeline, _ = result
+    glb = pygltflib.GLTF2().load(str(pipeline.godot_out / "static.glb"))
+    colours = {
+        tuple(round(c, 3) for c in m.pbrMetallicRoughness.baseColorFactor[:3])
+        for m in glb.materials
+        if m.name == "tape_cad_color"
+    }
+    assert {(1.0, 0.0, 0.0), (0.0, 0.0, 1.0)} <= colours

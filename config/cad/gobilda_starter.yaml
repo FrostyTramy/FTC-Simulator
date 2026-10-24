@@ -10,7 +10,26 @@ drop:
   - "(?i)\\(dont have\\)"
   - "(?i)^shim$|^ir$|^or$"                          # bearing shims and races (hidden)
 
-groups: []          # mechanisms are defined in config/robots/gobilda_starter.yaml (Phase 5)
+# Moving parts become separate bodies (joints and drives: config/robots/gobilda_starter.yaml).
+# Wheel ↔ CAD assembly mapping from the robot YAML (drivetrain.wheels[].cad_assembly).
+default_group: {name: chassis, kind: rigid}
+groups:
+  - {name: wheel_fl, kind: rigid, path_regex: "/3625-0100-0104#0(/|$)"}
+  - {name: wheel_fr, kind: rigid, path_regex: "/3625-0001-0104#0(/|$)"}
+  - {name: wheel_bl, kind: rigid, path_regex: "/3625-0001-0104#1(/|$)"}
+  - {name: wheel_br, kind: rigid, path_regex: "/3625-0100-0104#1(/|$)"}
+  - {name: intake_roller, kind: rigid, path_regex: '/3613-4008-0048#\d+$|/2106-4008-2400#0$'}
+  - {name: sweeper_left, kind: rigid, path_regex: "/3613-0014-0072#1$"}
+  - {name: sweeper_right, kind: rigid, path_regex: "/3613-0014-0072#0$"}
+  - {name: windmill, kind: rigid, path_regex: '/1117-0040-0352 \(3200-2627-0004_A\)#[0-3]$'}
+  - {name: flywheel, kind: rigid, path_regex: "/3626-0014-0096#0$|/1310-0016-4008#0$"}
+
+# Fine CAD detail (tyre tread, gear teeth, servo-block pockets) rendered as smooth convex hulls (D-007);
+# colliders still use the full geometry.
+render_proxies:
+  max_part_triangles: 4000
+  rules:
+    - {regex: "(?i)^(rollertire|rollercore|pin)$", mode: hull}
 
 tessellation:
   default: {linear: 0.0006, angular: 0.5}
@@ -19,6 +38,10 @@ tessellation:
   coarse: {linear: 0.0012, angular: 0.6}
 
 colliders:
+  default: hull
+  rules:
+    - {regex: "(?i)^1117-|^1116-|gridplate", mode: box}               # flat polycarbonate gridplates (hopper walls)
+    - {regex: '(?i)1117-0088-0352 \(3200-2627-0004_G\)', mode: coacd, threshold: 0.04, max_hulls: 8}   # curved hood (STEP 48)
   max_fit_error: 0.12
   convex_ratio: 0.92
   coacd_max_hulls: 8
