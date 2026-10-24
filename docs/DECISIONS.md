@@ -41,3 +41,33 @@ Why we chose X over Y. Newest last. Format: ID, date, decision, why, alternative
   matters (game elements, Hives, robot). The 60 fps High target (Phase 12) needs a test on an
   RTX 3060-class PC later.
 - **Why:** no discrete GPU is available; user asked for this.
+
+## D-008 — Manual text is generated, not committed (2026-10-24)
+- **Decision:** `docs/manual_text/` (spec 13 Phase 1) is produced by `tools/manual/extract.py`
+  and git-ignored. Rendered pages go to `generated/manual_pages/`.
+- **Why:** it is the full third-party manual; keeps the repo publishable (D-001). Regenerates in
+  seconds. User delegated the choice.
+
+## D-009 — Numbers are verified against page images (2026-10-24)
+- **Decision:** the manual's text layer drops some glyphs (digit 3, letters R/S in places), so
+  `extract.py` flags suspicious lines and every number in `game_rules.md` was read from the
+  rendered page. AprilTag IDs are decoded from the printable PDFs with `pupil-apriltags`.
+- **Alternatives:** OCR (extra dependency, still needs checking), trusting the text (wrong).
+
+## D-010 — Ranking-point thresholds default to "All Other Events" (2026-10-24)
+- **Decision:** SWARM 16 points, POLLINATOR 4 and 7 TIPS; Regional/Championship values are
+  "TBA" in TU06 and selectable once published.
+
+## D-011 — HIVE tipping is physical (2026-10-24)
+- **Decision:** the manual defines no element count for a TIP (§9.6 p69: bi-stable, tips when
+  enough elements are launched). The HIVE is simulated as a pivot with real masses and dampers;
+  the TIP event (§10.5.1) only drives scoring and NECTAR unlocks.
+
+## D-012 — Python environment pinned to cadquery's OCP (2026-10-24)
+- **Decision:** `cadquery==2.8.0` requires `cadquery-ocp==7.9.3.1.1` (not the newest 8.0), so the
+  pin follows cadquery. The project `.venv` was created by the assistant (user delegated).
+
+## D-013 — Work continues across phases without per-phase approval stops (2026-10-24)
+- **Decision:** at the user's request ("finish your whole job ... only if needed max priority then
+  stop and ask me"), phases proceed back to back; review STOPs in spec 13 (Phase 1, 3, 5) are
+  replaced by documented self-review, with all ASSUMED values listed for later review.

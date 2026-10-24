@@ -1,0 +1,174 @@
+# BIOBUZZ rule numbers for the simulator. Human-readable version: docs/game_rules.md.
+# Every number is a quantity {value, unit, source}. source = manual section/page, figure, table or
+# rule; "SIM" marks our own interpretation (listed in docs/game_rules.md §13), "ASSUMED" a guess.
+# Validated by config/schemas/rules_biobuzz.schema.json (tests/python/test_rules_config.py).
+
+manual: {document: BIOBUZZ_Competition_Manual_TU06.pdf, version: TU06, date: "2026-10-22"}
+
+field:
+  size: {value: 144, unit: in, source: "§9.2 p64"}
+  cad_tolerance: {value: 1, unit: in, source: "§9.1 p63"}
+  tile_size: {value: 24, unit: in, source: "§9.2 p64"}
+  tile_thickness: {value: 0.59, unit: in, source: "§9.2 p64"}
+  tile_count: {value: 36, unit: count, source: "§9.2 p64"}
+  tile_columns: {value: [A, B, C, D, E, F], unit: label, source: "Fig 9-5 p67"}
+  tile_rows: {value: [1, 2, 3, 4, 5, 6], unit: label, source: "Fig 9-5 p67"}
+  red_side_columns: {value: [A, B, C], unit: label, source: "G304.A p104"}
+  blue_side_columns: {value: [D, E, F], unit: label, source: "G304.A p104"}
+  tape_width: {value: 1, unit: in, source: "§9.3 p65 (1 or 2 in; field CAD uses 1 in)"}
+
+zones:
+  alliance_area: {value: [97, 54], unit: in, source: "§9.3 p65 (width, depth)"}
+  loading_zone: {value: [23, 11], unit: in, source: "§9.3 p65 (width, depth)"}
+  loading_zone_tile: {value: {red: A5, blue: F2}, unit: label, source: "Fig 9-2 p65, Fig 9-5 p67"}
+  garden: {value: [23, 2], unit: in, source: "§9.3 p66 (length, width)"}
+  garden_tile: {value: {red: A1, blue: F6}, unit: label, source: "Fig 9-2 p65, Fig 9-5 p67"}
+
+hive:
+  frame_width: {value: 49.46, unit: in, source: "§9.6.1 p69"}
+  frame_depth: {value: 38.95, unit: in, source: "§9.6.1 p69"}
+  pivot_height: {value: 43.95, unit: in, source: "§9.6.1 p69"}
+  cell_spacing: {value: 18.8, unit: in, source: "§9.6.2 p70"}
+  cell_opening: {value: [20, 14, 12], unit: in, source: "§9.6.2 p70 (wide, tall, deep)"}
+  tip_count_threshold: {value: null, unit: count, source: "§9.6 p69: none, tipping is physical"}
+  initial_up_cell: {value: {red: audience, blue: rear}, unit: label, source: "§10.3.1 p83 Fig 10-2"}
+
+flower:
+  count: {value: 4, unit: count, source: "§9.2 p64"}
+  top_opening_diameter: {value: 4, unit: in, source: "§9.7 p72"}
+  top_opening_height: {value: 21.5, unit: in, source: "§9.7 p72"}
+  backstop_height: {value: 1.25, unit: in, source: "§9.7 p72"}
+  retrieval_opening: {value: [3.55, 3.57], unit: in, source: "§9.7 p72 (tall, deep)"}
+  lower_ring_height: {value: 0.4, unit: in, source: "§9.7 p72"}
+  lower_ring_hole_diameter: {value: 2.79, unit: in, source: "§9.7 p72"}
+
+elements:
+  pollen_diameter: {value: 2.8, unit: in, source: "§9.8 p74"}
+  pollen_count: {value: 40, unit: count, source: "§9.8 p74"}
+  nectar_diameter: {value: 3.6, unit: in, source: "§9.8 p74"}
+  nectar_count_per_alliance: {value: 8, unit: count, source: "§9.8 p74"}
+
+apriltags:
+  family: {value: tag36h11, unit: label, source: "§9.9 p74"}
+  size: {value: 3.25, unit: in, source: "§9.9 p74"}
+  ids:
+    value:
+      red_rear: [30, 31, 32, 33]
+      red_audience: [34, 35, 36, 37]
+      blue_audience: [38, 39, 40, 41]
+      blue_rear: [42, 43, 44, 45]
+    unit: id
+    source: "§9.9 p76; decoded from PrintableAprilTag_A4.pdf (tools/manual/apriltag_ids.py)"
+
+setup:
+  pollen_per_flower: {value: 4, unit: count, source: "§10.3.1 A.i p83"}
+  pollen_per_garden: {value: 4, unit: count, source: "§10.3.1 A.ii-iii p83"}
+  pollen_preload_per_robot: {value: 4, unit: count, source: "§10.3.1 A.iv p83, G304.G p104"}
+  nectar_in_up_cell: {value: 3, unit: count, source: "§10.3.1 B.i p84"}
+  nectar_in_alliance_area: {value: 5, unit: count, source: "§10.3.1 B.ii p84"}
+  robots_per_alliance: {value: 2, unit: count, source: "§8 p62"}
+
+timing:
+  auto: {value: 30, unit: s, source: "§10.4 p85"}
+  transition: {value: 8, unit: s, source: "§10.4 p85"}
+  teleop: {value: 120, unit: s, source: "§10.4 p85"}
+  flower_scoring_unlock_remaining: {value: 60, unit: s, source: "G410 p109, Table 9-1 p79"}
+  nectar_all_entry_remaining: {value: 60, unit: s, source: "G426.B p116"}
+  final_warning_remaining: {value: 20, unit: s, source: "Table 9-1 p79"}
+  audio_cues:
+    value:
+      - {event: match_start, timer: "2:30", cue: "This MATCH begins in 3, 2, 1, GO / Cavalry Charge"}
+      - {event: auto_end, timer: "2:00", cue: "Buzzer x 3"}
+      - {event: transition_countdown, timer: "0:08-0:01", cue: "Drivers, pick up your controllers, 3-2-1"}
+      - {event: teleop_start, timer: "2:00", cue: "3 Bells"}
+      - {event: flower_unlock, timer: "1:00", cue: "Chime"}
+      - {event: final_20, timer: "0:20", cue: "Train Whistle"}
+      - {event: match_end, timer: "0:00", cue: "3-second Buzzer"}
+      - {event: match_stopped, timer: "N/A", cue: "Foghorn"}
+    unit: label
+    source: "Table 9-1 p79 (text layer damaged, read from page image)"
+
+scoring:
+  leave_auto: {value: 3, unit: points, source: "Table 10-2 p91"}
+  park_auto: {value: 5, unit: points, source: "Table 10-2 p91"}
+  park_teleop: {value: 5, unit: points, source: "Table 10-2 p91"}
+  hive_tip_auto: {value: 20, unit: points, source: "Table 10-2 p91"}
+  hive_tip_teleop: {value: 20, unit: points, source: "Table 10-2 p91"}
+  cell_element_end: {value: 2, unit: points, source: "Table 10-2 p91, §10.5.1 p87"}
+  bottom_nectar_bonus: {value: 5, unit: points, source: "Table 10-2 p91, §10.5.2 p88"}
+  owned_flower_element: {value: 2, unit: points, source: "Table 10-2 p91, §10.5.2 p88"}
+  garden_element: {value: 1, unit: points, source: "Table 10-2 p91, §10.5.3 p89"}
+  nectar_unlocked_per_tip: {value: 1, unit: count, source: "§10.1 p81, G426.A p116"}
+
+ranking:
+  event_type_default: {value: other, unit: label, source: "SIM (D-010)"}
+  swarm_threshold_points: {value: {other: 16, regional: TBA, championship: TBA}, unit: points, source: "Table 10-3 p91"}
+  pollinator1_threshold_tips: {value: {other: 4, regional: TBA, championship: TBA}, unit: count, source: "Table 10-3 p91"}
+  pollinator2_threshold_tips: {value: {other: 7, regional: TBA, championship: TBA}, unit: count, source: "Table 10-3 p91"}
+  swarm_rp: {value: 1, unit: rp, source: "Table 10-2 p91"}
+  pollinator1_rp: {value: 1, unit: rp, source: "Table 10-2 p91"}
+  pollinator2_rp: {value: 1, unit: rp, source: "Table 10-2 p91"}
+  win_rp: {value: 3, unit: rp, source: "Table 10-2 p91"}
+  tie_rp: {value: 1, unit: rp, source: "Table 10-2 p91"}
+
+penalties:
+  minor_foul: {value: 5, unit: points, source: "Table 10-4 p92"}
+  major_foul: {value: 20, unit: points, source: "Table 10-4 p92"}
+  momentary_max: {value: 3, unit: s, source: "§10.6 p92"}
+  continuous_min: {value: 10, unit: s, source: "§10.6 p92"}
+  repeat_interval_major: {value: 3, unit: s, source: "Table 10-6 p95"}
+
+fouls:
+  - {rule: G304, penalty: no_start, sim: auto, source: "G304 p104"}
+  - {rule: G401, penalty: verbal, strategic: major_yellow, sim: auto, source: "G401 p106"}
+  - {rule: G402, penalty: major_per_match, strategic: major_yellow, sim: auto, source: "G402 p106"}
+  - {rule: G403, penalty: verbal, strategic: major_yellow, sim: auto, source: "G403 p106"}
+  - {rule: G404, penalty: verbal, strategic: major_yellow, sim: auto, source: "G404 p107"}
+  - {rule: G405, penalty: major_per_element, sim: review, source: "G405 p107"}
+  - rule: G407
+    penalty: verbal
+    strategic: major_yellow
+    sim: auto
+    max_controlled: {value: 4, unit: count, source: "G407 p108"}
+    likely_strategic_count: {value: 6, unit: count, source: "G407.A p108"}
+    source: "G407 p108"
+  - {rule: G408, penalty: verbal, strategic: yellow, sim: auto, source: "G408 p108"}
+  - {rule: G409, penalty: verbal, strategic: yellow, sim: review, source: "G409 p109"}
+  - {rule: G410, penalty: major_per_element, sim: auto, source: "G410 p109"}
+  - {rule: G412, penalty: disabled_verbal, sim: review, source: "G412 p110"}
+  - {rule: G415, penalty: verbal, strategic: yellow, sim: review, source: "G415 p110"}
+  - {rule: G416, penalty: verbal, strategic: major, sim: auto, source: "G416 p111"}
+  - {rule: G417, penalty: verbal, strategic: major_yellow, sim: review, source: "G417 p111"}
+  - {rule: G418, penalty: verbal, strategic: major_yellow, sim: review, source: "G418 p112"}
+  - {rule: G420, penalty: verbal, strategic: major_yellow, sim: review, source: "G420 p113"}
+  - rule: G421
+    penalty: major_plus_major_every_3s
+    sim: auto
+    max_pin: {value: 3, unit: s, source: "G421 p114"}
+    separation: {value: 24, unit: in, source: "G421.A p114 (2 ft)"}
+    separation_time: {value: 3, unit: s, source: "G421.A-B p114"}
+    source: "G421 p114"
+  - {rule: G426, penalty: minor_per_element, sim: auto, source: "G426 p116"}
+  - {rule: G427, penalty: minor_per_element, sim: auto, source: "G427 p117"}
+  - {rule: G428, penalty: minor_per_element, sim: auto, source: "G428 p117"}
+
+robot_limits:
+  start_cube: {value: [18, 18, 18], unit: in, source: "R102 p121"}
+  expansion: {value: [18, 24, 29], unit: in, source: "R105.A p122 (footprint, footprint, height)"}
+  max_motors: {value: 8, unit: count, source: "R503 p133"}
+  max_servos: {value: 8, unit: count, source: "R503 p133"}
+  servo_max_power: {value: 8, unit: W, source: "Table 12-2 p132 (@6 V)"}
+  servo_max_stall_current: {value: 4, unit: A, source: "Table 12-2 p132 (@6 V, read from page image)"}
+  linear_servo_max_stall_current: {value: 1, unit: A, source: "Table 12-2 p132 (@6 V)"}
+  hub_servo_voltage: {value: 5, unit: V, source: "R502 note p132"}
+  servo_module_voltage: {value: 6, unit: V, source: "R502 note p132"}
+  main_batteries: {value: 1, unit: count, source: "R601 p134"}
+  battery_nominal_voltage: {value: 12, unit: V, source: "R601 p134"}
+  main_fuse: {value: 20, unit: A, source: "R601.A p134"}
+  legal_batteries: {value: [am-5290, 3100-0012-0020], unit: part, source: "Table 12-4 p134"}
+  legal_motor_families:
+    value: [am-3104, am-3104b, am-3104c, "5201", "5202", "5203", "5204", "5000-0002", 5000-0002-0001,
+            NFR-600-100-000, REV-41-1291, REV-41-1300, "75001", SR-MOTOR-DC-01, "739530", "39530",
+            W44260, WDM12]
+    unit: part
+    source: "Table 12-1 p131"

@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "BIOBUZZ rules configuration",
+  "type": "object",
+  "required": ["manual", "field", "zones", "hive", "flower", "elements", "apriltags", "setup",
+               "timing", "scoring", "ranking", "penalties", "fouls", "robot_limits"],
+  "additionalProperties": false,
+  "$defs": {
+    "source": {"type": "string", "minLength": 3},
+    "quantity": {
+      "type": "object",
+      "required": ["value", "unit", "source"],
+      "additionalProperties": false,
+      "properties": {
+        "value": {},
+        "unit": {"type": "string", "minLength": 1},
+        "source": {"$ref": "#/$defs/source"}
+      }
+    },
+    "section": {"type": "object", "minProperties": 1, "additionalProperties": {"$ref": "#/$defs/quantity"}},
+    "foul": {
+      "type": "object",
+      "required": ["rule", "penalty", "sim", "source"],
+      "properties": {
+        "rule": {"type": "string", "pattern": "^G[0-9]{3}$"},
+        "penalty": {"type": "string"},
+        "strategic": {"type": "string"},
+        "sim": {"enum": ["auto", "review", "no"]},
+        "source": {"$ref": "#/$defs/source"}
+      },
+      "additionalProperties": {"$ref": "#/$defs/quantity"}
+    }
+  },
+  "properties": {
+    "manual": {
+      "type": "object",
+      "required": ["document", "version"],
+      "properties": {"document": {"type": "string"}, "version": {"type": "string"}, "date": {"type": "string"}}
+    },
+    "field": {"$ref": "#/$defs/section"},
+    "zones": {"$ref": "#/$defs/section"},
+    "hive": {"$ref": "#/$defs/section"},
+    "flower": {"$ref": "#/$defs/section"},
+    "elements": {"$ref": "#/$defs/section"},
+    "apriltags": {"$ref": "#/$defs/section"},
+    "setup": {"$ref": "#/$defs/section"},
+    "timing": {"$ref": "#/$defs/section"},
+    "scoring": {"$ref": "#/$defs/section"},
+    "ranking": {"$ref": "#/$defs/section"},
+    "penalties": {"$ref": "#/$defs/section"},
+    "robot_limits": {"$ref": "#/$defs/section"},
+    "fouls": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/foul"}}
+  }
+}

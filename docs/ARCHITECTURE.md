@@ -23,5 +23,11 @@ workspace/         user code projects, git-ignored
     and reads the length unit of each geometric context.
   - `inventory.py`: SHA-256 + zip members for every root resource, compares against
     `resources_manifest.json`, writes `generated/inventory/inventory.json`.
+- **Manual tools** (`tools/manual/`)
+  - `extract.py`: page text → `docs/manual_text/`, rendered pages → `generated/manual_pages/`,
+    lines with lost glyphs → `generated/manual_text_suspects.txt`.
+  - `apriltag_ids.py`: decodes the 36h11 tags in the printable sticker PDFs.
+- **Rules config** (`config/rules_biobuzz.yaml`, schema in `config/schemas/`): every number is a
+  `{value, unit, source}` quantity; the game code reads rules only from here.
 - **Tool discovery** (`scripts/lib/tools.ps1`): finds Godot .NET, JDK 17 and Python without
   trusting PATH `java`; native calls that may hang go through `Invoke-WithTimeout`.

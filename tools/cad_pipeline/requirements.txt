@@ -1,7 +1,7 @@
 # Project Python environment (.venv), Python 3.13 x64. Pinned for reproducible pipeline output.
 # Install: see docs/SETUP.md
 cadquery==2.8.0
-cadquery-ocp==8.0.1.1.0
+cadquery-ocp==7.9.3.1.1
 trimesh==5.2.0
 pygltflib==1.16.5
 coacd==1.0.14
@@ -9,6 +9,7 @@ numpy==2.4.2
 PyYAML==6.0.3
 jsonschema==4.26.0
 PyMuPDF==1.27.2.3
+pupil-apriltags==1.0.4.post11
 
 # Dev
 pytest==8.3.3

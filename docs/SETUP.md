@@ -9,7 +9,7 @@ something required is missing.
 | Godot .NET | 4.7.2 stable (mono) | in `Godot_v4.7.2-stable_mono_win64/` ⚠️ see "Godot does not start" |
 | .NET SDK | 8 or newer (10 LTS installed) | 10.0.402 ✅ |
 | JDK | 17 (javac) | Oracle 17.0.12 in `C:\Program Files\Java\jdk-17` ✅ |
-| Python | 3.11+ x64 (3.13 used) | 3.13.14 ✅, project `.venv` ❌ not created yet |
+| Python | 3.11+ x64 (3.13 used) | 3.13.14 ✅, project `.venv` ✅ |
 | Node | 18+ (only for the Godot MCP server) | 24.15.0 ✅ |
 
 ## 1. Python environment (needed from Phase 1)
@@ -31,6 +31,7 @@ The scripts use `.venv` automatically once it exists.
 On 2026-10-24 `--version` answered once, then every launch of both the .NET and the standard
 build stayed stuck at process start (1 thread, 2 MB, never loads its DLLs), also outside the
 assistant's sandbox. Windows Defender real-time protection is off and Smart App Control is off.
+Symantec Endpoint Protection is installed and active and is the likely cause (Q-001).
 Please try: double-click `Godot_v4.7.2-stable_mono_win64.exe` and see whether it opens or a
 dialog appears; if it hangs, reboot and try again.
 

@@ -1,22 +1,28 @@
 # Status
 
-**Current phase:** 0 — Inventory and setup (built, waiting for review).
-**Next phase:** 1 — Rules (starts when the user says "start phase 1").
+**Current phase:** 1 — Rules (done, self-reviewed per D-013).
+**Next phase:** 2 — CAD pipeline. **Blocked for the Godot part by Q-001** (Godot cannot start).
 
 ## Phase 0 acceptance
 | Criterion | State |
 |---|---|
-| `docs/RESOURCES.md` complete | ✅ all 14 resource files, incl. the 7 field documents added 2026-10-24 |
-| Tools OK | ⚠️ Git, .NET SDK 10, JDK 17, Python 3.13, Node OK. Missing: project `.venv` (user installs, `docs/SETUP.md` §1). Godot .NET found but hangs at start (Q-001) |
+| `docs/RESOURCES.md` complete | ✅ |
+| Tools OK | ⚠️ all OK including `.venv`, except Godot (hangs at start, Q-001) |
 | Skeleton committed | ✅ |
 
+## Phase 1 acceptance
+| Criterion | State |
+|---|---|
+| Manual text extracted with page numbers | ✅ `tools/manual/extract.py` → `docs/manual_text/` (git-ignored, D-008) |
+| `docs/game_rules.md` | ✅ field, elements, setup, timing, scoring, RP, penalties, fouls, human player, robot limits, interpretations |
+| `config/rules_biobuzz.yaml` with § refs | ✅ 100+ quantities, all sourced, schema-validated |
+| `docs/open_questions.md` | ✅ |
+| User approval of game_rules.md | delegated (D-013); please skim §13 "Interpretations" when convenient |
+
 ## What works
-- `tools/inventory/inventory.py`: hashes and lists the originals, detects replaced files, scans
-  STEP assemblies and units (`--scan-step`: field 0.6 s, robot 5.7 s).
-- `scripts/check_tools.ps1`, `scripts/test_all.ps1`, `scripts/test_unit.ps1`.
-- 11 pytest tests (STEP units mm/m/inch, assembly flattening, wrapped strings, manifest checks).
+- Inventory tool, tool check, test scripts (Phase 0).
+- Manual extraction with damaged-text detection; AprilTag ID decoder.
+- 20 pytest tests passing (`./scripts/test_all.ps1`).
 
 ## Known problems
-- Godot hangs at process start on this laptop (Q-001).
-- pytest prints a pytest-asyncio deprecation warning when run with the system Python (plugin in
-  the user site-packages); gone once `.venv` is used.
+- Godot hangs at process start (Q-001, Symantec Endpoint Protection suspected).

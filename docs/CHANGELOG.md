@@ -1,5 +1,12 @@
 # Changelog
 
+## Phase 1 — 2026-10-24
+- `tools/manual/extract.py` (page text, rendered pages, damaged-text report) and
+  `tools/manual/apriltag_ids.py` (decodes tag IDs 30–45 from the printable PDFs).
+- `docs/game_rules.md` and `config/rules_biobuzz.yaml` + JSON schema; 9 new tests.
+- Project `.venv` created; `cadquery-ocp` pinned to 7.9.3.1.1 (cadquery 2.8.0 requirement),
+  `pupil-apriltags` added.
+
 ## Phase 0 — 2026-10-24
 - Repository skeleton per `CLAUDE.md`, `.gitignore`, `.gitattributes`.
 - Resource inventory tool with STEP scanner and SHA-256 manifest of the 14 original files.
