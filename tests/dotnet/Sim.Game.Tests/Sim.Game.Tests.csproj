@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Unit tests for the rules engine (spec 12 layer 1). Target framework etc. from tests/dotnet/Directory.Build.props. -->
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" Version="6.0.4" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\sim\Sim.Core\Sim.Core.csproj" />
+    <ProjectReference Include="..\..\..\sim\Sim.Game\Sim.Game.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Using Include="Xunit" />
+    <Using Include="Sim.Core.Numerics" />
+    <Using Include="Sim.Game" />
+    <Using Include="Sim.Game.Field" />
+    <Using Include="Sim.Game.Fouls" />
+    <Using Include="Sim.Game.Geometry" />
+    <Using Include="Sim.Game.HumanPlayer" />
+    <Using Include="Sim.Game.Match" />
+    <Using Include="Sim.Game.Scoring" />
+    <Using Include="Sim.Game.Setup" />
+  </ItemGroup>
+</Project>
