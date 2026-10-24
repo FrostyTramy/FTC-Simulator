@@ -13,3 +13,6 @@
 *.pdf binary
 *.zip binary
 *.jar binary
+
+# Third-party FTC code used for compatibility tests: keep the bytes exactly as published
+tests/compat/** -text
