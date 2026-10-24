@@ -1,0 +1,40 @@
+# Original resources in the project root (read-only, tracked by SHA-256 in
+# tools/inventory/resources_manifest.json, never committed; see docs/DECISIONS.md D-001)
+/*.zip
+/*.pdf
+/Godot_*/
+
+# Generated output (pipeline products, reports)
+/generated/*
+!/generated/.gitkeep
+/reports/
+
+# User code projects opened in the editor
+/workspace/*
+!/workspace/.gitkeep
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+
+# Godot / C#
+.godot/
+.mono/
+bin/
+obj/
+*.user
+
+# Java / Gradle
+.gradle/
+build/
+*.class
+.idea/
+*.iml
+
+# OS / editors
+Thumbs.db
+desktop.ini
+.vscode/

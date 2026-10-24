@@ -1,0 +1,15 @@
+* text=auto eol=lf
+
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.sln text eol=crlf
+
+*.step binary
+*.stp binary
+*.glb binary
+*.png binary
+*.jpg binary
+*.pdf binary
+*.zip binary
+*.jar binary

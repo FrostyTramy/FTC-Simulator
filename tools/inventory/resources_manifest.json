@@ -1,0 +1,60 @@
+{
+ "files": {
+  "3200-2627-0004.zip": {
+   "size": 70517835,
+   "sha256": "43cdd0acebcce31afe8b0ed541df06c394ed1624ca8fbcc4cf42c52a774dc673"
+  },
+  "3200-2627-0004_assembly-instructions.min.pdf": {
+   "size": 25869116,
+   "sha256": "20505c913068011b819fab4e5952e4863ec900b1ac6ceb4303a6d11c78fa6a4a"
+  },
+  "3200-2627-0004_example-code.zip": {
+   "size": 4825,
+   "sha256": "4df7a393204c95465938ec3d20eaaede2ee20c9d0489dcb3116379a58deee5ef"
+  },
+  "BIOBUZZAprilTagProduction.pdf": {
+   "size": 482598,
+   "sha256": "be9451596b2a08eda8d22041ae4451feb3946b100fe4ed4d64c5ff24e694cf32"
+  },
+  "BIOBUZZ_Competition_Manual_TU06.pdf": {
+   "size": 6908820,
+   "sha256": "371212270ebebf6809c3b3357021f16917230b133f6fe0c4d7042502a3ced771"
+  },
+  "Event Field Setup Guide - V1.0.pdf": {
+   "size": 5428907,
+   "sha256": "89b82c72061a0d862635be85a7a19e29df6fa4b58fbfad753d3a4196a51da15f"
+  },
+  "Field Acceptance Checklist V26-27.2.pdf": {
+   "size": 337949,
+   "sha256": "c081e78ba7b35e687f766111608ba0fdc0a1fc0913c3801102e812416727584c"
+  },
+  "Field Mitigation Guide V26-27.1.pdf": {
+   "size": 297549,
+   "sha256": "1c8e826db76ebeb68646b2de16ba6049f867a3d014a12ba8fd24b8e1374f9c38"
+  },
+  "Field Reset Guide V26-27.1.pdf": {
+   "size": 140753,
+   "sha256": "52d6dd8e6fa12bc098591d5c42296a4f687b4482f438faf5f619996e54f5c89a"
+  },
+  "Initial Field Element Assembly Guide - V1.0.pdf": {
+   "size": 5918821,
+   "sha256": "cec6640bec517d2eec56535ad948f617003b56c0c0f7ac800062b4e2094b79e3"
+  },
+  "PrintableAprilTag_A4.pdf": {
+   "size": 720544,
+   "sha256": "b184da5d1f68f05407dce83f3eaf7c0c3e8515e3bd7ff5b21f0b5dedd891d854"
+  },
+  "PrintableAprilTag_Letter.pdf": {
+   "size": 720443,
+   "sha256": "019b4b000d212d3bc63872a6437b6b634b46dbf948ca756af18b67d3867372b8"
+  },
+  "biobuzz-sim-prompt-kit.zip": {
+   "size": 39683,
+   "sha256": "111b0513cf7d1ba007c1d7d1d7b977045150c343e7aae4db90c701b64475e642"
+  },
+  "field-cad-step.zip": {
+   "size": 6607131,
+   "sha256": "5e768b731f1ec8dcd14debba53225c43718877923c351ce08504305f68f7fe00"
+  }
+ }
+}
