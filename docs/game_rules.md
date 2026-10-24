@@ -17,8 +17,9 @@ not in the manual; they are listed again in §13 and in `docs/open_questions.md`
 - Viewed from the audience: **red ALLIANCE AREA on the left, blue on the right** (§9.5 p68).
 - TILE grid (Fig 9-5 p67): columns **A–F** left→right, rows **1–6** from the audience wall to the
   rear wall. Tile seams (Fig 9-4): V–Z between columns, 1–5 between rows.
-- Sim frame: origin at the field centre on the TILE top surface, **+X towards blue** (right),
-  **+Y away from the audience**, **+Z up**, metres. Tile A1 is the front-left corner.
+- Sim frame = field CAD frame = Godot frame (checked in Phase 2): origin at the field centre on
+  the TILE top surface, **+X towards blue** (right as seen from the audience), **+Y up**, **+Z
+  towards the audience**, metres. Tile A1 (front-left) is at −X, +Z; tile F6 at +X, −Z.
 - Red side of the field = columns A, B, C; blue side = D, E, F (G304.A p104, G402 p106).
 
 ## 2. FIELD (§9.1–9.4 p63–67)

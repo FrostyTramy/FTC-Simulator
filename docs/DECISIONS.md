@@ -71,3 +71,16 @@ Why we chose X over Y. Newest last. Format: ID, date, decision, why, alternative
 - **Decision:** at the user's request ("finish your whole job ... only if needed max priority then
   stop and ask me"), phases proceed back to back; review STOPs in spec 13 (Phase 1, 3, 5) are
   replaced by documented self-review, with all ASSUMED values listed for later review.
+
+## D-014 — Pure C# simulation libraries live in `sim/` (2026-10-24)
+- **Decision:** Godot-independent C# code (rules/scoring, hardware models, IPC client) is in class
+  libraries under `sim/` (`Sim.Core`, `Sim.Game`, `Sim.Hardware`, `Sim.Runner`, net8.0 like
+  GodotSharp 4.7) with xUnit tests under `tests/dotnet/`. The Godot project in `godot/` references
+  them. Not listed in the CLAUDE.md layout; added because spec 12 wants unit tests without Godot.
+- **Alternatives:** everything inside the Godot project (needs Godot to run unit tests; slower CI).
+
+## D-015 — Parallel agents with strict folder ownership (2026-10-24)
+- **Decision:** at the user's request, work runs in parallel agents, each owning disjoint folders
+  (Godot app; game logic; hardware models; Java side; robot/physics data; CAD pipeline). Agents do
+  not commit or edit shared docs; they write `docs/notes/<area>.md`, the lead integrates and commits.
+- **Frame:** all code uses the CAD/Godot frame (X → blue, Y up, Z → audience); `game_rules.md` §1 fixed.

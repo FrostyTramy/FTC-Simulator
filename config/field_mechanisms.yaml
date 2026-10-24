@@ -1,0 +1,135 @@
+# BIOBUZZ field mechanisms, trigger volumes and start layout (spec 03, Phase 3).
+# Frame: X towards blue, Y up, Z towards the audience, metres, origin = field centre on the tile
+# top surface (docs/game_rules.md §1; identical to the field CAD and Godot frames).
+# Geometry comes from the field CAD via tools/field/derive_mechanisms.py
+# (generated/field/mechanisms_derived.yaml); tests/python/test_field_mechanisms.py checks that this
+# reviewed file still matches the CAD. Physical parameters (friction, damping, masses) live in
+# config/physics.yaml. Every value has a source or is marked ASSUMED.
+
+version: 1
+
+walls:   # inner faces of the perimeter
+  x_min: {value: -1.7951, unit: m, source: "CAD am-0481b perimeter"}
+  x_max: {value: 1.7951, unit: m, source: "CAD am-0481b perimeter"}
+  z_min: {value: -1.7951, unit: m, source: "CAD am-0481b perimeter"}
+  z_max: {value: 1.7951, unit: m, source: "CAD am-0481b perimeter"}
+  note: "Inside size 3.590 m = 141.35 in; manual §9.2 says approximately 144 in, §9.1: the CAD is official."
+
+bodies:
+  - id: hive_red
+    cad_path_regex: "am-5853-Red Hive"
+    exclude_part_regex: "(?i)axle holder"      # axle holders are fixed to the frame
+    type: dynamic
+    mass_kg: auto                              # manifest volume × material density
+    source: "CAD am-5853-Red Hive; §9.6 p69"
+  - id: hive_blue
+    cad_path_regex: "am-5853-Blue Hive"
+    exclude_part_regex: "(?i)axle holder"
+    type: dynamic
+    mass_kg: auto
+    source: "CAD am-5853-Blue Hive; §9.6 p69"
+
+joints:
+  - id: hive_red_pivot
+    type: hinge
+    body_a: static
+    body_b: hive_red
+    anchor: {value: [-0.3236, 1.1163, 0.0], unit: m, source: "CAD 4 F608ZZ bearings of the red hive; pivot height = 43.95 in §9.6.1 p69"}
+    axis: {value: [1.0, 0.0, 0.0], unit: dir, source: "CAD bearing axis"}
+    # Angle 0 = CAD pose (audience CELL up, §10.3.1 Fig 10-2). The other stable state is the mirror
+    # image: the cells are tilted 30.0° in the CAD (cell centres and sticker normals), so the hive
+    # turns 60° between its two stable states.
+    angle_range: {value: [0.0, 60.0], unit: deg, source: "CAD tilt 30.0° per side; mirror symmetry of the frame (ASSUMED)"}
+    stable_states: {value: {audience_up: 0.0, rear_up: 60.0}, unit: deg, source: "CAD pose + mirror (ASSUMED)"}
+    dampers: {value: [[-0.3236, 1.1221, 0.09], [-0.3236, 1.0413, -0.05]], unit: m, source: "CAD am-5865 Blumotion 970A dampers"}
+    friction_and_damping: {value: physics.yaml#hive, unit: ref, source: "config/physics.yaml"}
+  - id: hive_blue_pivot
+    type: hinge
+    body_a: static
+    body_b: hive_blue
+    anchor: {value: [0.3241, 1.1163, 0.0], unit: m, source: "CAD 4 F608ZZ bearings of the blue hive; §9.6.1 p69"}
+    axis: {value: [1.0, 0.0, 0.0], unit: dir, source: "CAD bearing axis"}
+    angle_range: {value: [-60.0, 0.0], unit: deg, source: "CAD tilt 30.0° per side; mirror symmetry (ASSUMED)"}
+    stable_states: {value: {rear_up: 0.0, audience_up: -60.0}, unit: deg, source: "CAD pose (rear CELL up, Fig 10-2) + mirror (ASSUMED)"}
+    dampers: {value: [[0.3241, 1.0413, 0.05], [0.3241, 1.1221, -0.09]], unit: m, source: "CAD am-5865 Blumotion 970A dampers"}
+    friction_and_damping: {value: physics.yaml#hive, unit: ref, source: "config/physics.yaml"}
+
+# TIP (§10.5.1 p87): the hive moves from one stable state to the other AND the damper that was
+# not touching the frame starts touching it. Implementation: angle passes the midpoint and comes
+# within damper_engage of the opposite stable state.
+tip_detection:
+  damper_engage: {value: 2.0, unit: deg, source: "ASSUMED (damper stroke not in the manual; refine with config/physics.yaml)"}
+
+triggers:
+  # CELL volumes move with their hive (defined in the CAD pose). An element counts as "in the
+  # CELL" when its centre is inside the box (ASSUMED reading of "left in an upward-facing CELL").
+  cells:
+    - id: cell_red_audience
+      body: hive_red
+      alliance: red
+      obb_transform: {value: [-0.0, -0.0, 1.0, -0.32364, -0.5, 0.86603, 0.0, 1.43447, -0.86603, -0.5, -0.0, 0.26759, 0.0, 0.0, 0.0, 1.0], unit: m, source: "CAD Red Cell (Audience) skins, oriented bounding box (row-major 4x4)"}
+      obb_size: {value: [0.3052, 0.381, 0.5349], unit: m, source: "CAD Red Cell (Audience) skins"}
+      apriltag_ids: {value: [34, 35, 36, 37], unit: id, source: "§9.9 p76"}
+    - id: cell_red_rear
+      body: hive_red
+      alliance: red
+      obb_transform: {value: [-0.0, 0.0, -1.0, -0.32364, 0.5, 0.86603, 0.0, 1.04366, 0.86603, -0.5, -0.0, -0.40932, 0.0, 0.0, 0.0, 1.0], unit: m, source: "CAD Red Cell (Scoring) skins, oriented bounding box (row-major 4x4)"}
+      obb_size: {value: [0.3052, 0.381, 0.5349], unit: m, source: "CAD Red Cell (Scoring) skins"}
+      apriltag_ids: {value: [30, 31, 32, 33], unit: id, source: "§9.9 p76"}
+    - id: cell_blue_audience
+      body: hive_blue
+      alliance: blue
+      obb_transform: {value: [-0.0, -0.0, 1.0, 0.32406, 0.5, 0.86603, 0.0, 1.04294, -0.86603, 0.5, 0.0, 0.40891, 0.0, 0.0, 0.0, 1.0], unit: m, source: "CAD Blue Cell (Audience) skins, oriented bounding box (row-major 4x4)"}
+      obb_size: {value: [0.3052, 0.3826, 0.5382], unit: m, source: "CAD Blue Cell (Audience) skins"}
+      apriltag_ids: {value: [38, 39, 40, 41], unit: id, source: "§9.9 p76"}
+    - id: cell_blue_rear
+      body: hive_blue
+      alliance: blue
+      obb_transform: {value: [-0.00547, -0.0, -0.99999, 0.32333, 0.46655, -0.88449, -0.00255, 1.43018, -0.88448, -0.46656, 0.00483, -0.27089, 0.0, 0.0, 0.0, 1.0], unit: m, source: "CAD Blue Cell (Scoring) skins, oriented bounding box (row-major 4x4)"}
+      obb_size: {value: [0.3193, 0.3838, 0.5383], unit: m, source: "CAD Blue Cell (Scoring) skins"}
+      apriltag_ids: {value: [42, 43, 44, 45], unit: id, source: "§9.9 p76"}
+
+  # FLOWER scoring volume: between the top ring and the middle ring, inside the 4 HIPS pipes.
+  # "At least partially within" (§10.5.2) = the ball's sphere intersects this vertical cylinder.
+  flowers:
+    - {id: flower_xmin, wall: x_min, axis_xz: {value: [-1.7283, 0.5942], unit: m, source: "CAD am-5855 Flower Assembly, pipe centres"}}
+    - {id: flower_xmax, wall: x_max, axis_xz: {value: [1.7283, -0.5942], unit: m, source: "CAD am-5855 Flower Assembly, pipe centres"}}
+    - {id: flower_zmin, wall: z_min, axis_xz: {value: [-0.5942, -1.7283], unit: m, source: "CAD am-5855 Flower Assembly, pipe centres"}}
+    - {id: flower_zmax, wall: z_max, axis_xz: {value: [0.5942, 1.7283], unit: m, source: "CAD am-5855 Flower Assembly, pipe centres"}}
+  flower_volume:
+    radius: {value: 0.0451, unit: m, source: "CAD: inside of the 4 HIPS pipes"}
+    y_min: {value: 0.1335, unit: m, source: "CAD: top of the middle ring (Flower Layer)"}
+    y_max: {value: 0.5437, unit: m, source: "CAD: top of the top ring (Flower Layer C); manual top opening 21.5 in §9.7"}
+
+  # Zones are infinitely tall prisms (§9.3); x/z ranges include the tape lines.
+  zones:
+    loading_zone_red: {x: [-1.7951, -1.5012], z: [-1.1836, -0.6072], unit: m, source: "CAD red gaffer tape 11 in ×2 + 20.69 in; §9.3 p65"}
+    loading_zone_blue: {x: [1.5012, 1.7951], z: [0.6072, 1.1836], unit: m, source: "CAD blue gaffer tape 11 in ×2 + 20.69 in; §9.3 p65"}
+    garden_red: {x: [-1.7951, -1.2042], z: [1.7298, 1.7951], unit: m, source: "CAD red gaffer tape 22.69 in ×2 to the audience wall; §9.3 p66"}
+    garden_blue: {x: [1.2042, 1.7951], z: [-1.7951, -1.7298], unit: m, source: "CAD blue gaffer tape 22.69 in ×2 to the rear wall; §9.3 p66"}
+    alliance_area_red: {x: [-3.1915, -1.8199], z: [-1.2296, 1.2296], unit: m, source: "CAD red gaffer tape 94.82 in + 54 in ×2; §9.3 p65"}
+    alliance_area_blue: {x: [1.8199, 3.1915], z: [-1.2296, 1.2296], unit: m, source: "CAD blue gaffer tape 94.82 in + 54 in ×2; §9.3 p65"}
+    side_red: {x: [-1.7951, 0.0], z: [-1.7951, 1.7951], unit: m, source: "tile columns A–C, G304.A p104"}
+    side_blue: {x: [0.0, 1.7951], z: [-1.7951, 1.7951], unit: m, source: "tile columns D–F, G304.A p104"}
+
+trays:
+  - {alliance: red, aabb: {value: [[-2.0803, -0.015, -0.2], [-1.8199, 0.0612, 0.2]], unit: m, source: "CAD am-5706 Artifact Tray (holds the 5 reserve NECTAR, §10.3.1 B.ii)"}}
+  - {alliance: blue, aabb: {value: [[1.8199, -0.015, -0.2], [2.0803, 0.0612, 0.2]], unit: m, source: "CAD am-5706 Artifact Tray"}}
+
+# Start layout (§10.3.1 p83-84, Fig 10-2, Field Reset Guide): element positions are taken from
+# the CAD (generated/field/mechanisms_derived.yaml#elements) and classified here.
+start_layout:
+  pollen:
+    flowers: {value: 16, unit: count, source: "CAD pollen inside the 4 flowers; §10.3.1 A.i"}
+    gardens: {value: 8, unit: count, source: "CAD pollen on the garden tape; §10.3.1 A.ii-iii"}
+    preloads: {value: 16, unit: count, source: "CAD pollen outside the walls next to the loading zones = robot pre-loads; §10.3.1 A.iv"}
+  nectar:
+    up_cells: {value: 6, unit: count, source: "CAD nectar in the upward cells; §10.3.1 B.i"}
+    trays: {value: 10, unit: count, source: "CAD nectar in the artifact trays (off-field reserve); §10.3.1 B.ii"}
+  preload_rule: "Pre-loads are given to robots at setup (G304.G). A missing robot's 4 POLLEN go to about the centre of its LOADING ZONE against the wall (§10.3.1 p83)."
+
+apriltag_stickers:
+  - {name: red_audience, ids: [34, 35, 36, 37], centre: {value: [-0.3236, 1.2615, 0.3273], unit: m, source: "CAD am-5888-red1"}, normal: {value: [0.0, -0.866, 0.5], unit: dir, source: "CAD am-5888-red1 (faces down, §9.9 p75)"}}
+  - {name: red_rear, ids: [30, 31, 32, 33], centre: {value: [-0.3236, 0.9054, -0.2894], unit: m, source: "CAD am-5888-red2"}, normal: {value: [0.0, -0.866, 0.5], unit: dir, source: "CAD am-5888-red2"}}
+  - {name: blue_audience, ids: [38, 39, 40, 41], centre: {value: [0.3241, 0.9054, 0.2894], unit: m, source: "CAD am-5888-blue1"}, normal: {value: [0.0, -0.866, -0.5], unit: dir, source: "CAD am-5888-blue1"}}
+  - {name: blue_rear, ids: [42, 43, 44, 45], centre: {value: [0.3241, 1.2615, -0.3273], unit: m, source: "CAD am-5888-blue2"}, normal: {value: [0.0, -0.866, -0.5], unit: dir, source: "CAD am-5888-blue2"}}

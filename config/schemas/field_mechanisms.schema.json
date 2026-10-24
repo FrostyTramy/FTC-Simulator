@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "BIOBUZZ field mechanisms",
+  "type": "object",
+  "required": ["version", "walls", "bodies", "joints", "tip_detection", "triggers", "trays", "start_layout", "apriltag_stickers"],
+  "$defs": {
+    "quantity": {
+      "type": "object",
+      "required": ["value", "unit", "source"],
+      "properties": {"value": {}, "unit": {"type": "string"}, "source": {"type": "string", "minLength": 3}},
+      "additionalProperties": false
+    },
+    "range": {"type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 2},
+    "zone": {
+      "type": "object",
+      "required": ["x", "z", "unit", "source"],
+      "properties": {"x": {"$ref": "#/$defs/range"}, "z": {"$ref": "#/$defs/range"}, "unit": {"const": "m"}, "source": {"type": "string"}},
+      "additionalProperties": false
+    }
+  },
+  "properties": {
+    "version": {"const": 1},
+    "walls": {
+      "type": "object",
+      "required": ["x_min", "x_max", "z_min", "z_max"],
+      "properties": {
+        "x_min": {"$ref": "#/$defs/quantity"}, "x_max": {"$ref": "#/$defs/quantity"},
+        "z_min": {"$ref": "#/$defs/quantity"}, "z_max": {"$ref": "#/$defs/quantity"}, "note": {"type": "string"}
+      }
+    },
+    "bodies": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "cad_path_regex", "type", "mass_kg", "source"],
+        "properties": {"type": {"enum": ["static", "dynamic", "kinematic"]}}
+      }
+    },
+    "joints": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "type", "body_a", "body_b", "anchor", "axis", "angle_range", "stable_states"],
+        "properties": {
+          "type": {"enum": ["hinge", "slider", "fixed", "ball", "cone_twist"]},
+          "anchor": {"$ref": "#/$defs/quantity"}, "axis": {"$ref": "#/$defs/quantity"},
+          "angle_range": {"$ref": "#/$defs/quantity"}, "stable_states": {"$ref": "#/$defs/quantity"},
+          "dampers": {"$ref": "#/$defs/quantity"}, "friction_and_damping": {"$ref": "#/$defs/quantity"}
+        }
+      }
+    },
+    "tip_detection": {"type": "object", "required": ["damper_engage"], "properties": {"damper_engage": {"$ref": "#/$defs/quantity"}}},
+    "triggers": {
+      "type": "object",
+      "required": ["cells", "flowers", "flower_volume", "zones"],
+      "properties": {
+        "cells": {
+          "type": "array", "minItems": 4, "maxItems": 4,
+          "items": {
+            "type": "object",
+            "required": ["id", "body", "alliance", "obb_transform", "obb_size", "apriltag_ids"],
+            "properties": {
+              "alliance": {"enum": ["red", "blue"]},
+              "obb_transform": {"$ref": "#/$defs/quantity"}, "obb_size": {"$ref": "#/$defs/quantity"},
+              "apriltag_ids": {"$ref": "#/$defs/quantity"}
+            }
+          }
+        },
+        "flowers": {
+          "type": "array", "minItems": 4, "maxItems": 4,
+          "items": {"type": "object", "required": ["id", "wall", "axis_xz"], "properties": {"axis_xz": {"$ref": "#/$defs/quantity"}}}
+        },
+        "flower_volume": {
+          "type": "object", "required": ["radius", "y_min", "y_max"],
+          "additionalProperties": {"$ref": "#/$defs/quantity"}
+        },
+        "zones": {"type": "object", "additionalProperties": {"$ref": "#/$defs/zone"}}
+      }
+    },
+    "trays": {"type": "array", "items": {"type": "object", "required": ["alliance", "aabb"], "properties": {"aabb": {"$ref": "#/$defs/quantity"}}}},
+    "start_layout": {"type": "object", "required": ["pollen", "nectar", "preload_rule"]},
+    "apriltag_stickers": {
+      "type": "array", "minItems": 4, "maxItems": 4,
+      "items": {"type": "object", "required": ["name", "ids", "centre", "normal"],
+                "properties": {"centre": {"$ref": "#/$defs/quantity"}, "normal": {"$ref": "#/$defs/quantity"}}}
+    }
+  }
+}
