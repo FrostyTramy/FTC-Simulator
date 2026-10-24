@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Robot definition (config/robots/*.yaml, spec 05)",
+  "type": "object",
+  "required": ["version", "name", "display_name", "cad", "frame", "mass", "start_size_check", "hubs", "battery", "drivetrain", "devices", "mechanisms", "checks"],
+  "$defs": {
+    "source": {"type": "string", "minLength": 3},
+    "quantity": {
+      "type": "object",
+      "required": ["value", "unit", "source"],
+      "properties": {"value": {}, "unit": {"type": "string"}, "source": {"$ref": "#/$defs/source"}},
+      "additionalProperties": false
+    },
+    "vec3": {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3}
+  },
+  "properties": {
+    "version": {"const": 1},
+    "name": {"type": "string", "pattern": "^[a-z0-9_]+$"},
+    "display_name": {"type": "string"},
+    "description": {"type": "string"},
+    "cad": {"$ref": "#/$defs/quantity"},
+    "frame": {"type": "object", "additionalProperties": {"$ref": "#/$defs/quantity"}},
+    "mass": {
+      "type": "object",
+      "required": ["total", "center_of_mass", "inertia_diagonal"],
+      "properties": {
+        "total": {"$ref": "#/$defs/quantity"},
+        "center_of_mass": {"$ref": "#/$defs/quantity"},
+        "inertia_diagonal": {"$ref": "#/$defs/quantity"},
+        "mass_breakdown": {
+          "type": "array",
+          "items": {"type": "object", "required": ["item", "mass", "unit", "source"]}
+        }
+      }
+    },
+    "start_size_check": {"$ref": "#/$defs/quantity"},
+    "dimensions": {"type": "object", "additionalProperties": {"$ref": "#/$defs/quantity"}},
+    "hubs": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "type", "part", "pose"],
+        "properties": {"type": {"enum": ["control_hub", "expansion_hub"]}}
+      }
+    },
+    "battery": {"type": "object", "required": ["part", "model"], "additionalProperties": {"$ref": "#/$defs/quantity"}},
+    "drivetrain": {
+      "type": "object",
+      "required": ["type", "wheels", "wheel_radius", "track_width", "wheelbase"],
+      "properties": {
+        "type": {"enum": ["mecanum", "tank", "omni_x", "swerve"]},
+        "wheels": {
+          "type": "array", "minItems": 2,
+          "items": {
+            "type": "object",
+            "required": ["id", "motor", "position", "source"],
+            "properties": {"position": {"$ref": "#/$defs/vec3"}, "slant": {"enum": ["left", "right"]}, "drive_sign": {"enum": [-1, 1]}}
+          }
+        }
+      }
+    },
+    "devices": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "type", "sdk_class", "hub", "source"],
+        "properties": {
+          "type": {"enum": ["motor", "servo", "crservo", "imu", "distance", "color", "touch", "webcam", "odometry"]},
+          "direction": {"enum": ["FORWARD", "REVERSE"]},
+          "zero_power": {"enum": ["BRAKE", "FLOAT"]},
+          "run_mode": {"enum": ["RUN_WITHOUT_ENCODER", "RUN_USING_ENCODER", "RUN_TO_POSITION"]},
+          "pidf": {"type": "array", "items": {"type": "number"}, "minItems": 4, "maxItems": 4},
+          "port": {"type": "integer", "minimum": 0}
+        }
+      }
+    },
+    "mechanisms": {"type": "array", "items": {"type": "object", "required": ["id", "type"]}},
+    "ball_path": {"type": "object", "additionalProperties": {"$ref": "#/$defs/quantity"}},
+    "sensors": {"type": "array"},
+    "bumpers": {"type": "array"},
+    "checks": {"type": "object", "additionalProperties": {"$ref": "#/$defs/quantity"}}
+  }
+}

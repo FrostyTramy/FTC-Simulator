@@ -1,0 +1,184 @@
+# goBILDA FTC StarterBot with Mecanum Wheels (for BIOBUZZ), SKU 3200-2627-0004 — robot definition
+# (spec 05). Proposed from evidence, every value with a source or ASSUMED; Phase 5 review lists
+# all ASSUMED values (docs/notes/robot_physics.md).
+#
+# Evidence ids used in `source` strings:
+#   CAD    = 3200-2627-0004.step (robot STEP, Autodesk export, Z-up, metres after import);
+#            positions below were measured from it (OCP read, Phase 5 analysis by agent F) and are
+#            converted to the robot frame with `frame.cad_to_robot`.
+#   INSTR  = 3200-2627-0004_assembly-instructions.min.pdf (pages "p", steps "STEP")
+#   CODE   = BioBuzzStarterbotTeleopMecanum.java in 3200-2627-0004_example-code.zip (":line")
+#   RULES  = BIOBUZZ Competition Manual TU06 (§ / rule ids)
+#
+# Robot frame (Godot convention): origin on the floor below the centre of the 4 wheel contact
+# points; +X = robot right, +Y = up, -Z = forward (intake side). Metres, radians unless `unit` says.
+# Device model keys refer to config/motors.yaml and config/servos.yaml.
+
+version: 1
+name: gobilda_starter
+display_name: "goBILDA FTC StarterBot (Mecanum, BIOBUZZ)"
+description: "Strafer mecanum chassis, 7-wheel Gecko roller intake with corner sweepers, windmill feeder and Hogback flywheel launcher."
+cad: {value: generated/gobilda_starter, unit: path, source: "tools/cad_pipeline (config/cad/gobilda_starter.yaml)"}
+
+frame:
+  cad_up_axis: {value: "+Z", unit: label, source: "CAD: mecanum wheel centres at z ≈ 0, body above them (z up to 0.272 m)"}
+  forward: {value: "intake side (CAD -Y)", unit: label, source: "ASSUMED front = intake side (INSTR p21 Fig 34-C shows intake + corner sweepers at one end); verify in Phase 5: left stick forward with CODE:121-124 directions must drive intake-first"}
+  cad_to_robot:
+    value: [[-1, 0, 0, 0.0], [0, 0, 1, 0.0537], [0, 1, 0, 0.012], [0, 0, 0, 1]]
+    unit: matrix4 (row-major, robot = M · cad)
+    source: "x_r = -X_cad, y_r = Z_cad + 0.0537 (floor = wheel centre z 0.0007 - CAD wheel radius 0.0544), z_r = Y_cad + 0.012 (wheel-centre midpoint y = -0.012); CAD"
+
+mass:
+  total: {value: 8.38, unit: kg, source: "estimate = catalogue weights + CAD volume × density (mass_breakdown); ASSUMED until weighed (specs/04 Robot body: user weighs the robot)"}
+  center_of_mass: {value: [-0.018, 0.103, -0.010], unit: m, source: "CAD part centroids weighted by mass_breakdown; ASSUMED hub/wiring positions"}
+  inertia_diagonal: {value: [0.144, 0.273, 0.181], unit: kg·m^2, source: "CAD part boxes + parallel axis about the COM (Ixx roll-ish, Iyy yaw, Izz pitch); ASSUMED"}
+  mass_breakdown:
+    - {item: "6 × 5203 Yellow Jacket motors (4×19.2:1, 1×1:1, 1×50.9:1)", mass: 2.552, unit: kg, source: "19.2:1: 420 g (ServoCity 5202 19.2:1 listing, same RS-555 + gearbox, ASSUMED equal for 5203); 1:1: 391 g (https://gobilda.com/5203-series-yellow-jacket-motor-1-1-ratio-24mm-length-8mm-rex-shaft-6000-rpm-3-3-5v-encoder); 50.9:1: 481 g (Core Electronics GB-5203-2402-0051)"}
+    - {item: "4 × GripForce 104 mm mecanum wheels", mass: 0.944, unit: kg, source: "236 g each (https://www.gobilda.com/gripforce-mecanum-wheel-set-o104mm-40a-durometer-rollers/)"}
+    - {item: "12V NiMH battery 3100-0012-0020", mass: 0.597, unit: kg, source: "597 g (Core Electronics / RobotShop listing for 3100-0012-0020)"}
+    - {item: "3 × 2000 series dual-mode servos", mass: 0.180, unit: kg, source: "60 g (ServoCity 2000-0025-0002 spec table); speed version ASSUMED equal"}
+    - {item: "Hogback 96 mm", mass: 0.082, unit: kg, source: "82 g (https://core-electronics.com.au/gobilda-hogback-traction-wheel-96mm-50a-durometer.html)"}
+    - {item: "7 × Gecko 48 mm + 2 × Gecko 72 mm", mass: 0.231, unit: kg, source: "17 g / 56 g each (goBILDA 3613 series pages)"}
+    - {item: "aluminium structure (channels, mounts, hubs, gears, ServoBlocks)", mass: 1.928, unit: kg, source: "CAD volume × 2700 kg/m³; check: 15-hole U-channel CAD 252.5 g vs catalogue 253 g (Core Electronics GB-1120-0015-0384)"}
+    - {item: "steel (REX shafts, hub-shafts, miter gears, bearings, screws/nuts)", mass: 1.042, unit: kg, source: "CAD volume × 7850 kg/m³"}
+    - {item: "polycarbonate gridplates A-H", mass: 0.179, unit: kg, source: "CAD volume × 1200 kg/m³"}
+    - {item: "battery mount, intake rollers, zip ties", mass: 0.098, unit: kg, source: "CAD volume × 1100-1150 kg/m³ (ASSUMED densities)"}
+    - {item: "Control Hub + Expansion Hub", mass: 0.400, unit: kg, source: "ASSUMED 0.2 kg each (not in CAD; REV-31-1595 / REV-31-1153, 143×103×29.5 mm per REV docs)"}
+    - {item: "wiring", mass: 0.150, unit: kg, source: "ASSUMED"}
+
+start_size_check: {value: true, unit: bool, source: "RULES R102 (18 in cube), specs/05 Robot checks"}
+dimensions:
+  bbox_size: {value: [0.4521, 0.3261, 0.452], unit: m, source: "CAD overall bounding box (width x, height y, depth z) incl. corner sweeper wheels; < 0.4572 m (18 in) R102 ✓"}
+
+hubs:
+  - id: control_hub
+    type: control_hub
+    part: {value: "REV-31-1595 Control Hub (not in CAD)", unit: label, source: "RULES R701; CAD has no hub (docs/RESOURCES.md)"}
+    pose: {value: {position: [0.0, 0.153, -0.006], logo: UP, usb: FORWARD}, unit: m, source: "ASSUMED (D-006: 'somewhere ok'; logo up / USB forward = SDK default hub orientation, https://ftc-docs.firstinspires.org/en/latest/programming_resources/imu/imu.html)"}
+    size: {value: [0.143, 0.0295, 0.103], unit: m, source: "REV Control Hub 143 × 103 × 29.5 mm (REV docs)"}
+    imu: {value: {model: BHI260AP, orientation: {logo: UP, usb: FORWARD}}, unit: label, source: "REV ships BHI260AP in Control Hubs since Sept 2022 (ftc-docs IMU page); orientation ASSUMED with the pose"}
+    collide: {value: false, unit: bool, source: "ASSUMED (virtual part, not in CAD)"}
+  - id: expansion_hub
+    type: expansion_hub
+    part: {value: "REV-31-1153 Expansion Hub (not in CAD)", unit: label, source: "6 motors > 4 Control Hub motor ports (specs/05 Hubs and ports) → Expansion Hub required"}
+    pose: {value: {position: [0.0, 0.188, -0.006], logo: UP, usb: FORWARD}, unit: m, source: "ASSUMED (stacked above the Control Hub)"}
+    size: {value: [0.143, 0.0295, 0.103], unit: m, source: "REV Expansion Hub 143 × 103 × 29.5 mm (REV docs)"}
+    connection: {value: rs485, unit: label, source: "ASSUMED (standard RS485 link to the Control Hub)"}
+    collide: {value: false, unit: bool, source: "ASSUMED"}
+
+battery:
+  part: {value: "3100-0012-0020", unit: label, source: "INSTR p4 BOM (12V Battery); legal per RULES R601 Table 12-4"}
+  model: {value: gobilda_3100_0012_0020, unit: key, source: "config/battery.yaml model (12V 3000 mAh NiMH XT30, 20 A fuse)"}
+  pose: {value: [-0.157, 0.110, -0.036], unit: m, source: "CAD 3100-0012-0020 bbox centre"}
+
+drivetrain:
+  type: mecanum
+  model: {value: force, unit: label, source: "config/physics.yaml drivetrain.model_default"}
+  wheel_part: {value: "goBILDA GripForce mecanum Ø104 mm, 11 rollers, 40A silicone", unit: label, source: "INSTR p3 BOM 3625-0100-0104 (left slant) ×2, 3625-0001-0104 (right slant) ×2; goBILDA product page"}
+  wheel_radius: {value: 0.052, unit: m, source: "Ø104 mm (goBILDA); CAD outer bbox radius 0.0544"}
+  wheel_width: {value: 0.0378, unit: m, source: "CAD wheel bbox thickness"}
+  wheel_mass: {value: 0.236, unit: kg, source: "goBILDA product page (236 g)"}
+  track_width: {value: 0.414, unit: m, source: "CAD wheel centres x = ±0.207"}
+  wheelbase: {value: 0.264, unit: m, source: "CAD wheel centres -0.144 / +0.120 (CAD y) → z = ∓0.132"}
+  drive_gearing: {value: 1.0, unit: "output/motor speed", source: "1:1 miter gears 2320-4008-0024 (INSTR p3 BOM ×8, STEPs 1, 4, 11, 13, 14)"}
+  wheels:
+    - {id: fl, motor: left_front_drive, position: [-0.207, 0.054, -0.132], slant: left, cad_assembly: "3625-0100-0104#0", drive_sign: -1, source: "CAD centre (0.2073,-0.144,0.0007); slant: part number + INSTR p21 Fig 34-C (X pattern seen from above); drive_sign -1: CODE:121 REVERSE on the left motors so positive power drives forward (ASSUMED front = intake)"}
+    - {id: fr, motor: right_front_drive, position: [0.207, 0.054, -0.132], slant: right, cad_assembly: "3625-0001-0104#0", drive_sign: 1, source: "CAD centre (-0.207,-0.144,-0.0007); INSTR Fig 34-C; CODE:122 FORWARD"}
+    - {id: bl, motor: left_back_drive, position: [-0.207, 0.054, 0.132], slant: right, cad_assembly: "3625-0001-0104#1", drive_sign: -1, source: "CAD centre (0.207,0.12,0.0007); INSTR Fig 34-C; CODE:123 REVERSE"}
+    - {id: br, motor: right_back_drive, position: [0.207, 0.054, 0.132], slant: left, cad_assembly: "3625-0100-0104#1", drive_sign: 1, source: "CAD centre (-0.207,0.12,-0.0007); INSTR Fig 34-C; CODE:124 FORWARD"}
+
+# Devices: EXACT hardwareMap names from CODE:104-112. Ports are ASSUMED (no wiring in INSTR p35,
+# D-006); encoders sit on the motor's own port (CODE:139-142 comment).
+devices:
+  - {name: left_front_drive, type: motor, sdk_class: DcMotor, model: gobilda_5203_19_2, hub: control_hub, port: 0, drives: "wheel:fl", direction: REVERSE, zero_power: BRAKE, cad_assembly: "5203-2402-0019#3", position: [-0.156, 0.054, -0.057], axis: [0, 0, 1], source: "CODE:104,121,131; INSTR STEP 12-14 (horizontal front motors), p3 BOM 19.2:1; CAD position; port ASSUMED"}
+  - {name: right_front_drive, type: motor, sdk_class: DcMotor, model: gobilda_5203_19_2, hub: control_hub, port: 1, drives: "wheel:fr", direction: FORWARD, zero_power: BRAKE, cad_assembly: "5203-2402-0019#2", position: [0.156, 0.054, -0.057], axis: [0, 0, 1], source: "CODE:105,122,132; CAD; port ASSUMED"}
+  - {name: left_back_drive, type: motor, sdk_class: DcMotor, model: gobilda_5203_19_2, hub: control_hub, port: 2, drives: "wheel:bl", direction: REVERSE, zero_power: BRAKE, cad_assembly: "5203-2402-0019#0", position: [-0.156, 0.131, 0.132], axis: [0, 1, 0], source: "CODE:106,123,133; INSTR STEP 10-11 (vertical rear motors); CAD; port ASSUMED"}
+  - {name: right_back_drive, type: motor, sdk_class: DcMotor, model: gobilda_5203_19_2, hub: control_hub, port: 3, drives: "wheel:br", direction: FORWARD, zero_power: BRAKE, cad_assembly: "5203-2402-0019#1", position: [0.156, 0.131, 0.132], axis: [0, 1, 0], source: "CODE:107,124,134; CAD; port ASSUMED"}
+  - {name: intake, type: motor, sdk_class: DcMotor, model: gobilda_5203_50_9, hub: expansion_hub, port: 0, drives: "mechanism:intake_roller", speed_ratio: 5.0, direction: FORWARD, zero_power: BRAKE, cad_assembly: "5203-2402-0051#0", position: [-0.052, 0.138, -0.168], axis: [1, 0, 0], source: "CODE:108,135,212; INSTR STEP 18 (50.9:1), STEP 26-28: 100T gear on the motor, 20T gear on the 240 mm Gecko shaft → ×5 speed (CAD: 2302-0014-0100 coaxial with the motor, 2303-4008-0020 coaxial with the Gecko shaft, centre distance 48 mm = (80+16)/2 mm MOD 0.8); port ASSUMED"}
+  - {name: launcher, type: motor, sdk_class: DcMotorEx, model: gobilda_5203_1_1, hub: expansion_hub, port: 1, drives: "mechanism:launcher_flywheel", speed_ratio: 1.0, direction: FORWARD, zero_power: FLOAT, run_mode: RUN_USING_ENCODER, pidf: [40, 0, 0, 12.5], cad_assembly: "5203-2402-0019#4", position: [-0.072, 0.174, 0.052], axis: [1, 0, 0], source: "CODE:109,145-147 (PIDF 40,0,0,12.5); INSTR STEP 38 (19.2:1 converted to 1:1 with conversion coupler 5105-0208-0019), STEP 55 (Hogback on Hyper Hub on the motor shaft); CAD still models the 19.2:1 gearbox (Q-004, ignored); zero power FLOAT = SDK default (no setZeroPowerBehavior call); port ASSUMED"}
+  - {name: windmillServo, type: crservo, sdk_class: CRServo, model: gobilda_2000_0025_0002, mode: continuous, hub: control_hub, port: 0, drives: "mechanism:windmill", direction: REVERSE, cad_assembly: "2000-0025-0002#0", position: [0.068, 0.161, -0.018], axis: [0, -1, 0], source: "CODE:110,154,161,291; INSTR p2 BOM (Windmill (Torque) Servo 2000-0025-0002), STEP 52-53 (servo in Compact ServoBlock, 4 × Small Gridplate A paddles); continuous mode because CODE uses CRServo (servo programmed to CR mode, goBILDA dual-mode servo); CAD; port ASSUMED"}
+  - {name: left_intake_servo, type: crservo, sdk_class: CRServo, model: gobilda_2000_0025_0003, mode: continuous, hub: control_hub, port: 1, drives: "mechanism:sweeper_left", direction: FORWARD, cad_assembly: "2000-0025-0003#1", position: [-0.156, 0.075, -0.202], axis: [0, -1, 0], source: "CODE:111,152,225; INSTR STEP 32-33 (Speed servos with 72 mm Gecko wheels, front corners); CAD; port ASSUMED"}
+  - {name: right_intake_servo, type: crservo, sdk_class: CRServo, model: gobilda_2000_0025_0003, mode: continuous, hub: control_hub, port: 2, drives: "mechanism:sweeper_right", direction: REVERSE, cad_assembly: "2000-0025-0003#0", position: [0.156, 0.075, -0.202], axis: [0, -1, 0], source: "CODE:112,153,160,226; INSTR STEP 32-33; CAD; port ASSUMED"}
+  - {name: imu, type: imu, sdk_class: IMU, model: BHI260AP, hub: control_hub, i2c_bus: 0, source: "default Control Hub configuration name 'imu' on I2C bus 0 (ftc-docs IMU page); not used by CODE"}
+
+# Moving mechanisms (bodies attached to the chassis with revolute joints). Axis directions are in
+# the robot frame; surface speeds follow from the driving device.
+mechanisms:
+  - id: intake_roller
+    type: roller
+    parts: {value: "7 × Gecko 48 mm (3613-4008-0048) on 240 mm 8 mm REX shaft (2106-4008-2400) with 6 × 12 mm spacers", unit: label, source: "INSTR STEP 24-25 p16; CAD"}
+    axis_point: {value: [-0.006, 0.090, -0.174], unit: m, source: "CAD Gecko row centre (y -0.1855, z 0.0363) and shaft centre x 0.0057"}
+    axis: {value: [1, 0, 0], unit: "1", source: "CAD shaft along X"}
+    radius: {value: 0.024, unit: m, source: "Gecko Ø48 mm (goBILDA)"}
+    width: {value: 0.184, unit: m, source: "CAD: outer Gecko faces x -0.1013 .. 0.0827"}
+    wheel_x_positions: {value: [0.093, 0.065, 0.037, 0.009, -0.019, -0.047, -0.075], unit: m, source: "CAD Gecko centres (robot x = -CAD x), 28 mm pitch"}
+    contact_material: {value: gecko, unit: label, source: "config/physics.yaml materials"}
+    inertia: {value: 0.000035, unit: kg·m^2, source: "7 × 17 g × (0.024 m)² / 2 + shaft; ASSUMED solid-disc approximation"}
+    positive_direction: {value: pulls_in, unit: label, source: "CODE:201-212 (right trigger = intake in); sign vs. motor rotation computed from geometry in Phase 5, ASSUMED"}
+  - id: front_bar
+    type: static_roller_bar
+    parts: {value: "16 × intake roller 3618-4008-0016 stretched over a fixed 264 mm 8 mm REX shaft (2106-4008-2640)", unit: label, source: "INSTR STEP 6-9 (shaft bolted to the frame with a 10 mm screw, STEP 7); CAD"}
+    axis_point: {value: [0.0, 0.046, -0.115], unit: m, source: "CAD rollers centre (y -0.128, z -0.008)"}
+    radius: {value: 0.0085, unit: m, source: "CAD roller bbox 17 mm"}
+    length: {value: 0.264, unit: m, source: "INSTR p3 BOM (264 mm shaft)"}
+    rotates: {value: false, unit: bool, source: "ASSUMED: shaft fixed by a screw at STEP 7 and rollers are stretch-fit; verify in CAD joints"}
+    contact_material: {value: intake_foam, unit: label, source: "config/physics.yaml materials"}
+  - id: sweeper_left
+    type: wheel
+    parts: {value: "72 mm Gecko (3613-0014-0072) on Compact ServoBlock hub", unit: label, source: "INSTR STEP 32-33 p20"}
+    axis_point: {value: [-0.156, 0.041, -0.212], unit: m, source: "CAD gecko72#1 centre"}
+    axis: {value: [0, 1, 0], unit: "1", source: "CAD: wheel thin along Z_cad = vertical axis"}
+    radius: {value: 0.036, unit: m, source: "Ø72 mm"}
+    width: {value: 0.024, unit: m, source: "CAD bbox"}
+    contact_material: {value: gecko, unit: label, source: "config/physics.yaml materials"}
+    positive_direction: {value: pulls_in, unit: label, source: "CODE:157-160 comment ('both servos work to pull elements into the intake')"}
+  - id: sweeper_right
+    type: wheel
+    parts: {value: "72 mm Gecko (3613-0014-0072) on Compact ServoBlock hub", unit: label, source: "INSTR STEP 32-33 p20"}
+    axis_point: {value: [0.156, 0.041, -0.212], unit: m, source: "CAD gecko72#0 centre"}
+    axis: {value: [0, 1, 0], unit: "1", source: "CAD"}
+    radius: {value: 0.036, unit: m, source: "Ø72 mm"}
+    width: {value: 0.024, unit: m, source: "CAD bbox"}
+    contact_material: {value: gecko, unit: label, source: "config/physics.yaml materials"}
+    positive_direction: {value: pulls_in, unit: label, source: "CODE:157-160"}
+  - id: windmill
+    type: paddle_wheel
+    parts: {value: "4 × Small Gridplate A (5×12 holes) paddles on the torque servo's ServoBlock hub", unit: label, source: "INSTR STEP 52-53 p32, p5 cutline A"}
+    axis_point: {value: [0.068, 0.126, -0.028], unit: m, source: "CAD paddles' centre (x -0.068, y -0.04) and servo output; paddles span y_r 0.087-0.127"}
+    axis: {value: [0, 1, 0], unit: "1", source: "CAD: 4 paddles arranged around a vertical axis"}
+    paddle_radius: {value: 0.058, unit: m, source: "CAD paddle extent ≈ 96 mm from the hub side; ASSUMED effective radius"}
+    paddle_height: {value: 0.040, unit: m, source: "CAD gridplate A bbox 40 mm"}
+    contact_material: {value: polycarbonate, unit: label, source: "config/physics.yaml materials"}
+    positive_direction: {value: feeds_launcher, unit: label, source: "CODE:291 (setPower(1) feeds when the launcher is at speed) with REVERSE at CODE:161"}
+  - id: launcher_flywheel
+    type: flywheel
+    parts: {value: "Hogback 96 mm (3626-0014-0096) on Hyper Hub (1310-0016-4008) on the 1:1 motor", unit: label, source: "INSTR STEP 51, 55; CAD"}
+    axis_point: {value: [0.005, 0.174, 0.052], unit: m, source: "CAD Hogback centre (-0.005, 0.04, 0.12)"}
+    axis: {value: [1, 0, 0], unit: "1", source: "CAD: Hogback thin along X"}
+    radius: {value: 0.048, unit: m, source: "Ø96 mm"}
+    width: {value: 0.024, unit: m, source: "CAD bbox"}
+    mass: {value: 0.101, unit: kg, source: "Hogback 82 g + Hyper Hub ≈ 19 g (CAD volume × 2700)"}
+    inertia: {value: 0.000165, unit: kg·m^2, source: "ASSUMED 0.6 × m r² for the Hogback (rim-heavy wheel) + hub; calibrate with spin-up time"}
+    contact_material: {value: hogback, unit: label, source: "config/physics.yaml materials"}
+    target_velocity: {value: 1250, unit: ticks/s, source: "CODE:76 (2678 RPM at 28 ticks/rev)"}
+    min_launch_velocity: {value: 1200, unit: ticks/s, source: "CODE:77"}
+    positive_direction: {value: launches, unit: label, source: "CODE:278 (setVelocity(1250) to launch)"}
+
+# Passive geometry that guides elements (colliders come from the CAD pipeline; listed here so the
+# hopper volume and launch path are explicit).
+ball_path:
+  description: {value: "floor → corner sweepers (72 mm Geckos, vertical axes) push elements toward the centre → 7-wheel Gecko roller grabs the top of the element and pulls it back over the fixed foam bar → hopper floor (gridplate E) → windmill paddles push one element at a time back into the Hogback flywheel → element is pinched between the flywheel and the curved hood (gridplate G) and leaves upward/backward through the chute between the two gridplates C", unit: label, source: "INSTR STEPs 6-9, 24-28, 32-33, 41-57 + CAD positions (gecko row y -0.1855, bar y -0.128, E y -0.1..-0.012, windmill y -0.04, flywheel y 0.04, G curving to y 0.19/z 0.156, C at y 0.144); exit direction ASSUMED until a Phase 5 test shot"}
+  hopper_capacity: {value: 4, unit: count, source: "ASSUMED (matches the G407 4-element limit and the 4 pre-loads, RULES §10.3.1 A.iv)"}
+  hood_part: {value: "1117-0088-0352 Medium Gridplate G (curved, STEP 48)", unit: label, source: "INSTR STEP 48 p30; CAD G bbox y -0.011..0.19, z -0.018..0.156"}
+  chute_parts: {value: "2 × Small Gridplate C (STEP 41) at x = ±0.046", unit: label, source: "CAD C plates centre (±0.0462, 0.144, 0.136)"}
+  chute_width: {value: 0.088, unit: m, source: "CAD: inner faces of the C plates (x ±0.044); NECTAR (0.0914 m) is wider — ASSUMED the plates flex or NECTAR jams; check in Phase 5"}
+  launch_direction: {value: [0, 0.94, 0.34], unit: "1", source: "ASSUMED from hood G end tangent (mostly up, slightly backward); measure in Phase 5"}
+  preload_drop_points: {value: [[-0.03, 0.15, -0.06], [0.03, 0.15, -0.06], [-0.03, 0.15, -0.01], [0.03, 0.15, -0.01]], unit: m, source: "ASSUMED: 4 POLLEN dropped into the hopper and left to settle (RULES §10.3.4, G304.G)"}
+
+sensors: []        # no webcam/distance/colour sensors in the kit (INSTR p2-4 BOM)
+bumpers: []
+
+checks:
+  motor_count: {value: 6, unit: count, source: "devices above; RULES R503 max 8 ✓"}
+  servo_count: {value: 3, unit: count, source: "devices above; RULES R503 max 8 ✓"}
+  start_cube: {value: [0.4572, 0.4572, 0.4572], unit: m, source: "RULES R102 (18 in)"}
