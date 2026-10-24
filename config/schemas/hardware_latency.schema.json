@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Simulated hardware transaction latencies",
+  "type": "object",
+  "required": ["hubs", "transactions", "skip_unchanged_writes", "opmode"],
+  "additionalProperties": false,
+  "$defs": {
+    "quantity": {
+      "type": "object",
+      "required": ["value", "unit", "source"],
+      "additionalProperties": false,
+      "properties": {"value": {}, "unit": {"type": "string", "minLength": 1}, "source": {"type": "string", "minLength": 3}}
+    },
+    "section": {"type": "object", "additionalProperties": {"$ref": "#/$defs/quantity"}},
+    "hub": {"allOf": [{"$ref": "#/$defs/section"}, {"required": ["lynx_command", "i2c_read", "i2c_write"]}]}
+  },
+  "properties": {
+    "hubs": {
+      "type": "object",
+      "required": ["control_hub", "expansion_hub"],
+      "additionalProperties": {"$ref": "#/$defs/hub"}
+    },
+    "transactions": {
+      "allOf": [
+        {"$ref": "#/$defs/section"},
+        {"required": ["bulk_read", "motor_set_power", "motor_read_uncached", "servo_set_position", "imu_read"]}
+      ]
+    },
+    "skip_unchanged_writes": {"$ref": "#/$defs/quantity"},
+    "opmode": {"$ref": "#/$defs/section"}
+  }
+}

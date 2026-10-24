@@ -1,0 +1,59 @@
+# CAD pipeline settings for the BIOBUZZ field (spec 02). Read by tools/cad_pipeline/run.py.
+name: field
+source: {zip: field-cad-step.zip, member: field-cad-step.step}
+up_axis: Y          # field CAD is Y-up, metres after import; red on -X, audience on +Z (Phase 2 check)
+
+# Parts that are dropped: fasteners and hidden hardware do not matter for physics or looks at our
+# quality target (D-007). Regexes on the part name.
+drop:
+  - "(?i)pop rivet|rivet field|rivnut"
+  - "(?i)screw|nut\\b|wing nut|lock nut|washer|elevator bolt"
+  - "(?i)quick release pin|panel fastener"
+  - "(?i)cable tie"
+  - "(?i)shielded flanged bearing"
+  - "(?i)nylon spacer|stepped spacer|press in plug|newstrapclip|under tile washer"
+
+# Groups become separate bodies in Godot. First match wins; the rest is "static".
+# kind: static (merged by material), rigid (one moving body, merged by material),
+#       element (one shared mesh, one body per instance), offfield (static, outside the field)
+groups:
+  - {name: pollen, kind: element, part_regex: "am-5851"}
+  - {name: nectar_red, kind: element, part_regex: "Red Nectar"}
+  - {name: nectar_blue, kind: element, part_regex: "Blue Nectar"}
+  - {name: hive_red, kind: rigid, path_regex: "am-5853-Red Hive", exclude_regex: "(?i)axle holder"}
+  - {name: hive_blue, kind: rigid, path_regex: "am-5853-Blue Hive", exclude_regex: "(?i)axle holder"}
+  - {name: tiles, kind: static, part_regex: "Soft Tiles", collider: floor}
+  - {name: perimeter, kind: static, path_regex: "am-0481b", collider: box_each}
+  - {name: tape, kind: static, part_regex: "Gaffer Tape", collider: none}
+  - {name: trays, kind: static, part_regex: "Artifact Tray"}
+
+tessellation:            # BRepMesh linear deflection (m) and angular deflection (rad)
+  default: {linear: 0.0015, angular: 0.5}
+  element: {linear: 0.0008, angular: 0.35}
+  coarse_regex: "(?i)soft tiles|rail|panel link|side glass|under tile bar|strap"
+  coarse: {linear: 0.004, angular: 0.8}
+
+colliders:
+  default: hull           # one convex hull per part (structure that game elements only bounce off)
+  rules:                  # first match on the part name wins; group settings (element/box_each/floor/none) win over rules
+    - {regex: "(?i)flower layer", mode: sectors}                       # rings: exact opening for POLLEN/NECTAR
+    - {regex: "(?i)hive goal (top|back|bottom) skin", mode: coacd, threshold: 0.03, max_hulls: 24}   # CELL walls: balls go inside
+    - {regex: "(?i)goal rib|flower backstop|artifact tray", mode: coacd, threshold: 0.04, max_hulls: 16}
+    - {regex: "(?i)april tag|panel sticker|acm panel", mode: box}
+    - {regex: "(?i)under tile bar|under field bracket", mode: none}    # below the tiles, never touched
+  max_fit_error: 0.12     # relative volume error allowed for a primitive fit (auto mode)
+  convex_ratio: 0.92      # part volume / hull volume above this -> single convex hull (auto mode)
+  coacd_max_hulls: 12
+  coacd_threshold: 0.06
+  sectors: 32             # sector hulls per ring (chord error < 0.5 mm for a 2 in opening)
+
+# Measurements checked against the manual (rules_biobuzz.yaml key, ±1 in per §9.1).
+validate:
+  - {what: "Hive frame width", rule: hive.frame_width, measure: {path_regex: "am-5854", axis: x, kind: extent}}
+  - {what: "Hive frame depth", rule: hive.frame_depth, measure: {path_regex: "am-5854", axis: z, kind: extent}}
+  - {what: "Pollen diameter", rule: elements.pollen_diameter, measure: {part_regex: "am-5851", axis: y, kind: extent_first}}
+  - {what: "Nectar diameter", rule: elements.nectar_diameter, measure: {part_regex: "Red Nectar", axis: y, kind: extent_first}}
+  - {what: "Tile thickness", rule: field.tile_thickness, measure: {part_regex: "Soft Tiles", axis: y, kind: extent}}
+  - {what: "Field inside width (perimeter)", rule: field.size, tolerance_in: 3.0, note: "manual §9.2 says approximately 144 in; the CAD (official per §9.1) has 141.35 in between the inner wall faces", measure: {part_regex: "Side Glass", axis: x, kind: inner_gap}}
+  - {what: "Field inside depth (perimeter)", rule: field.size, tolerance_in: 3.0, note: "manual §9.2 says approximately 144 in; the CAD (official per §9.1) has 141.35 in between the inner wall faces", measure: {part_regex: "Side Glass", axis: z, kind: inner_gap}}
+  - {what: "Flower top height (incl. backstop)", rule: flower.top_opening_height, add_rule: flower.backstop_height, measure: {path_regex: "am-5855", axis: y, kind: max_first}}

@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Main battery, wiring, brownout and battery presets",
+  "type": "object",
+  "required": ["models", "wiring", "brownout", "presets"],
+  "additionalProperties": false,
+  "$defs": {
+    "quantity": {
+      "type": "object",
+      "required": ["value", "unit", "source"],
+      "additionalProperties": false,
+      "properties": {"value": {}, "unit": {"type": "string", "minLength": 1}, "source": {"type": "string", "minLength": 3}}
+    },
+    "curve": {
+      "allOf": [
+        {"$ref": "#/$defs/quantity"},
+        {"properties": {"value": {"type": "array", "minItems": 2,
+          "items": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"type": "number"}}}}}
+      ]
+    },
+    "battery": {
+      "type": "object",
+      "required": ["part", "name", "nominal_voltage", "capacity", "fuse_rating", "pack_resistance", "ocv_curve"],
+      "properties": {
+        "part": {"type": "string"},
+        "name": {"type": "string"},
+        "ocv_curve": {"$ref": "#/$defs/curve"}
+      },
+      "additionalProperties": {"$ref": "#/$defs/quantity"}
+    },
+    "section": {"type": "object", "additionalProperties": {"$ref": "#/$defs/quantity"}}
+  },
+  "properties": {
+    "models": {"type": "object", "minProperties": 1, "additionalProperties": {"$ref": "#/$defs/battery"}},
+    "wiring": {"allOf": [{"$ref": "#/$defs/section"}, {"required": ["resistance", "hub_quiescent_current"]}]},
+    "brownout": {
+      "allOf": [{"$ref": "#/$defs/section"}, {"required": ["threshold", "recovery_hysteresis", "output_disable_time"]}]
+    },
+    "presets": {
+      "type": "object",
+      "required": ["fresh", "used", "tired"],
+      "additionalProperties": {
+        "allOf": [{"$ref": "#/$defs/section"}, {"required": ["state_of_charge", "resistance_multiplier"]}]
+      }
+    }
+  }
+}

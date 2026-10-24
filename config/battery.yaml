@@ -1,0 +1,45 @@
+# 12 V NiMH main battery and electrical bus (spec 04 "Battery and electrical", R601 Table 12-4).
+# Read by sim/Sim.Hardware (HardwareConfig); validated by config/schemas/battery.schema.json.
+# Every number is a quantity {value, unit, source}; ASSUMED = to be measured (Phase 11).
+#
+# Model (sim/Sim.Hardware/Battery.cs): V_bus = V_oc(SoC) - I_battery * R_total, with
+# R_total = R_pack * preset multiplier + R_wiring. All motors and servos share V_bus.
+
+models:
+  gobilda_3100_0012_0020:
+    part: 3100-0012-0020
+    name: "goBILDA 12V NiMH Nested Battery (3000 mAh, XT30)"
+    nominal_voltage: {value: 12, unit: V, source: "goBILDA 3100-0012-0020 user manual (https://www.gobilda.com/content/user_manuals/3100-0012-0020_user-manual.pdf)"}
+    capacity: {value: 3.0, unit: Ah, source: "goBILDA 3100-0012-0020 user manual (3000 mAh)"}
+    max_discharge_current: {value: 30, unit: A, source: "goBILDA 3100-0012-0020 user manual (30 A, limited to 20 A by fuse)"}
+    fuse_rating: {value: 20, unit: A, source: "goBILDA 3100-0012-0020 user manual (20 A ATM mini blade); also R601.A"}
+    minimum_resting_voltage: {value: 9.0, unit: V, source: "goBILDA 3100-0012-0020 user manual (do not use below 9 V)"}
+    cell_count: {value: 10, unit: count, source: "ASSUMED (12 V nominal / 1.2 V per NiMH cell)"}
+    pack_resistance: {value: 0.08, unit: ohm, source: "ASSUMED (10 sub-C NiMH cells ~6-8 mOhm each plus interconnects)"}
+    # Open-circuit voltage vs state of charge (pairs of [soc, volts]); typical NiMH discharge
+    # shape 1.38 -> 1.0 V per cell over 10 cells.
+    ocv_curve:
+      value: [[0.0, 10.0], [0.05, 11.0], [0.10, 11.8], [0.20, 12.2], [0.50, 12.6], [0.80, 13.0], [0.90, 13.2], [1.0, 13.8]]
+      unit: soc_volts
+      source: "ASSUMED (typical NiMH per-cell curve x 10 cells; replace with a measured discharge curve)"
+
+wiring:
+  resistance: {value: 0.04, unit: ohm, source: "ASSUMED (fuse + XT30 + switch + hub input + 16 AWG leads)"}
+  hub_quiescent_current: {value: 0.4, unit: A, source: "ASSUMED (Control Hub logic, radio, Expansion Hub idle)"}
+
+brownout:
+  threshold: {value: 8.0, unit: V, source: "https://docs.revrobotics.com/duo-control/control-system-overview/control-hub-basics (operating range 8-15 V)"}
+  recovery_hysteresis: {value: 0.5, unit: V, source: "ASSUMED"}
+  output_disable_time: {value: 0.5, unit: s, source: "ASSUMED (motor/servo outputs stay off after a brownout)"}
+
+# Battery condition presets for practice (spec 04: "fresh", "used" or "tired").
+presets:
+  fresh:
+    state_of_charge: {value: 1.0, unit: fraction, source: ASSUMED}
+    resistance_multiplier: {value: 1.0, unit: factor, source: ASSUMED}
+  used:
+    state_of_charge: {value: 0.75, unit: fraction, source: ASSUMED}
+    resistance_multiplier: {value: 1.25, unit: factor, source: ASSUMED}
+  tired:
+    state_of_charge: {value: 0.40, unit: fraction, source: ASSUMED}
+    resistance_multiplier: {value: 1.8, unit: factor, source: ASSUMED}

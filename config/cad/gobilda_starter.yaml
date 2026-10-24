@@ -1,0 +1,30 @@
+# CAD pipeline settings for the goBILDA StarterBot with Mecanum (3200-2627-0004).
+name: gobilda_starter
+source: {zip: 3200-2627-0004.zip, member: 3200-2627-0004.step}
+up_axis: auto       # detected from the wheel axes / largest flat plate; recorded in the manifest
+
+drop:
+  - "(?i)screw|nut\\b|washer|zip tie|2909-0101|2909-0102"
+  - "(?i)^2800-|^2801-|^2802-|^2812-|^2824-"        # goBILDA hex/socket screws, nuts, washers
+  - "(?i)gearbox barrel screw|92010A118|99461A915|thread-forming"
+  - "(?i)\\(dont have\\)"
+  - "(?i)^shim$|^ir$|^or$"                          # bearing shims and races (hidden)
+
+groups: []          # mechanisms are defined in config/robots/gobilda_starter.yaml (Phase 5)
+
+tessellation:
+  default: {linear: 0.0006, angular: 0.5}
+  element: {linear: 0.0006, angular: 0.5}
+  coarse_regex: "(?i)grid|plate|channel"
+  coarse: {linear: 0.0012, angular: 0.6}
+
+colliders:
+  max_fit_error: 0.12
+  convex_ratio: 0.92
+  coacd_max_hulls: 8
+  coacd_threshold: 0.08
+
+validate:
+  - {what: "Robot fits the 18 in starting cube (x)", rule: robot_limits.start_cube, index: 0, measure: {path_regex: ".", axis: x, kind: extent_le}}
+  - {what: "Robot fits the 18 in starting cube (z)", rule: robot_limits.start_cube, index: 1, measure: {path_regex: ".", axis: z, kind: extent_le}}
+  - {what: "Robot fits the 18 in starting cube (y)", rule: robot_limits.start_cube, index: 2, measure: {path_regex: ".", axis: y, kind: extent_le}}

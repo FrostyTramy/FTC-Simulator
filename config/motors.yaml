@@ -1,0 +1,247 @@
+# DC motor models, SDK motor types and the REV hub motor controller (spec 04 "DC motor model",
+# spec 06 "Motors"). Read by sim/Sim.Hardware (HardwareConfig) and validated by
+# config/schemas/motors.schema.json (tests/python/test_hardware_configs.py).
+# Every number is a quantity {value, unit, source}; ASSUMED = not from a datasheet, calibrate in Phase 11.
+#
+# Model (sim/Sim.Hardware/DcMotor.cs): constants are derived at the OUTPUT shaft from the datasheet
+# free speed / free current / stall torque / stall current at the nominal voltage, so the
+# gearbox efficiency is implicit in the datasheet stall torque:
+#   R = V/I_stall, Kt = T_stall/I_stall, Ke = (V - I_free*R)/w_free, T_friction = Kt*I_free
+
+models:
+  gobilda_5203_1_1:
+    part: 5203-2402-0001
+    name: "goBILDA 5203 Yellow Jacket 1:1 (6000 RPM)"
+    gear_ratio: {value: 1.0, unit: ratio, source: "https://www.gobilda.com/5203-series-yellow-jacket-motor-1-1-ratio-24mm-length-8mm-rex-shaft-6000-rpm-3-3-5v-encoder/"}
+    nominal_voltage: {value: 12, unit: V, source: "goBILDA 5203-2402-0001 product page"}
+    free_speed: {value: 6000, unit: rpm, source: "goBILDA 5203-2402-0001 product page (theoretical; a 5202 1:1 listing reports 5400 RPM tested)"}
+    free_current: {value: 0.25, unit: A, source: "goBILDA 5203-2402-0001 product page"}
+    stall_current: {value: 9.2, unit: A, source: "goBILDA 5203-2402-0001 product page"}
+    stall_torque: {value: 1.47, unit: kgf_cm, source: "goBILDA 5203-2402-0001 product page (20.45 oz-in)"}
+    counts_per_output_rev: {value: 28, unit: counts, source: "goBILDA 5203-2402-0001 product page (28 PPR at output shaft)"}
+    mass: {value: 0.391, unit: kg, source: "goBILDA 5203-2402-0001 product page"}
+    rotor_inertia: {value: 6.0e-6, unit: kg_m2, source: "ASSUMED (RS-555 rotor ~80 g, r ~12 mm)"}
+    positive_voltage_rotation: {value: ccw, unit: label, source: "FTC SDK 12.0.0 Hardware.aar GoBILDA5202Series @MotorType orientation=CCW"}
+    sdk_motor_type: gobilda_5202_series
+  gobilda_5203_3_7:
+    part: 5203-2402-0003
+    name: "goBILDA 5203 Yellow Jacket 3.7:1 (1620 RPM)"
+    gear_ratio: {value: 3.70588, unit: ratio, source: "goBILDA spec sheet 5203-2402-0003 (1+46/17)"}
+    nominal_voltage: {value: 12, unit: V, source: "https://gobilda.com/content/spec_sheets/5203-2402-0003_spec_sheet.pdf"}
+    free_speed: {value: 1620, unit: rpm, source: "goBILDA spec sheet 5203-2402-0003"}
+    free_current: {value: 0.25, unit: A, source: "goBILDA spec sheet 5203-2402-0003"}
+    stall_current: {value: 9.2, unit: A, source: "goBILDA spec sheet 5203-2402-0003"}
+    stall_torque: {value: 5.4, unit: kgf_cm, source: "goBILDA spec sheet 5203-2402-0003 (75.8 oz-in)"}
+    counts_per_output_rev: {value: 103.8, unit: counts, source: "goBILDA spec sheet 5203-2402-0003"}
+    mass: {value: 0.396, unit: kg, source: "goBILDA spec sheet 5203-2402-0003"}
+    rotor_inertia: {value: 6.0e-6, unit: kg_m2, source: "ASSUMED (RS-555 rotor)"}
+    positive_voltage_rotation: {value: ccw, unit: label, source: "FTC SDK 12.0.0 GoBILDA5202Series orientation=CCW"}
+    sdk_motor_type: gobilda_5202_series
+  gobilda_5203_5_2:
+    part: 5203-2402-0005
+    name: "goBILDA 5203 Yellow Jacket 5.2:1 (1150 RPM)"
+    gear_ratio: {value: 5.18182, unit: ratio, source: "https://www.gobilda.com/5203-series-yellow-jacket-planetary-gear-motor-5-2-1-ratio-24mm-length-8mm-rex-shaft-1150-rpm-3-3-5v-encoder/ (1+46/11)"}
+    nominal_voltage: {value: 12, unit: V, source: "goBILDA 5203-2402-0005 product page"}
+    free_speed: {value: 1150, unit: rpm, source: "goBILDA 5203-2402-0005 product page"}
+    free_current: {value: 0.25, unit: A, source: "goBILDA 5203-2402-0005 product page"}
+    stall_current: {value: 9.2, unit: A, source: "goBILDA 5203-2402-0005 product page"}
+    stall_torque: {value: 7.9, unit: kgf_cm, source: "goBILDA 5203-2402-0005 product page (109 oz-in)"}
+    counts_per_output_rev: {value: 145.1, unit: counts, source: "goBILDA 5203-2402-0005 product page"}
+    mass: {value: 0.399, unit: kg, source: "goBILDA 5203-2402-0005 product page"}
+    rotor_inertia: {value: 6.0e-6, unit: kg_m2, source: "ASSUMED (RS-555 rotor)"}
+    positive_voltage_rotation: {value: ccw, unit: label, source: "FTC SDK 12.0.0 GoBILDA5202Series orientation=CCW"}
+    sdk_motor_type: gobilda_5202_series
+  gobilda_5203_13_7:
+    part: 5203-2402-0014
+    name: "goBILDA 5203 Yellow Jacket 13.7:1 (435 RPM)"
+    gear_ratio: {value: 13.7336, unit: ratio, source: "https://www.gobilda.com/5203-series-yellow-jacket-planetary-gear-motor-13-7-1-ratio-24mm-length-8mm-rex-shaft-435-rpm-3-3-5v-encoder/ (1+46/17)^2"}
+    nominal_voltage: {value: 12, unit: V, source: "goBILDA 5203-2402-0014 product page"}
+    free_speed: {value: 435, unit: rpm, source: "goBILDA 5203-2402-0014 product page"}
+    free_current: {value: 0.25, unit: A, source: "goBILDA 5203-2402-0014 product page"}
+    stall_current: {value: 9.2, unit: A, source: "goBILDA 5203-2402-0014 product page"}
+    stall_torque: {value: 18.7, unit: kgf_cm, source: "goBILDA 5203-2402-0014 product page (260 oz-in)"}
+    counts_per_output_rev: {value: 384.5, unit: counts, source: "goBILDA 5203-2402-0014 product page"}
+    mass: {value: 0.438, unit: kg, source: "goBILDA 5203-2402-0014 product page"}
+    rotor_inertia: {value: 6.0e-6, unit: kg_m2, source: "ASSUMED (RS-555 rotor)"}
+    positive_voltage_rotation: {value: ccw, unit: label, source: "FTC SDK 12.0.0 GoBILDA5202Series orientation=CCW"}
+    sdk_motor_type: gobilda_5202_series
+  gobilda_5203_19_2:
+    part: 5203-2402-0019
+    name: "goBILDA 5203 Yellow Jacket 19.2:1 (312 RPM)"
+    gear_ratio: {value: 19.2032, unit: ratio, source: "https://www.gobilda.com/5203-series-yellow-jacket-planetary-gear-motor-19-2-1-ratio-24mm-length-8mm-rex-shaft-312-rpm-3-3-5v-encoder/ (1+46/17)(1+46/11)"}
+    nominal_voltage: {value: 12, unit: V, source: "goBILDA 5203-2402-0019 product page"}
+    free_speed: {value: 312, unit: rpm, source: "goBILDA 5203-2402-0019 product page"}
+    free_current: {value: 0.25, unit: A, source: "goBILDA 5203-2402-0019 product page"}
+    stall_current: {value: 9.2, unit: A, source: "goBILDA 5203-2402-0019 product page"}
+    stall_torque: {value: 24.3, unit: kgf_cm, source: "goBILDA 5203-2402-0019 product page (338 oz-in)"}
+    counts_per_output_rev: {value: 537.7, unit: counts, source: "goBILDA 5203-2402-0019 product page"}
+    mass: {value: 0.437, unit: kg, source: "goBILDA 5203-2402-0019 product page"}
+    rotor_inertia: {value: 6.0e-6, unit: kg_m2, source: "ASSUMED (RS-555 rotor)"}
+    positive_voltage_rotation: {value: ccw, unit: label, source: "FTC SDK 12.0.0 GoBILDA5202Series orientation=CCW"}
+    sdk_motor_type: gobilda_5202_series
+  gobilda_5203_26_9:
+    part: 5203-2402-0027
+    name: "goBILDA 5203 Yellow Jacket 26.9:1 (223 RPM)"
+    gear_ratio: {value: 26.8512, unit: ratio, source: "https://www.gobilda.com/5203-series-yellow-jacket-planetary-gear-motor-26-9-1-ratio-24mm-length-8mm-rex-shaft-223-rpm-3-3-5v-encoder/ (1+46/11)^2"}
+    nominal_voltage: {value: 12, unit: V, source: "goBILDA 5203-2402-0027 product page"}
+    free_speed: {value: 223, unit: rpm, source: "goBILDA 5203-2402-0027 product page"}
+    free_current: {value: 0.25, unit: A, source: "goBILDA 5203-2402-0027 product page"}
+    stall_current: {value: 9.2, unit: A, source: "goBILDA 5203-2402-0027 product page"}
+    stall_torque: {value: 38.0, unit: kgf_cm, source: "goBILDA 5203-2402-0027 product page (530 oz-in)"}
+    counts_per_output_rev: {value: 751.8, unit: counts, source: "goBILDA 5203-2402-0027 product page"}
+    mass: {value: 0.437, unit: kg, source: "goBILDA 5203-2402-0027 product page"}
+    rotor_inertia: {value: 6.0e-6, unit: kg_m2, source: "ASSUMED (RS-555 rotor)"}
+    positive_voltage_rotation: {value: ccw, unit: label, source: "FTC SDK 12.0.0 GoBILDA5202Series orientation=CCW"}
+    sdk_motor_type: gobilda_5202_series
+  gobilda_5203_50_9:
+    part: 5203-2402-0051
+    name: "goBILDA 5203 Yellow Jacket 50.9:1 (117 RPM)"
+    gear_ratio: {value: 50.8946, unit: ratio, source: "https://www.gobilda.com/5203-series-yellow-jacket-planetary-gear-motor-50-9-1-ratio-24mm-length-8mm-rex-shaft-117-rpm-3-3-5v-encoder/ (1+46/17)^3"}
+    nominal_voltage: {value: 12, unit: V, source: "goBILDA 5203-2402-0051 product page"}
+    free_speed: {value: 117, unit: rpm, source: "goBILDA 5203-2402-0051 product page"}
+    free_current: {value: 0.25, unit: A, source: "goBILDA 5203-2402-0051 product page"}
+    stall_current: {value: 9.2, unit: A, source: "goBILDA 5203-2402-0051 product page"}
+    stall_torque: {value: 68.4, unit: kgf_cm, source: "goBILDA 5203-2402-0051 product page (950 oz-in)"}
+    counts_per_output_rev: {value: 1425.1, unit: counts, source: "goBILDA 5203-2402-0051 product page"}
+    mass: {value: 0.481, unit: kg, source: "goBILDA 5203-2402-0051 product page"}
+    rotor_inertia: {value: 6.0e-6, unit: kg_m2, source: "ASSUMED (RS-555 rotor)"}
+    positive_voltage_rotation: {value: ccw, unit: label, source: "FTC SDK 12.0.0 GoBILDA5202Series orientation=CCW"}
+    sdk_motor_type: gobilda_5202_series
+  gobilda_5203_71_2:
+    part: 5203-2402-0071
+    name: "goBILDA 5203 Yellow Jacket 71.2:1 (84 RPM)"
+    gear_ratio: {value: 71.1647, unit: ratio, source: "https://www.gobilda.com/5203-series-yellow-jacket-planetary-gear-motor-71-2-1-ratio-24mm-length-8mm-rex-shaft-84-rpm-3-3-5v-encoder/ (1+46/17)^2(1+46/11)"}
+    nominal_voltage: {value: 12, unit: V, source: "goBILDA 5203-2402-0071 product page"}
+    free_speed: {value: 84, unit: rpm, source: "goBILDA 5203-2402-0071 product page"}
+    free_current: {value: 0.25, unit: A, source: "goBILDA 5203-2402-0071 product page"}
+    stall_current: {value: 9.2, unit: A, source: "goBILDA 5203-2402-0071 product page"}
+    stall_torque: {value: 93.6, unit: kgf_cm, source: "goBILDA 5203-2402-0071 product page (1,310 oz-in)"}
+    counts_per_output_rev: {value: 1993.6, unit: counts, source: "goBILDA 5203-2402-0071 product page"}
+    mass: {value: 0.486, unit: kg, source: "goBILDA 5203-2402-0071 product page"}
+    rotor_inertia: {value: 6.0e-6, unit: kg_m2, source: "ASSUMED (RS-555 rotor)"}
+    positive_voltage_rotation: {value: ccw, unit: label, source: "FTC SDK 12.0.0 GoBILDA5202Series orientation=CCW"}
+    sdk_motor_type: gobilda_5202_series
+  gobilda_5203_99_5:
+    part: 5203-2402-0099
+    name: "goBILDA 5203 Yellow Jacket 99.5:1 (60 RPM)"
+    gear_ratio: {value: 99.5077, unit: ratio, source: "https://www.gobilda.com/5203-series-yellow-jacket-planetary-gear-motor-99-5-1-ratio-24mm-length-8mm-rex-shaft-60-rpm-3-3-5v-encoder/ (1+46/17)(1+46/11)^2"}
+    nominal_voltage: {value: 12, unit: V, source: "goBILDA 5203-2402-0099 product page"}
+    free_speed: {value: 60, unit: rpm, source: "goBILDA 5203-2402-0099 product page"}
+    free_current: {value: 0.25, unit: A, source: "goBILDA 5203-2402-0099 product page"}
+    stall_current: {value: 9.2, unit: A, source: "goBILDA 5203-2402-0099 product page"}
+    stall_torque: {value: 133.2, unit: kgf_cm, source: "goBILDA 5203-2402-0099 product page (1,850 oz-in)"}
+    counts_per_output_rev: {value: 2786.2, unit: counts, source: "goBILDA 5203-2402-0099 product page"}
+    mass: {value: 0.486, unit: kg, source: "goBILDA 5203-2402-0099 product page"}
+    rotor_inertia: {value: 6.0e-6, unit: kg_m2, source: "ASSUMED (RS-555 rotor)"}
+    positive_voltage_rotation: {value: ccw, unit: label, source: "FTC SDK 12.0.0 GoBILDA5202Series orientation=CCW"}
+    sdk_motor_type: gobilda_5202_series
+  gobilda_5203_139:
+    part: 5203-2402-0139
+    name: "goBILDA 5203 Yellow Jacket 139:1 (43 RPM)"
+    gear_ratio: {value: 139.139, unit: ratio, source: "https://www.gobilda.com/content/spec_sheets/5203-2402-0139_spec_sheet.pdf ((1+46/11)^3 = 3895.9/28)"}
+    nominal_voltage: {value: 12, unit: V, source: "goBILDA spec sheet 5203-2402-0139"}
+    free_speed: {value: 43, unit: rpm, source: "goBILDA spec sheet 5203-2402-0139"}
+    free_current: {value: 0.25, unit: A, source: "goBILDA spec sheet 5203-2402-0139"}
+    stall_current: {value: 9.2, unit: A, source: "goBILDA spec sheet 5203-2402-0139"}
+    stall_torque: {value: 185, unit: kgf_cm, source: "goBILDA spec sheet 5203-2402-0139"}
+    counts_per_output_rev: {value: 3895.9, unit: counts, source: "goBILDA spec sheet 5203-2402-0139"}
+    mass: {value: 0.486, unit: kg, source: "goBILDA spec sheet 5203-2402-0139"}
+    rotor_inertia: {value: 6.0e-6, unit: kg_m2, source: "ASSUMED (RS-555 rotor)"}
+    positive_voltage_rotation: {value: ccw, unit: label, source: "FTC SDK 12.0.0 GoBILDA5202Series orientation=CCW"}
+    sdk_motor_type: gobilda_5202_series
+  gobilda_5203_188:
+    part: 5203-2402-0188
+    name: "goBILDA 5203 Yellow Jacket 188:1 (30 RPM)"
+    gear_ratio: {value: 188.611, unit: ratio, source: "https://www.gobilda.com/content/spec_sheets/5203-2402-0188_spec_sheet.pdf ((1+46/17)^4 = 5281.1/28)"}
+    nominal_voltage: {value: 12, unit: V, source: "goBILDA spec sheet 5203-2402-0188"}
+    free_speed: {value: 30, unit: rpm, source: "goBILDA spec sheet 5203-2402-0188"}
+    free_current: {value: 0.25, unit: A, source: "goBILDA spec sheet 5203-2402-0188"}
+    stall_current: {value: 9.2, unit: A, source: "goBILDA spec sheet 5203-2402-0188"}
+    stall_torque: {value: 250, unit: kgf_cm, source: "goBILDA spec sheet 5203-2402-0188"}
+    counts_per_output_rev: {value: 5281.1, unit: counts, source: "goBILDA spec sheet 5203-2402-0188"}
+    mass: {value: 0.528, unit: kg, source: "goBILDA spec sheet 5203-2402-0188"}
+    rotor_inertia: {value: 6.0e-6, unit: kg_m2, source: "ASSUMED (RS-555 rotor)"}
+    positive_voltage_rotation: {value: ccw, unit: label, source: "FTC SDK 12.0.0 GoBILDA5202Series orientation=CCW"}
+    sdk_motor_type: gobilda_5202_series
+
+# Motor types as the FTC SDK reports them (DcMotor.getMotorType()). Values read from the
+# @MotorType annotations in the official FTC SDK 12.0.0 artifacts (Maven Central
+# org.firstinspires.ftc:Hardware/RobotCore 12.0.0, inspected with javap). Note the SDK quirk: the
+# single "GoBILDA 5202/3/4 series" type always reports the 99.5:1 numbers whatever the real ratio.
+# achievable max ticks/s = ticks_per_rev * max_rpm * fraction / 60 (MotorConfigurationType).
+sdk_motor_types:
+  gobilda_5202_series:
+    xml_tag: goBILDA5202SeriesMotor
+    display_name: "GoBILDA 5202/3/4 series"
+    ticks_per_rev: {value: 2786.0, unit: counts, source: "SDK 12.0.0 GoBILDA5202Series @MotorType"}
+    gearing: {value: 99.5, unit: ratio, source: "SDK 12.0.0 GoBILDA5202Series @MotorType"}
+    max_rpm: {value: 60.0, unit: rpm, source: "SDK 12.0.0 GoBILDA5202Series @MotorType"}
+    achievable_max_rpm_fraction: {value: 0.85, unit: fraction, source: "SDK 12.0.0 @MotorType achieveableMaxRPMFraction default"}
+    orientation: {value: ccw, unit: label, source: "SDK 12.0.0 GoBILDA5202Series @MotorType"}
+  gobilda_5201_series:
+    xml_tag: goBILDA5201SeriesMotor
+    display_name: "GoBILDA 5201 series"
+    ticks_per_rev: {value: 1500.0, unit: counts, source: "SDK 12.0.0 GoBILDA5201Series @MotorType"}
+    gearing: {value: 54.0, unit: ratio, source: "SDK 12.0.0 GoBILDA5201Series @MotorType"}
+    max_rpm: {value: 104.0, unit: rpm, source: "SDK 12.0.0 GoBILDA5201Series @MotorType"}
+    achievable_max_rpm_fraction: {value: 0.85, unit: fraction, source: "SDK 12.0.0 @MotorType default"}
+    orientation: {value: ccw, unit: label, source: "SDK 12.0.0 GoBILDA5201Series @MotorType"}
+  rev_core_hex:
+    xml_tag: RevRoboticsCoreHexMotor
+    display_name: "REV Robotics Core Hex Motor"
+    ticks_per_rev: {value: 288.0, unit: counts, source: "SDK 12.0.0 RevRoboticsCoreHexMotor @MotorType"}
+    gearing: {value: 36.25, unit: ratio, source: "SDK 12.0.0 RevRoboticsCoreHexMotor @MotorType"}
+    max_rpm: {value: 137.0, unit: rpm, source: "SDK 12.0.0 RevRoboticsCoreHexMotor @MotorType"}
+    achievable_max_rpm_fraction: {value: 0.85, unit: fraction, source: "SDK 12.0.0 @MotorType default"}
+    orientation: {value: ccw, unit: label, source: "SDK 12.0.0 RevRoboticsCoreHexMotor @MotorType"}
+  rev_ultraplanetary_hd_hex:
+    xml_tag: RevRoboticsUltraplanetaryHDHexMotor
+    display_name: "REV Robotics UltraPlanetary HD Hex Motor"
+    ticks_per_rev: {value: 560.0, unit: counts, source: "SDK 12.0.0 RevRoboticsUltraPlanetaryHdHexMotor @MotorType"}
+    gearing: {value: 20.0, unit: ratio, source: "SDK 12.0.0 RevRoboticsUltraPlanetaryHdHexMotor @MotorType"}
+    max_rpm: {value: 300.0, unit: rpm, source: "SDK 12.0.0 RevRoboticsUltraPlanetaryHdHexMotor @MotorType"}
+    achievable_max_rpm_fraction: {value: 0.85, unit: fraction, source: "SDK 12.0.0 @MotorType default"}
+    orientation: {value: cw, unit: label, source: "SDK 12.0.0 RevRoboticsUltraPlanetaryHdHexMotor @MotorType"}
+  rev_hd_hex_20:
+    xml_tag: RevRobotics20HDHexMotor
+    display_name: "REV Robotics 20:1 HD Hex Motor"
+    ticks_per_rev: {value: 560.0, unit: counts, source: "SDK 12.0.0 RevRobotics20HdHexMotor @MotorType"}
+    gearing: {value: 20.0, unit: ratio, source: "SDK 12.0.0 RevRobotics20HdHexMotor @MotorType"}
+    max_rpm: {value: 300.0, unit: rpm, source: "SDK 12.0.0 RevRobotics20HdHexMotor @MotorType"}
+    achievable_max_rpm_fraction: {value: 0.85, unit: fraction, source: "SDK 12.0.0 @MotorType default"}
+    orientation: {value: ccw, unit: label, source: "SDK 12.0.0 RevRobotics20HdHexMotor @MotorType"}
+  rev_hd_hex_40:
+    xml_tag: RevRobotics40HDHexMotor
+    display_name: "REV Robotics 40:1 HD Hex Motor"
+    ticks_per_rev: {value: 1120.0, unit: counts, source: "SDK 12.0.0 RevRobotics40HdHexMotor @MotorType"}
+    gearing: {value: 40.0, unit: ratio, source: "SDK 12.0.0 RevRobotics40HdHexMotor @MotorType"}
+    max_rpm: {value: 150.0, unit: rpm, source: "SDK 12.0.0 RevRobotics40HdHexMotor @MotorType"}
+    achievable_max_rpm_fraction: {value: 0.85, unit: fraction, source: "SDK 12.0.0 @MotorType default"}
+    orientation: {value: ccw, unit: label, source: "SDK 12.0.0 RevRobotics40HdHexMotor @MotorType"}
+  unspecified:
+    xml_tag: Motor
+    display_name: "Unspecified Motor"
+    ticks_per_rev: {value: 1440.0, unit: counts, source: "SDK 12.0.0 RobotCore UnspecifiedMotor @MotorType"}
+    gearing: {value: 52.0, unit: ratio, source: "SDK 12.0.0 RobotCore UnspecifiedMotor @MotorType"}
+    max_rpm: {value: 165.0, unit: rpm, source: "SDK 12.0.0 RobotCore UnspecifiedMotor @MotorType"}
+    achievable_max_rpm_fraction: {value: 0.85, unit: fraction, source: "SDK 12.0.0 @MotorType default"}
+    orientation: {value: cw, unit: label, source: "SDK 12.0.0 @MotorType orientation default = CW"}
+
+# REV Control Hub / Expansion Hub motor controller (firmware behaviour, emulated by
+# sim/Sim.Hardware/HubMotorController.cs). SDK-side facts come from the SDK 12.0.0 bytecode of
+# LynxDcMotorController.internalSetMotorPower: RUN_WITHOUT_ENCODER sends a constant power
+# (power scaled to +-32767), RUN_USING_ENCODER and RUN_TO_POSITION send a target velocity
+# = signum(power) * |power| * achievableMaxTicksPerSecondRounded (int truncation).
+hub_motor_controller:
+  ports_per_hub: {value: 4, unit: count, source: "SDK 12.0.0 LynxConstants.NUMBER_OF_MOTORS (javadoc constant-values)"}
+  power_full_scale: {value: 32767, unit: counts, source: "SDK 12.0.0 LynxDcMotorController (Range.scale to -32767..32767)"}
+  default_target_position_tolerance: {value: 5, unit: counts, source: "SDK LynxConstants.DEFAULT_TARGET_POSITION_TOLERANCE = 5 (javadoc constant-values)"}
+  default_velocity_pidf: {value: [10.0, 3.0, 0.0, 0.0], unit: pidf, source: "SDK 12.0.0 RevRoboticsCoreHexMotor @ExpansionHubMotorControllerVelocityParams P=10 I=3 D=0; used as the firmware default for types without params (ASSUMED for goBILDA)"}
+  default_position_pidf: {value: [10.0, 0.05, 0.0, 0.0], unit: pidf, source: "SDK 12.0.0 RevRoboticsCoreHexMotor @ExpansionHubMotorControllerPositionParams P=10 I=0.05 D=0; ASSUMED firmware default for goBILDA"}
+  feedforward_rule: {value: 32767, unit: counts, source: "https://docs.revrobotics.com/first-global/fgc-pid (F = 32767 / max velocity; output full scale 32767)"}
+  integral_time_unit: {value: 0.1, unit: s, source: "ASSUMED (firmware integrator scaling unknown; I-term = I * sum(e*dt)/unit)"}
+  velocity_window: {value: 0.05, unit: s, source: "ASSUMED (REV hub velocity readings step in multiples of 20 ticks/s -> 50 ms window)"}
+  continuous_current_limit: {value: 10, unit: A, source: "https://docs.revrobotics.com/duo-control/control-system-overview/control-hub-basics (motor continuous 10 A max)"}
+  absolute_max_current: {value: 20, unit: A, source: "REV Control Hub basics (20 A absolute, limited by battery fuse)"}
+  default_current_alert: {value: 0, unit: A, source: "ASSUMED (no alert until DcMotorEx.setCurrentAlert)"}
+  brake_short_resistance: {value: 0.0, unit: ohm, source: "ASSUMED (BRAKE shorts the windings through the H-bridge)"}

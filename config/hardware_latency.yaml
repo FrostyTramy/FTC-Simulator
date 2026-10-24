@@ -1,0 +1,39 @@
+# Simulated time cost of hardware transactions (spec 01 "Robot loop timing is simulated",
+# spec 06 "Bulk caching" / "Timing"). The SDK shim charges these costs to the robot's loop so
+# that slow code behaves like on a real Control Hub. Read by sim/Sim.Hardware (HardwareLatency);
+# validated by config/schemas/hardware_latency.schema.json.
+# Every number is a quantity {value, unit, source}; ASSUMED = measure on our hub (Phase 11).
+
+hubs:
+  control_hub:
+    # The Control Hub talks to its internal Lynx board over UART.
+    lynx_command: {value: 2.0, unit: ms, source: "https://gm0.org/en/latest/docs/software/adv-control-system/sdk-communication.html (~2 ms over UART)"}
+    i2c_read: {value: 3.0, unit: ms, source: "ASSUMED (gm0: Control Hub I2C much faster than Expansion Hub since SDK 5.5; no figure given)"}
+    i2c_write: {value: 2.0, unit: ms, source: "ASSUMED (one Lynx command)"}
+  expansion_hub:
+    # An Expansion Hub on RS485 behind a Control Hub, or on USB with a phone.
+    lynx_command: {value: 3.0, unit: ms, source: "gm0 SDK communication (~3 ms over USB); ASSUMED same over RS485"}
+    i2c_read: {value: 7.0, unit: ms, source: "gm0 SDK communication (I2C upwards of 7 ms over USB)"}
+    i2c_write: {value: 3.0, unit: ms, source: "ASSUMED (one Lynx command)"}
+
+# What one SDK call costs, in Lynx commands of its hub (multiplied by lynx_command above).
+transactions:
+  bulk_read: {value: 1, unit: commands, source: "gm0 bulk reads: one LynxCommand reads all non-I2C inputs of a hub"}
+  motor_set_power: {value: 1, unit: commands, source: "gm0: every hardware access sends a LynxCommand"}
+  motor_set_mode: {value: 1, unit: commands, source: "gm0: every hardware access sends a LynxCommand"}
+  motor_set_target_position: {value: 1, unit: commands, source: "gm0: every hardware access sends a LynxCommand"}
+  motor_read_uncached: {value: 1, unit: commands, source: "gm0: every hardware access sends a LynxCommand (position, velocity, current, isBusy each)"}
+  servo_set_position: {value: 1, unit: commands, source: "gm0: every hardware access sends a LynxCommand"}
+  digital_or_analog_read_uncached: {value: 1, unit: commands, source: "gm0: every hardware access sends a LynxCommand"}
+  battery_voltage_read: {value: 1, unit: commands, source: "gm0: every hardware access sends a LynxCommand"}
+  imu_read: {value: 1, unit: i2c_reads, source: "gm0 SDK communication (IMU is an I2C device; cost = one i2c_read)"}
+
+# Duplicate writes the SDK skips (LynxDcMotorController keeps lastKnownPower and only sends a
+# command when the value changes) cost nothing.
+skip_unchanged_writes: {value: 1, unit: bool, source: "SDK 12.0.0 LynxDcMotorController.internalSetMotorPower (LastKnown.updateValue check)"}
+
+# OpMode framework overheads per loop iteration (not hardware): event loop + telemetry.
+opmode:
+  loop_overhead: {value: 0.5, unit: ms, source: "ASSUMED (SDK event loop bookkeeping per iteration)"}
+  telemetry_min_interval: {value: 250, unit: ms, source: "ASSUMED default Telemetry.setMsTransmissionInterval (SDK default 250 ms)"}
+  driver_station_gamepad_period: {value: 20, unit: ms, source: "ASSUMED (DS gamepad update rate ~50 Hz)"}

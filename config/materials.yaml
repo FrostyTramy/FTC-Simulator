@@ -1,0 +1,107 @@
+# Render + mass materials, matched to CAD parts by the CAD pipeline (spec 02 "Materials").
+# Rules are tried in order; first match wins. match keys: name_regex (part name), color (CAD sRGB,
+# ±0.02). Unmatched parts get "unknown" (magenta) and are listed in the pipeline report.
+# density in kg/m^3 is used for estimated masses; physics properties live in config/physics.yaml.
+# Every value carries a source or ASSUMED.
+
+materials:
+  aluminum_silver:
+    density: {value: 2700, source: "aluminium 6061 handbook value"}
+    albedo: [0.80, 0.80, 0.82]
+    metallic: 0.9
+    roughness: 0.35
+  aluminum_black:
+    density: {value: 2700, source: "aluminium 6061 handbook value"}
+    albedo: [0.06, 0.06, 0.07]
+    metallic: 0.6
+    roughness: 0.45
+  steel:
+    density: {value: 7850, source: "steel handbook value"}
+    albedo: [0.62, 0.64, 0.66]
+    metallic: 1.0
+    roughness: 0.3
+  polycarbonate_clear:
+    density: {value: 1200, source: "polycarbonate handbook value"}
+    albedo: [0.92, 0.95, 0.97]
+    alpha: 0.28
+    metallic: 0.0
+    roughness: 0.08
+  foam_tile_grey:
+    density: {value: 100, source: ASSUMED}
+    albedo: [0.33, 0.33, 0.34]
+    metallic: 0.0
+    roughness: 0.95
+  pollen_yellow:
+    density: {value: 150, source: "ASSUMED (hollow foam ball; real mass set in physics.yaml)"}
+    albedo: cad
+    metallic: 0.0
+    roughness: 0.6
+  nectar_red:
+    density: {value: 150, source: "ASSUMED (hollow foam ball; real mass set in physics.yaml)"}
+    albedo: [0.85, 0.05, 0.05]
+    metallic: 0.0
+    roughness: 0.55
+  nectar_blue:
+    density: {value: 150, source: "ASSUMED (hollow foam ball; real mass set in physics.yaml)"}
+    albedo: [0.05, 0.15, 0.85]
+    metallic: 0.0
+    roughness: 0.55
+  hips_green:
+    density: {value: 1050, source: "HIPS handbook value"}
+    albedo: cad
+    metallic: 0.0
+    roughness: 0.5
+  plastic_cad_color:
+    density: {value: 1100, source: "ASSUMED generic plastic"}
+    albedo: cad
+    metallic: 0.0
+    roughness: 0.55
+  tape_cad_color:
+    density: {value: 1000, source: ASSUMED}
+    albedo: cad
+    metallic: 0.0
+    roughness: 0.8
+  sticker_white:
+    density: {value: 1000, source: ASSUMED}
+    albedo: [0.95, 0.95, 0.95]
+    metallic: 0.0
+    roughness: 0.7
+  acm_panel:
+    density: {value: 1500, source: "ASSUMED aluminium composite panel"}
+    albedo: [0.9, 0.9, 0.9]
+    metallic: 0.2
+    roughness: 0.5
+  rubber_black:
+    density: {value: 1100, source: "rubber handbook value"}
+    albedo: [0.04, 0.04, 0.04]
+    metallic: 0.0
+    roughness: 0.9
+  gobilda_yellow:
+    density: {value: 2700, source: "aluminium handbook value (goBILDA motor can)"}
+    albedo: cad
+    metallic: 0.5
+    roughness: 0.4
+  unknown:
+    density: {value: 1000, source: ASSUMED}
+    albedo: [1.0, 0.0, 1.0]
+    metallic: 0.0
+    roughness: 0.5
+
+rules:
+  - {match: {name_regex: "(?i)pollen"}, material: pollen_yellow}
+  - {match: {name_regex: "(?i)red nectar"}, material: nectar_red}
+  - {match: {name_regex: "(?i)blue nectar"}, material: nectar_blue}
+  - {match: {name_regex: "(?i)soft tiles"}, material: foam_tile_grey}
+  - {match: {name_regex: "(?i)(side glass|hive goal (top|back|bottom) skin)"}, material: polycarbonate_clear}
+  - {match: {name_regex: "(?i)hips pipe"}, material: hips_green}
+  - {match: {name_regex: "(?i)gaffer tape"}, material: tape_cad_color}
+  - {match: {name_regex: "(?i)(april tag|panel sticker)"}, material: sticker_white}
+  - {match: {name_regex: "(?i)acm panel"}, material: acm_panel}
+  - {match: {name_regex: "(?i)(screw|nut|washer|rivet|bolt|pin\\b|bearing|shaft|spacer|standoff)"}, material: steel}
+  - {match: {name_regex: "(?i)(tire|tread|gecko|grip|roller ?tire|rubber|belt)"}, material: rubber_black}
+  - {match: {name_regex: "(?i)(5203|5202|5000-0002|yellow jacket)"}, material: gobilda_yellow}
+  - {match: {name_regex: "(?i)(flower layer|backstop|peanut|damper|cable tie|goal rib|plug|clip|tray|servo|label|plastic)"}, material: plastic_cad_color}
+  - {match: {color: [0.1882, 0.1882, 0.1882]}, material: aluminum_black}
+  - {match: {color: [0.902, 0.902, 0.902]}, material: aluminum_silver}
+  - {match: {color: [0.702, 0.702, 0.702]}, material: aluminum_silver}
+  - {match: {name_regex: "(?i)(channel|plate|bracket|grid|tube|rail|frame|leg|bar|hub|mount|block|pattern)"}, material: aluminum_silver}

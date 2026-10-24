@@ -1,0 +1,60 @@
+# Servo models and hub servo ports (spec 04 "Servos", spec 06 "Servos").
+# Read by sim/Sim.Hardware (HardwareConfig); validated by config/schemas/servos.schema.json.
+# Every number is a quantity {value, unit, source}; ASSUMED = calibrate in Phase 11.
+#
+# Model (sim/Sim.Hardware/Servo.cs): the servo is a geared DC motor with a linear torque-speed
+# curve (stall torque / no-load speed interpolated for the supply voltage) driven by an internal
+# proportional position loop (standard mode) or open-loop speed command (continuous mode).
+
+models:
+  gobilda_2000_0025_0002:
+    part: 2000-0025-0002
+    name: "goBILDA 2000 Series Dual Mode Servo (25-2, Torque)"
+    supply_voltages: {value: [4.8, 6.0, 7.4], unit: V, source: "https://www.gobilda.com/2000-series-dual-mode-servo-25-2-torque/"}
+    no_load_speed: {value: [40, 50, 60], unit: rpm, source: "goBILDA 2000-0025-0002 product page (0.25/0.20/0.17 s per 60 deg)"}
+    stall_torque: {value: [17.2, 21.6, 25.2], unit: kgf_cm, source: "goBILDA 2000-0025-0002 product page (240/300/350 oz-in)"}
+    stall_current: {value: [2.0, 2.5, 3.0], unit: A, source: "goBILDA 2000-0025-0002 product page"}
+    no_load_current: {value: [0.15, 0.16, 0.20], unit: A, source: "goBILDA 2000-0025-0002 product page"}
+    standard_pwm_range: {value: [500, 2500], unit: us, source: "goBILDA 2000-0025-0002 product page (max PWM range)"}
+    continuous_pwm_range: {value: [900, 2100], unit: us, source: "goBILDA 2000-0025-0002 product page (continuous rotation mode)"}
+    travel: {value: 300, unit: deg, source: "goBILDA 2000-0025-0002 product page (max rotation, standard mode)"}
+    degrees_per_us: {value: 0.15, unit: deg_per_us, source: "goBILDA 2000-0025-0002 product page (travel per usec)"}
+    deadband: {value: 4, unit: us, source: "goBILDA 2000-0025-0002 product page (deadband width)"}
+    gear_ratio: {value: 300, unit: ratio, source: "goBILDA 2000-0025-0002 product page"}
+    mass: {value: 0.060, unit: kg, source: "goBILDA 2000-0025-0002 product page"}
+    proportional_band: {value: 5, unit: deg, source: "ASSUMED (full drive when the position error exceeds this)"}
+  gobilda_2000_0025_0003:
+    part: 2000-0025-0003
+    name: "goBILDA 2000 Series Dual Mode Servo (25-3, Speed)"
+    supply_voltages: {value: [4.8, 6.0, 7.4], unit: V, source: "https://www.gobilda.com/2000-series-dual-mode-servo-25-3-speed/"}
+    no_load_speed: {value: [90, 115, 145], unit: rpm, source: "goBILDA 2000-0025-0003 product page (0.11/0.09/0.07 s per 60 deg)"}
+    stall_torque: {value: [7.9, 9.3, 10.8], unit: kgf_cm, source: "goBILDA 2000-0025-0003 product page (110/130/150 oz-in)"}
+    stall_current: {value: [2.0, 2.5, 3.0], unit: A, source: "goBILDA 2000-0025-0003 product page"}
+    no_load_current: {value: [0.19, 0.20, 0.23], unit: A, source: "goBILDA 2000-0025-0003 product page"}
+    standard_pwm_range: {value: [500, 2500], unit: us, source: "goBILDA 2000-0025-0003 product page (max PWM range, default mode)"}
+    continuous_pwm_range: {value: [1000, 2000], unit: us, source: "goBILDA 2000-0025-0003 product page (continuous mode)"}
+    travel: {value: 300, unit: deg, source: "goBILDA 2000-0025-0003 product page (travel angle, default mode)"}
+    degrees_per_us: {value: 0.15, unit: deg_per_us, source: "goBILDA 2000-0025-0003 product page (travel per us)"}
+    deadband: {value: 4, unit: us, source: "goBILDA 2000-0025-0003 product page (deadband width)"}
+    gear_ratio: {value: 135, unit: ratio, source: "goBILDA 2000-0025-0003 product page"}
+    mass: {value: 0.058, unit: kg, source: "goBILDA 2000-0025-0003 product page"}
+    proportional_band: {value: 5, unit: deg, source: "ASSUMED (full drive when the position error exceeds this)"}
+
+# What the FTC SDK sends to a servo port (constants from the SDK 12.0.0 javadoc constant-values page,
+# https://javadoc.io/static/org.firstinspires.ftc/RobotCore/10.1.0/constant-values.html, unchanged in 12.0.0).
+# Servo position 0..1 maps linearly to [pulse_lower, pulse_upper]; CRServo power -1..1 maps to
+# position 0..1 first (CRServoImpl apiPowerMin/Max), so power 0 = 1500 us.
+sdk_servo:
+  pulse_lower_default: {value: 600, unit: us, source: "SDK PwmControl.PwmRange.usPulseLowerDefault = 600.0"}
+  pulse_upper_default: {value: 2400, unit: us, source: "SDK PwmControl.PwmRange.usPulseUpperDefault = 2400.0"}
+  frame_default: {value: 20000, unit: us, source: "SDK PwmControl.PwmRange.usFrameDefault = 20000.0"}
+  crservo_power_range: {value: [-1.0, 1.0], unit: power, source: "SDK CRServoImpl.apiPowerMin/apiPowerMax"}
+
+# REV Control Hub / Expansion Hub servo ports.
+hub_servo_ports:
+  ports_per_hub: {value: 6, unit: count, source: "SDK LynxConstants.NUMBER_OF_SERVO_CHANNELS = 6"}
+  supply_voltage: {value: 5.0, unit: V, source: "https://docs.revrobotics.com/duo-control/control-system-overview/control-hub-basics (servo supply 5 V typical)"}
+  pair_current_limit: {value: 2.0, unit: A, source: "REV Control Hub basics (2 A max per port pair 0-1, 2-3, 4-5)"}
+  total_current_limit: {value: 5.0, unit: A, source: "REV Control Hub basics (5 A absolute max, shared with +5V ports)"}
+  output_pulse_range: {value: [500, 2500], unit: us, source: "REV Control Hub basics (output pulse range)"}
+  regulator_dropout_voltage: {value: 6.0, unit: V, source: "ASSUMED (below this battery voltage the 5 V servo rail sags)"}

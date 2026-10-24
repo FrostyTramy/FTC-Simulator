@@ -1,0 +1,166 @@
+# Physics constants (spec 04). First version, Phase 3 — most values are ASSUMED and get replaced by
+# measurements in Phase 11 (calibration, docs/calibration.md).
+#
+# Conventions
+# - Every number sits in an object that carries a `source` (manual §, CAD part, datasheet URL,
+#   standard) or says ASSUMED. Most leaves are quantities {value, unit, source} like
+#   config/rules_biobuzz.yaml; material pairs are compact objects with one `source` for the row.
+# - Units are SI (m, kg, s, N, rad) unless `unit` says otherwise.
+# - Frame: field frame of docs/game_rules.md §1 (X towards blue, Y up, Z towards the audience).
+# - Read by: Godot app (agent A: elements.*, hive.*, engine.*), Sim.Hardware (drivetrain.*),
+#   field mechanisms (config/field_mechanisms.yaml references `physics.yaml#hive`).
+# - Validated by config/schemas/physics.schema.json (tests/python/test_physics_config.py).
+
+version: 1
+
+engine:
+  physics_hz: {value: 240, unit: Hz, source: "CLAUDE.md tech stack; specs/04 Engine setup"}
+  convergence_test_hz: {value: 480, unit: Hz, source: "specs/04 Engine setup (convergence check in tests)"}
+  solver_velocity_iterations: {value: 10, unit: count, source: "ASSUMED (Jolt PhysicsSettings default mNumVelocitySteps = 10)"}
+  solver_position_iterations: {value: 2, unit: count, source: "ASSUMED (Jolt PhysicsSettings default mNumPositionSteps = 2)"}
+  gravity: {value: 9.80665, unit: m/s^2, source: "standard gravity (ISO 80000-3)"}
+  ccd_bodies: {value: [pollen, nectar, launcher_flywheel, launched_element], unit: label, source: "specs/04 Engine setup (CCD on pollen, nectar, fast mechanism parts)"}
+  ccd_min_speed: {value: 0.5, unit: m/s, source: "ASSUMED (enable LinearCast motion quality above this speed; a 71 mm ball moves < 1 radius per 240 Hz step below ~8.5 m/s, so this is conservative)"}
+  sleep_linear_speed: {value: 0.02, unit: m/s, source: "ASSUMED (Jolt mPointVelocitySleepThreshold default 0.03, lowered so balls settle before sleeping)"}
+  sleep_time: {value: 0.5, unit: s, source: "ASSUMED (Jolt mTimeBeforeSleep default 0.5)"}
+  collision_layers:
+    value: [field_static, field_dynamic, game_elements, robot_chassis, robot_mechanisms, intake_zones, triggers, sensors_raycast]
+    unit: label
+    source: "specs/04 Engine setup"
+
+air:
+  density: {value: 1.204, unit: kg/m^3, source: "ISA standard atmosphere at 20 °C, 101.325 kPa"}
+  sphere_drag_coefficient: {value: 0.47, unit: "1", source: "specs/04 (sphere C_d ≈ 0.47, ASSUMED); perforated balls may be higher — calibrate with shot video"}
+  magnus_enabled: {value: false, unit: bool, source: "ASSUMED (specs/04: optional; enable after shot calibration)"}
+  magnus_lift_coefficient: {value: 0.2, unit: "1", source: "ASSUMED (typical sphere C_L at spin ratio ~0.3; only used when magnus_enabled)"}
+
+# Surface materials used in the contact table. `parts` lists what the material stands for.
+materials:
+  foam_tile: {parts: "am-2499 EVA soft tiles (§9.2 p64)", source: "CAD + manual"}
+  polycarbonate: {parts: "field side glass, hive skins, robot gridplates 1117-xxxx", source: "CAD names + instructions p26-34"}
+  aluminum: {parts: "perimeter rails, hive frame, goBILDA channels", source: "CAD names"}
+  pollen_shell: {parts: "am-5851 POLLEN, Gopher ResisDent polyethylene (§9.8 p74)", source: "manual §9.8"}
+  nectar_shell: {parts: "am-5852 NECTAR, Gopher ResisDent polyethylene (§9.8 p74)", source: "manual §9.8"}
+  mecanum_roller: {parts: "goBILDA GripForce mecanum rollers, 40A silicone", source: "https://www.gobilda.com/gripforce-mecanum-wheel-set-o104mm-40a-durometer-rollers/"}
+  gecko: {parts: "goBILDA GripForce Gecko 48/72 mm, 30A silicone", source: "https://www.gobilda.com/gripforce-gecko-wheel-8mm-rex-bore-48mm-diameter/"}
+  hogback: {parts: "goBILDA Hogback 96 mm, 50A tread", source: "https://core-electronics.com.au/gobilda-hogback-traction-wheel-96mm-50a-durometer.html"}
+  traction_rubber: {parts: "generic traction wheels (later robots)", source: "specs/04 material list"}
+  printed_plastic: {parts: "3D-printed PLA/PETG (later robots)", source: "specs/04 material list"}
+  intake_foam: {parts: "goBILDA intake rollers 3618-4008-0016 (front bar)", source: "instructions STEP 6 p9"}
+  steel: {parts: "shafts, standoffs", source: "CAD names"}
+
+# Pairwise contact table (symmetric). friction coefficients are Coulomb μ; restitution e is the
+# normal coefficient of restitution; rolling_resistance is the rolling friction coefficient
+# (resisting torque = rolling_resistance × r × N). Pairs not listed fall back to `default`.
+contacts:
+  default: {static_friction: 0.5, dynamic_friction: 0.4, restitution: 0.2, rolling_resistance: 0.0, source: "ASSUMED"}
+  pairs:
+    - {a: foam_tile, b: mecanum_roller, static_friction: 1.0, dynamic_friction: 0.85, restitution: 0.05, rolling_resistance: 0.0, source: "ASSUMED (40A silicone on EVA foam; calibrate with push/strafe tests)"}
+    - {a: foam_tile, b: gecko, static_friction: 1.1, dynamic_friction: 0.9, restitution: 0.05, rolling_resistance: 0.0, source: "ASSUMED"}
+    - {a: foam_tile, b: hogback, static_friction: 1.0, dynamic_friction: 0.85, restitution: 0.05, rolling_resistance: 0.0, source: "ASSUMED"}
+    - {a: foam_tile, b: traction_rubber, static_friction: 1.0, dynamic_friction: 0.85, restitution: 0.05, rolling_resistance: 0.0, source: "ASSUMED"}
+    - {a: foam_tile, b: aluminum, static_friction: 0.45, dynamic_friction: 0.35, restitution: 0.1, rolling_resistance: 0.0, source: "ASSUMED (robot frame dragging on tiles)"}
+    - {a: foam_tile, b: pollen_shell, static_friction: 0.6, dynamic_friction: 0.5, restitution: 0.35, rolling_resistance: 0.03, source: "ASSUMED (light ball on soft foam: low bounce, noticeable rolling loss)"}
+    - {a: foam_tile, b: nectar_shell, static_friction: 0.6, dynamic_friction: 0.5, restitution: 0.35, rolling_resistance: 0.03, source: "ASSUMED"}
+    - {a: polycarbonate, b: pollen_shell, static_friction: 0.35, dynamic_friction: 0.3, restitution: 0.55, rolling_resistance: 0.005, source: "ASSUMED"}
+    - {a: polycarbonate, b: nectar_shell, static_friction: 0.35, dynamic_friction: 0.3, restitution: 0.55, rolling_resistance: 0.005, source: "ASSUMED"}
+    - {a: aluminum, b: pollen_shell, static_friction: 0.35, dynamic_friction: 0.3, restitution: 0.6, rolling_resistance: 0.005, source: "ASSUMED"}
+    - {a: aluminum, b: nectar_shell, static_friction: 0.35, dynamic_friction: 0.3, restitution: 0.6, rolling_resistance: 0.005, source: "ASSUMED"}
+    - {a: steel, b: pollen_shell, static_friction: 0.3, dynamic_friction: 0.25, restitution: 0.6, rolling_resistance: 0.005, source: "ASSUMED"}
+    - {a: pollen_shell, b: pollen_shell, static_friction: 0.4, dynamic_friction: 0.35, restitution: 0.5, rolling_resistance: 0.01, source: "ASSUMED"}
+    - {a: pollen_shell, b: nectar_shell, static_friction: 0.4, dynamic_friction: 0.35, restitution: 0.5, rolling_resistance: 0.01, source: "ASSUMED"}
+    - {a: nectar_shell, b: nectar_shell, static_friction: 0.4, dynamic_friction: 0.35, restitution: 0.5, rolling_resistance: 0.01, source: "ASSUMED"}
+    - {a: gecko, b: pollen_shell, static_friction: 1.2, dynamic_friction: 1.0, restitution: 0.15, rolling_resistance: 0.0, source: "ASSUMED (30A silicone grips polyethylene; intakes rely on it)"}
+    - {a: gecko, b: nectar_shell, static_friction: 1.2, dynamic_friction: 1.0, restitution: 0.15, rolling_resistance: 0.0, source: "ASSUMED"}
+    - {a: hogback, b: pollen_shell, static_friction: 1.1, dynamic_friction: 0.95, restitution: 0.2, rolling_resistance: 0.0, source: "ASSUMED (launcher flywheel grip; calibrate with RPM drop per shot)"}
+    - {a: hogback, b: nectar_shell, static_friction: 1.1, dynamic_friction: 0.95, restitution: 0.2, rolling_resistance: 0.0, source: "ASSUMED"}
+    - {a: mecanum_roller, b: pollen_shell, static_friction: 1.0, dynamic_friction: 0.85, restitution: 0.2, rolling_resistance: 0.0, source: "ASSUMED"}
+    - {a: intake_foam, b: pollen_shell, static_friction: 0.8, dynamic_friction: 0.7, restitution: 0.2, rolling_resistance: 0.0, source: "ASSUMED"}
+    - {a: intake_foam, b: nectar_shell, static_friction: 0.8, dynamic_friction: 0.7, restitution: 0.2, rolling_resistance: 0.0, source: "ASSUMED"}
+    - {a: printed_plastic, b: pollen_shell, static_friction: 0.35, dynamic_friction: 0.3, restitution: 0.5, rolling_resistance: 0.005, source: "ASSUMED"}
+    - {a: aluminum, b: aluminum, static_friction: 0.6, dynamic_friction: 0.45, restitution: 0.1, rolling_resistance: 0.0, source: "ASSUMED (robot-robot frame contact; pushing matches)"}
+    - {a: aluminum, b: polycarbonate, static_friction: 0.45, dynamic_friction: 0.35, restitution: 0.2, rolling_resistance: 0.0, source: "ASSUMED (robot against field walls)"}
+    - {a: traction_rubber, b: aluminum, static_friction: 0.8, dynamic_friction: 0.7, restitution: 0.1, rolling_resistance: 0.0, source: "ASSUMED"}
+
+elements:
+  pollen:
+    diameter: {value: 0.07112, unit: m, source: "§9.8 p74: ≈2.8 in (7.1 cm); CAD am-5851 bbox 71.12 mm"}
+    radius: {value: 0.03556, unit: m, source: "diameter / 2"}
+    mass: {value: 0.02495, unit: kg, source: "AndyMark BIOBUZZ Scoring Elements: 'Weight: 0.055 lbs' for the 2.8 in ball (https://andymark.com/products/biobuzz-scoring-elements); 0.055 lb = 24.95 g"}
+    inertia_factor: {value: 0.6667, unit: "1", source: "ASSUMED thin hollow shell, I = (2/3)·m·r² (perforated hollow polyethylene ball, Fig 9-13 p74 / Fig 10-6 p90)"}
+    material: {value: pollen_shell, unit: label, source: "manual §9.8"}
+    linear_damping: {value: 0.0, unit: 1/s, source: "air drag handled by air.* (quadratic), no extra damping"}
+    angular_damping: {value: 0.05, unit: 1/s, source: "ASSUMED (spin decay in air)"}
+    contact_compliance_stiffness: {value: 2000, unit: N/m, source: "ASSUMED (soft contact so intakes can compress the ball; specs/04 'optional compliance')"}
+    contact_compliance_damping: {value: 5, unit: N·s/m, source: "ASSUMED"}
+    max_compression: {value: 0.006, unit: m, source: "ASSUMED (intakes squeeze ~6 mm)"}
+    size_variation: {value: 0.002, unit: m, source: "ASSUMED (±2 mm diameter scatter; §9.8 p74 'not perfectly spherical and may vary in size')"}
+    ccd: {value: true, unit: bool, source: "specs/04 Game elements"}
+  nectar:
+    diameter: {value: 0.09144, unit: m, source: "§9.8 p74: ≈3.6 in (9.1 cm); CAD am-5852 bbox 91.95 mm"}
+    radius: {value: 0.04572, unit: m, source: "diameter / 2"}
+    mass: {value: 0.04128, unit: kg, source: "AndyMark BIOBUZZ Scoring Elements: 'Weight: 0.091 lbs' for the 3.6 in ball (https://andymark.com/products/biobuzz-scoring-elements); 0.091 lb = 41.28 g"}
+    inertia_factor: {value: 0.6667, unit: "1", source: "ASSUMED thin hollow shell, I = (2/3)·m·r²"}
+    material: {value: nectar_shell, unit: label, source: "manual §9.8"}
+    linear_damping: {value: 0.0, unit: 1/s, source: "air drag handled by air.*"}
+    angular_damping: {value: 0.05, unit: 1/s, source: "ASSUMED"}
+    contact_compliance_stiffness: {value: 2500, unit: N/m, source: "ASSUMED"}
+    contact_compliance_damping: {value: 6, unit: N·s/m, source: "ASSUMED"}
+    max_compression: {value: 0.007, unit: m, source: "ASSUMED"}
+    size_variation: {value: 0.002, unit: m, source: "ASSUMED (§9.8 p74 'may vary in size')"}
+    ccd: {value: true, unit: bool, source: "specs/04 Game elements"}
+
+# HIVE hinge (config/field_mechanisms.yaml joints hive_red_pivot / hive_blue_pivot reference this).
+# Geometry (pivot point, axis, damper points) lives in field_mechanisms.yaml; behaviour lives here.
+hive:
+  mass: {value: auto, unit: kg, source: "computed from CAD volume × density (config/materials.yaml); override with a weighed value in Phase 11"}
+  stable_angle: {value: 30.0, unit: deg, source: "CAD: cells tilted ±30° in the two stable states (generated/field/mechanisms_derived.yaml); 60° travel"}
+  pivot_friction_torque: {value: 0.05, unit: N·m, source: "ASSUMED Coulomb torque of the pivot (F608ZZ shielded ball bearings, CAD am-4457); constant opposing rotation"}
+  pivot_viscous_damping: {value: 0.02, unit: N·m·s/rad, source: "ASSUMED viscous term of the pivot (torque = −c·ω)"}
+  end_stop_restitution: {value: 0.1, unit: "1", source: "ASSUMED (hive lands on the dampers, little rebound)"}
+  damper:
+    model: {value: "Blum BLUMOTION 970A1002 (drill-in, hinge side)", unit: label, source: "CAD am-5865 'Blumotion 970A Damper'; Blum catalogue (https://publications.blum.com/2024/catalogue/id/184/)"}
+    behaviour: {value: hydraulic_linear_viscous_with_return_spring, unit: label, source: "Blum: disk-and-liquid damping that works independently of door force/weight (https://www.vanhoecke.be/en/node/227); modelled as F = c·v + k·x + F0 while compressed"}
+    count_per_hive: {value: 2, unit: count, source: "CAD: 4 am-5865 dampers in total, 2 per hive"}
+    stroke: {value: 0.014, unit: m, source: "ASSUMED: 14 mm 'Hub' listed for the sibling BLUMOTION 970.1002 (https://www.sfs.ch/CH/en/dl/p/321751); 970A stroke not published — measure"}
+    damping_coefficient: {value: 150, unit: N·s/m, source: "ASSUMED (soft-close damper; ~30 N at 0.2 m/s plunger speed)"}
+    return_spring_rate: {value: 300, unit: N/m, source: "ASSUMED (plunger return spring)"}
+    return_spring_preload: {value: 2.0, unit: N, source: "ASSUMED"}
+    max_force: {value: 120, unit: N, source: "ASSUMED force cap (hydraulic blow-off); prevents unphysical spikes"}
+    lever_arms: {value: [0.05, 0.09], unit: m, source: "CAD damper positions relative to the pivot axis (generated/field/mechanisms_derived.yaml)"}
+    engage_angle: {value: [16.0, 8.9], unit: deg, source: "derived: stroke / lever arm (0.014/0.05 rad, 0.014/0.09 rad), i.e. the damper first touches the frame this far before the stable angle; ASSUMED with the stroke"}
+  tip_detection_contact_tolerance: {value: 0.001, unit: m, source: "ASSUMED (damper counts as 'contacting the frame' within 1 mm, §10.5.1 B p87)"}
+
+# Thresholds used by the scoring code (docs/game_rules.md §12, §13 I-5).
+thresholds:
+  at_rest_linear_speed: {value: 0.01, unit: m/s, source: "ASSUMED (§10.5 'come to rest')"}
+  at_rest_angular_speed: {value: 0.1, unit: rad/s, source: "ASSUMED"}
+  at_rest_hold_time: {value: 0.5, unit: s, source: "ASSUMED (everything below the speeds for this long)"}
+  post_match_settle_max: {value: 5.0, unit: s, source: "ASSUMED (final counts taken at the latest after this; specs/03 PostMatchSettle)"}
+  control_support_min_time: {value: 0.25, unit: s, source: "ASSUMED (element fully supported by a robot this long = CONTROL, Glossary p170)"}
+  herding_min_contact_time: {value: 1.0, unit: s, source: "ASSUMED (docs/game_rules.md §12: herding = contact while moving with the robot > 1 s)"}
+  herding_min_speed: {value: 0.1, unit: m/s, source: "ASSUMED"}
+  herding_max_relative_speed: {value: 0.15, unit: m/s, source: "ASSUMED (element moves with the robot face, not bulldozed past it)"}
+  launched_min_speed: {value: 1.5, unit: m/s, source: "ASSUMED (element leaving a robot faster than this counts as LAUNCHED, Glossary p171)"}
+  pin_contact_speed: {value: 0.05, unit: m/s, source: "ASSUMED (pinned robot barely moving while in contact, G421 p114)"}
+
+# Drivetrain force model (specs/04 Drivetrains, level 1). Per-robot geometry is in config/robots/.
+drivetrain:
+  model_default: {value: force, unit: label, source: "specs/04 Drivetrains (force model default)"}
+  mecanum_roller_angle: {value: 45.0, unit: deg, source: "standard mecanum roller angle; goBILDA GripForce mecanum (11 rollers)"}
+  mecanum_lateral_efficiency: {value: 0.85, unit: "1", source: "ASSUMED (roller friction losses make strafing slower; calibrate strafe ratio)"}
+  roller_rolling_friction: {value: 0.02, unit: "1", source: "ASSUMED (roller bearing/deformation loss along the free axis)"}
+  tire_peak_slip_ratio: {value: 0.12, unit: "1", source: "ASSUMED (tire-like friction curve peak)"}
+  tire_slip_stiffness: {value: 12.0, unit: "1/slip (×μN)", source: "ASSUMED (force = min(μN, k·slip·μN) shape factor)"}
+  weight_transfer: {value: true, unit: bool, source: "specs/04 Drivetrains"}
+  wheel_bearing_friction_torque: {value: 0.02, unit: N·m, source: "ASSUMED per wheel"}
+  miter_gear_efficiency: {value: 0.95, unit: "1", source: "ASSUMED (1:1 steel/sintered miter gears, goBILDA 2320-4008-0024)"}
+  spur_gear_efficiency: {value: 0.95, unit: "1", source: "ASSUMED (goBILDA MOD 0.8 spur gears)"}
+
+# Mechanism defaults (specs/04 Mechanisms); robot YAMLs may override per mechanism.
+mechanisms:
+  default_backlash: {value: 0.5, unit: deg, source: "ASSUMED (specs/04 'small dead zone')"}
+  flywheel_contact_time_min: {value: 0.004, unit: s, source: "ASSUMED (ball pinched between flywheel and hood)"}
+  launch_energy_transfer_efficiency: {value: 0.7, unit: "1", source: "ASSUMED; calibrate with RPM drop per shot and exit speed"}
+  intake_surface_compression: {value: 0.005, unit: m, source: "ASSUMED (compliant wheel squeeze on the ball)"}
+  intake_jam_max_elements: {value: 5, unit: count, source: "ASSUMED (jam probability rises above G407's 4-element limit, G407 p108)"}

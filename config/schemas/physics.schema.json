@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Physics constants (config/physics.yaml)",
+  "type": "object",
+  "required": ["version", "engine", "air", "materials", "contacts", "elements", "hive", "thresholds", "drivetrain", "mechanisms"],
+  "additionalProperties": false,
+  "$defs": {
+    "source": {"type": "string", "minLength": 3},
+    "quantity": {
+      "type": "object",
+      "required": ["value", "unit", "source"],
+      "properties": {"value": {}, "unit": {"type": "string"}, "source": {"$ref": "#/$defs/source"}},
+      "additionalProperties": false
+    },
+    "section": {"type": "object", "additionalProperties": {"$ref": "#/$defs/quantity"}},
+    "contact": {
+      "type": "object",
+      "required": ["static_friction", "dynamic_friction", "restitution", "rolling_resistance", "source"],
+      "properties": {
+        "a": {"type": "string"}, "b": {"type": "string"},
+        "static_friction": {"type": "number", "minimum": 0}, "dynamic_friction": {"type": "number", "minimum": 0},
+        "restitution": {"type": "number", "minimum": 0, "maximum": 1}, "rolling_resistance": {"type": "number", "minimum": 0},
+        "source": {"$ref": "#/$defs/source"}
+      },
+      "additionalProperties": false
+    }
+  },
+  "properties": {
+    "version": {"const": 1},
+    "engine": {
+      "type": "object",
+      "properties": {"collision_layers": {"$ref": "#/$defs/quantity"}},
+      "additionalProperties": {"$ref": "#/$defs/quantity"}
+    },
+    "air": {"$ref": "#/$defs/section"},
+    "materials": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object", "required": ["parts", "source"],
+        "properties": {"parts": {"type": "string"}, "source": {"$ref": "#/$defs/source"}}, "additionalProperties": false
+      }
+    },
+    "contacts": {
+      "type": "object", "required": ["default", "pairs"],
+      "properties": {"default": {"$ref": "#/$defs/contact"}, "pairs": {"type": "array", "items": {"$ref": "#/$defs/contact"}}},
+      "additionalProperties": false
+    },
+    "elements": {"type": "object", "required": ["pollen", "nectar"], "additionalProperties": {"$ref": "#/$defs/section"}},
+    "hive": {
+      "type": "object",
+      "properties": {"damper": {"$ref": "#/$defs/section"}},
+      "additionalProperties": {"$ref": "#/$defs/quantity"}
+    },
+    "thresholds": {"$ref": "#/$defs/section"},
+    "drivetrain": {"$ref": "#/$defs/section"},
+    "mechanisms": {"$ref": "#/$defs/section"}
+  }
+}

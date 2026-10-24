@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Servo models, SDK servo PWM mapping and hub servo ports",
+  "type": "object",
+  "required": ["models", "sdk_servo", "hub_servo_ports"],
+  "additionalProperties": false,
+  "$defs": {
+    "quantity": {
+      "type": "object",
+      "required": ["value", "unit", "source"],
+      "additionalProperties": false,
+      "properties": {"value": {}, "unit": {"type": "string", "minLength": 1}, "source": {"type": "string", "minLength": 3}}
+    },
+    "per_voltage": {
+      "allOf": [
+        {"$ref": "#/$defs/quantity"},
+        {"properties": {"value": {"type": "array", "minItems": 2, "items": {"type": "number", "exclusiveMinimum": 0}}}}
+      ]
+    },
+    "range": {
+      "allOf": [
+        {"$ref": "#/$defs/quantity"},
+        {"properties": {"value": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"type": "number"}}}}
+      ]
+    },
+    "servo": {
+      "type": "object",
+      "required": ["part", "name", "supply_voltages", "no_load_speed", "stall_torque", "stall_current",
+                   "standard_pwm_range", "continuous_pwm_range", "travel", "degrees_per_us", "deadband",
+                   "proportional_band"],
+      "properties": {
+        "part": {"type": "string"},
+        "name": {"type": "string"},
+        "supply_voltages": {"$ref": "#/$defs/per_voltage"},
+        "no_load_speed": {"$ref": "#/$defs/per_voltage"},
+        "stall_torque": {"$ref": "#/$defs/per_voltage"},
+        "stall_current": {"$ref": "#/$defs/per_voltage"},
+        "no_load_current": {"$ref": "#/$defs/per_voltage"},
+        "standard_pwm_range": {"$ref": "#/$defs/range"},
+        "continuous_pwm_range": {"$ref": "#/$defs/range"}
+      },
+      "additionalProperties": {"$ref": "#/$defs/quantity"}
+    }
+  },
+  "properties": {
+    "models": {"type": "object", "minProperties": 1, "additionalProperties": {"$ref": "#/$defs/servo"}},
+    "sdk_servo": {
+      "type": "object",
+      "required": ["pulse_lower_default", "pulse_upper_default", "frame_default"],
+      "additionalProperties": {"$ref": "#/$defs/quantity"}
+    },
+    "hub_servo_ports": {
+      "type": "object",
+      "required": ["ports_per_hub", "supply_voltage"],
+      "additionalProperties": {"$ref": "#/$defs/quantity"}
+    }
+  }
+}

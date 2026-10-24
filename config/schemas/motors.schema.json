@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DC motor models, SDK motor types and hub motor controller",
+  "type": "object",
+  "required": ["models", "sdk_motor_types", "hub_motor_controller"],
+  "additionalProperties": false,
+  "$defs": {
+    "quantity": {
+      "type": "object",
+      "required": ["value", "unit", "source"],
+      "additionalProperties": false,
+      "properties": {"value": {}, "unit": {"type": "string", "minLength": 1}, "source": {"type": "string", "minLength": 3}}
+    },
+    "positive": {
+      "allOf": [{"$ref": "#/$defs/quantity"}, {"properties": {"value": {"type": "number", "exclusiveMinimum": 0}}}]
+    },
+    "rotation": {
+      "allOf": [{"$ref": "#/$defs/quantity"}, {"properties": {"value": {"enum": ["cw", "ccw"]}}}]
+    },
+    "motor": {
+      "type": "object",
+      "required": ["part", "name", "gear_ratio", "nominal_voltage", "free_speed", "free_current", "stall_current",
+                   "stall_torque", "counts_per_output_rev", "mass", "rotor_inertia", "positive_voltage_rotation",
+                   "sdk_motor_type"],
+      "additionalProperties": false,
+      "properties": {
+        "part": {"type": "string"},
+        "name": {"type": "string"},
+        "gear_ratio": {"$ref": "#/$defs/positive"},
+        "nominal_voltage": {"$ref": "#/$defs/positive"},
+        "free_speed": {"$ref": "#/$defs/positive"},
+        "free_current": {"$ref": "#/$defs/positive"},
+        "stall_current": {"$ref": "#/$defs/positive"},
+        "stall_torque": {"$ref": "#/$defs/positive"},
+        "counts_per_output_rev": {"$ref": "#/$defs/positive"},
+        "mass": {"$ref": "#/$defs/positive"},
+        "rotor_inertia": {"$ref": "#/$defs/positive"},
+        "positive_voltage_rotation": {"$ref": "#/$defs/rotation"},
+        "sdk_motor_type": {"type": "string"}
+      }
+    },
+    "sdk_type": {
+      "type": "object",
+      "required": ["xml_tag", "display_name", "ticks_per_rev", "gearing", "max_rpm", "achievable_max_rpm_fraction",
+                   "orientation"],
+      "additionalProperties": false,
+      "properties": {
+        "xml_tag": {"type": "string"},
+        "display_name": {"type": "string"},
+        "ticks_per_rev": {"$ref": "#/$defs/positive"},
+        "gearing": {"$ref": "#/$defs/positive"},
+        "max_rpm": {"$ref": "#/$defs/positive"},
+        "achievable_max_rpm_fraction": {"$ref": "#/$defs/positive"},
+        "orientation": {"$ref": "#/$defs/rotation"}
+      }
+    }
+  },
+  "properties": {
+    "models": {"type": "object", "minProperties": 1, "additionalProperties": {"$ref": "#/$defs/motor"}},
+    "sdk_motor_types": {"type": "object", "minProperties": 1, "additionalProperties": {"$ref": "#/$defs/sdk_type"}},
+    "hub_motor_controller": {
+      "type": "object",
+      "required": ["ports_per_hub", "power_full_scale", "default_target_position_tolerance", "default_velocity_pidf",
+                   "default_position_pidf", "integral_time_unit", "velocity_window", "continuous_current_limit"],
+      "additionalProperties": {"$ref": "#/$defs/quantity"}
+    }
+  }
+}
