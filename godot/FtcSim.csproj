@@ -1,0 +1,20 @@
+<Project Sdk="Godot.NET.Sdk/4.7.2">
+  <!-- Godot game project (C#). Pure simulation libraries live in ../sim and are added here as
+       ProjectReferences once they exist (Sim.Core, Sim.Game, Sim.Hardware, Sim.Runner). -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>Sim</RootNamespace>
+    <AssemblyName>FtcSim</AssemblyName>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="YamlDotNet" Version="18.1.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Python helper for the synthetic test assets is not part of the build. -->
+    <None Remove="test_assets/**" />
+  </ItemGroup>
+</Project>

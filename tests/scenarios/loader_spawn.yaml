@@ -1,0 +1,10 @@
+# Spawned elements stack in the synthetic layout and stay above the floor.
+name: loader_spawn
+layout: synthetic
+duration_s: 2.0
+actions:
+  - {at_s: 0.0, action: spawn, group: pollen, count: 9, center: [-1.0, 0.2, 1.0], spacing_m: 0.08, per_row: 3}
+checks:
+  - {check: element_count, equals: 10}
+  - {check: elements_above_ground, margin_m: 0.005}
+  - {check: elements_within, min: [-4.0, -0.01, -4.0], max: [4.0, 1.0, 4.0]}

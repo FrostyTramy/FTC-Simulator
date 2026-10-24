@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Motor, gearbox, encoder, battery, REV hub motor controller and servo models (spec 04, spec 06).
+       Godot-independent; parameters from config/motors.yaml, servos.yaml, battery.yaml, hardware_latency.yaml. -->
+  <ItemGroup>
+    <PackageReference Include="YamlDotNet" Version="18.1.0" />
+  </ItemGroup>
+</Project>

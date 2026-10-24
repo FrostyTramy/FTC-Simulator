@@ -1,0 +1,12 @@
+# Phase 2 acceptance: all 56 scoring elements start at their CAD positions (§9.8, §10.3.1 Fig 10-2:
+# flowers, gardens, up cells, robot pre-loads beside the walls, nectar trays) and settle without
+# leaving the field/alliance areas or falling through the floor. Hives are frozen in this test.
+name: field_settles
+layout: field
+duration_s: 5.0
+checks:
+  - {check: element_count, equals: 56}
+  - {check: elements_above_ground, margin_m: 0.01}
+  - {check: elements_within, min: [-3.3, -0.1, -1.95], max: [3.3, 2.0, 1.95]}
+  - {check: elements_max_displacement, meters: 0.15}
+  - {check: elements_at_rest, linear_mps: 0.02, angular_rps: 0.5}

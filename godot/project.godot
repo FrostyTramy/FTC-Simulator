@@ -1,0 +1,45 @@
+; Engine configuration file.
+; BIOBUZZ FTC Simulator. Physics settings follow specs/04-physics.md (Jolt, fixed 240 Hz).
+
+config_version=5
+
+[application]
+
+config/name="BIOBUZZ FTC Simulator"
+config/description="FIRST Tech Challenge 2026-27 BIOBUZZ simulator"
+run/main_scene="res://scenes/Main.tscn"
+config/features=PackedStringArray("4.7", "C#", "Forward Plus")
+
+[display]
+
+window/size/viewport_width=1280
+window/size/viewport_height=720
+window/vsync/vsync_mode=1
+
+[dotnet]
+
+project/assembly_name="FtcSim"
+
+[layer_names]
+
+3d_physics/layer_1="field_static"
+3d_physics/layer_2="field_moving"
+3d_physics/layer_3="elements"
+3d_physics/layer_4="robots"
+3d_physics/layer_5="zones"
+
+[physics]
+
+3d/physics_engine="Jolt Physics"
+common/physics_ticks_per_second=240
+common/max_physics_steps_per_frame=16
+common/physics_jitter_fix=0.0
+
+[rendering]
+
+renderer/rendering_method="forward_plus"
+anti_aliasing/quality/msaa_3d=0
+anti_aliasing/quality/screen_space_aa=1
+lights_and_shadows/directional_shadow/size=2048
+lights_and_shadows/directional_shadow/soft_shadow_filter_quality=1
+environment/defaults/default_clear_color=Color(0.12, 0.13, 0.15, 1)

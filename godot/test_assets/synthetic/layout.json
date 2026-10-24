@@ -1,0 +1,49 @@
+{
+ "name": "synthetic",
+ "up_axis": "Y",
+ "groups": [
+  {
+   "name": "static",
+   "kind": "static",
+   "mesh": "static.glb",
+   "colliders": "static.colliders.json",
+   "surfaces": 4
+  },
+  {
+   "name": "block",
+   "kind": "rigid",
+   "mesh": "block.glb",
+   "colliders": "block.colliders.json",
+   "surfaces": 1
+  },
+  {
+   "name": "pollen",
+   "kind": "element",
+   "mesh": "ball.glb",
+   "colliders": "ball.colliders.json",
+   "instances": [
+    {
+     "id": "ball0",
+     "transform": [
+      1.0,
+      0.0,
+      0.0,
+      -0.2,
+      0.0,
+      1.0,
+      0.0,
+      0.8,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0
+     ]
+    }
+   ]
+  }
+ ]
+}
