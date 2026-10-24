@@ -1,0 +1,29 @@
+// Compiles an unchanged FTC TeamCode source tree against the SDK shim (spec 06, spec 07):
+//   gradle :build-adapter:jar -PteamCode=<folder with org/firstinspires/ftc/teamcode/...>
+// Default: the goBILDA StarterBot compatibility project in tests/compat.
+plugins {
+    id 'java'
+}
+
+def teamCodeDir = project.findProperty('teamCode') ?: "${rootDir}/../tests/compat/gobilda_starter/TeamCode/src/main/java"
+
+sourceSets {
+    main {
+        java {
+            srcDirs = [teamCodeDir]
+        }
+    }
+}
+
+dependencies {
+    implementation project(':ftc-sdk-shim')
+}
+
+tasks.withType(JavaCompile).configureEach {
+    // Team code is compiled as-is; its warnings are the team's business, not build failures.
+    options.compilerArgs.removeAll { it.startsWith('-Xlint') }
+}
+
+jar {
+    archiveBaseName = 'teamcode'
+}

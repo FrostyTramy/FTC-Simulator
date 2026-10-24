@@ -1,0 +1,17 @@
+// Reimplementation of the FTC SDK 12.0 public API on top of the simulator (spec 06).
+plugins {
+    id 'java-library'
+}
+
+version = '12.0.0-sim'
+
+java {
+    withSourcesJar()
+}
+
+jar {
+    archiveBaseName = 'ftc-sdk-shim'
+    manifest {
+        attributes('Implementation-Title': 'FTC SDK shim (simulator)', 'Implementation-Version': project.version)
+    }
+}

@@ -1,0 +1,3 @@
+// Java side of the simulator (spec 06, spec 07): SDK shim, OpMode runner, TeamCode build adapter.
+rootProject.name = 'ftc-sim-java'
+include 'ftc-sdk-shim', 'runner', 'build-adapter'
