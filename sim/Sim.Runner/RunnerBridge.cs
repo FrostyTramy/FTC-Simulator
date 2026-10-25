@@ -1,5 +1,6 @@
 using Sim.Hardware;
 using Sim.Robots;
+using Sim.Sensors;
 
 namespace Sim.Runner;
 
@@ -16,6 +17,7 @@ public sealed class RunnerBridge
     public const long SafeWaitNanos = 100_000_000;
 
     private readonly RobotHardware _hardware;
+    private readonly SensorSuite? _sensors;
     private readonly HubControllerSpec _hub;
     private readonly HubDef _imuHub;
     private readonly Quat _imuMount;
@@ -24,9 +26,10 @@ public sealed class RunnerBridge
     private bool _opModeEverRan;
     private long _nextFailsafeNanos;
 
-    public RunnerBridge(RobotHardware hardware, HubControllerSpec hubSpec)
+    public RunnerBridge(RobotHardware hardware, HubControllerSpec hubSpec, SensorSuite? sensors = null)
     {
         _hardware = hardware;
+        _sensors = sensors;
         _hub = hubSpec;
         var imu = hardware.Robot.Devices.FirstOrDefault(d => d.Type == "imu");
         _imuHub = hardware.Robot.Hubs[imu is null ? 0 : hardware.Robot.HubIndex(imu.Hub)];
@@ -51,8 +54,31 @@ public sealed class RunnerBridge
         {
             devices.Add(new RunnerDevice(d.Name, "imu", _hardware.Robot.HubIndex(d.Hub), 0));
         }
+        foreach (var s in _hardware.Robot.Sensors)
+        {
+            var type = s.Type == "touch" && s.SdkClass == "DigitalChannel" ? "digital" : s.Type;
+            var parameters = _sensors?.Device(s.Name)?.Parameters ?? WebcamParameters(s);
+            devices.Add(new RunnerDevice(s.Name, type, _hardware.Robot.HubIndex(s.Hub), s.Port, Params: parameters));
+        }
         return devices;
     }
+
+    /// <summary>A webcam's model as the shim needs it: resolution and the built-in calibration (config/sensors.yaml).</summary>
+    private IReadOnlyDictionary<string, double>? WebcamParameters(SensorDef s)
+    {
+        if (s.Type != "webcam" || _sensors is null || !_sensors.Models.Webcams.TryGetValue(s.Model, out var w))
+        {
+            return null;
+        }
+        return new Dictionary<string, double>
+        {
+            ["width"] = w.Width, ["height"] = w.Height, ["fx"] = w.Fx, ["fy"] = w.Fy, ["cx"] = w.Cx, ["cy"] = w.Cy, ["fps"] = w.Fps,
+        };
+    }
+
+    /// <summary>Every sensor's readable values for TICK.</summary>
+    public IReadOnlyList<SensorInput> SensorInputs() =>
+        _sensors?.Devices.Select(d => new SensorInput(d.Name, d.Snapshot())).ToList() ?? [];
 
     /// <summary>A new runner session (fresh JVM, counters start over). Hub state such as encoder counts persists, as on a real robot.</summary>
     public void BeginSession() => _resetCounts.Clear();
@@ -91,6 +117,10 @@ public sealed class RunnerBridge
             foreach (var c in result.Servos)
             {
                 ApplyServo(c);
+            }
+            foreach (var c in result.SensorCommands)
+            {
+                _sensors?.Apply(c.Name, c.Command, c.Args);
             }
         }
         else

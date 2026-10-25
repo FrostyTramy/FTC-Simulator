@@ -11,6 +11,7 @@ import java.net.URLClassLoader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.firstinspires.ftc.sim.DeviceBus;
@@ -27,7 +28,7 @@ import org.firstinspires.ftc.sim.SimTelemetry;
  * one-time token in HELLO_ACK), answers its messages and runs one OpMode in lockstep.
  */
 public final class RunnerMain {
-  static final int PROTOCOL_VERSION = 1;
+  static final int PROTOCOL_VERSION = 2;
   static final String SDK_VERSION = "12.0.0-sim";
   static final long STUCK_WALL_MS = 5_000;
 
@@ -131,13 +132,29 @@ public final class RunnerMain {
   }
 
   private void configure(Wire.In msg) throws IOException {
-    HardwareCosts costs = new HardwareCosts(msg.i64(), msg.i64(), msg.i64(), msg.i64(), msg.i64(), msg.i64());
+    HardwareCosts costs = new HardwareCosts(msg.i64(), msg.i64(), msg.i64(), msg.i64(), msg.i64(), msg.i64(), msg.i64(),
+        msg.i64(), msg.i64());
     int hubCount = msg.i32();
     int n = msg.i32();
     List<SimRobot.DeviceSpec> devices = new ArrayList<>();
     for (int i = 0; i < n; i++) {
-      devices.add(new SimRobot.DeviceSpec(msg.str(), msg.str(), msg.i32(), msg.i32(), msg.str(), msg.f64(), msg.f64(),
-          msg.f64(), msg.f64(), msg.str()));
+      String name = msg.str();
+      String type = msg.str();
+      int hub = msg.i32();
+      int port = msg.i32();
+      String motorType = msg.str();
+      double ticksPerRev = msg.f64();
+      double gearing = msg.f64();
+      double maxRpm = msg.f64();
+      double achievable = msg.f64();
+      String orientation = msg.str();
+      Map<String, Double> params = new LinkedHashMap<>();
+      int p = msg.i32();
+      for (int j = 0; j < p; j++) {
+        params.put(msg.str(), msg.f64());
+      }
+      devices.add(new SimRobot.DeviceSpec(name, type, hub, port, motorType, ticksPerRev, gearing, maxRpm, achievable,
+          orientation, params));
     }
     runtime = new SimRuntime(costs);
     SimRuntime.install(runtime);
@@ -217,6 +234,20 @@ public final class RunnerMain {
         in.busy = busy;
       }
     }
+    int sensors = msg.i32();
+    for (int i = 0; i < sensors; i++) {
+      String name = msg.str();
+      double[] values = new double[msg.i32()];
+      for (int j = 0; j < values.length; j++) {
+        values[j] = msg.f64();
+      }
+      if (bus != null) {
+        bus.setSensorInput(name, values);
+      }
+    }
+    if (bus != null) {
+      bus.countTick();
+    }
     int state = 5; // IDLE
     String error = null;
     if (bus != null) {
@@ -243,7 +274,7 @@ public final class RunnerMain {
   private void sendState(int state, String error) throws IOException {
     Wire.Out reply = new Wire.Out(107).i64(runtime != null ? runtime.nowNanos() : 0).u8(state).str(error);
     if (runtime == null) {
-      reply.i32(0).i32(0).i64(0).i32(0).i32(0).send(out);
+      reply.i32(0).i32(0).i32(0).i64(0).i32(0).i32(0).send(out);
       return;
     }
     Map<String, DeviceBus.MotorCommand> motors = runtime.bus().motorCommands();
@@ -262,6 +293,14 @@ public final class RunnerMain {
     reply.i32(servos.size());
     for (Map.Entry<String, DeviceBus.ServoCommand> e : servos.entrySet()) {
       reply.str(e.getKey()).f64(e.getValue().pulseUs).bool(e.getValue().pwmEnabled);
+    }
+    List<DeviceBus.SensorCommand> commands = runtime.bus().drainSensorCommands();
+    reply.i32(commands.size());
+    for (DeviceBus.SensorCommand c : commands) {
+      reply.str(c.name()).str(c.command()).i32(c.args().length);
+      for (double a : c.args()) {
+        reply.f64(a);
+      }
     }
     reply.i64(telemetry.transmissions());
     List<String> lines = telemetry.lastTransmitted();

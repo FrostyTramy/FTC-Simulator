@@ -33,7 +33,7 @@ public sealed record RunnerLaunch(string JavaExe, string ShimJar, string RunnerJ
 /// </summary>
 public sealed class RunnerSession : IDisposable
 {
-    public const int ProtocolVersion = 1;
+    public const int ProtocolVersion = 2;
     private const int ConsoleLimit = 1000;
 
     private readonly Process _process;
@@ -171,11 +171,18 @@ public sealed class RunnerSession : IDisposable
         var w = new FrameWriter(MessageType.Configure)
             .I64(costs.ControlHubCommand).I64(costs.ExpansionHubCommand).I64(costs.ControlHubI2cRead)
             .I64(costs.LoopOverhead).I64(costs.TrivialCall).I64(costs.GamepadPeriod)
+            .I64(costs.ExpansionHubI2cRead).I64(costs.ControlHubI2cWrite).I64(costs.ExpansionHubI2cWrite)
             .I32(hubCount).I32(devices.Count);
         foreach (var d in devices)
         {
             w.Str(d.Name).Str(d.Type).I32(d.Hub).I32(d.Port).Str(d.MotorTypeName)
                 .F64(d.TicksPerRev).F64(d.Gearing).F64(d.MaxRpm).F64(d.AchievableFraction).Str(d.Orientation);
+            var parameters = d.Params ?? new Dictionary<string, double>();
+            w.I32(parameters.Count);
+            foreach (var (key, value) in parameters.OrderBy(kv => kv.Key, StringComparer.Ordinal))
+            {
+                w.Str(key).F64(value);
+            }
         }
         Send(w);
         Receive(MessageType.ConfigureAck);
@@ -213,6 +220,16 @@ public sealed class RunnerSession : IDisposable
         {
             w.Str(m.Key).I32(m.Position).F64(m.Velocity).F64(m.CurrentAmps).Bool(m.Busy);
         }
+        var sensors = input.Sensors ?? [];
+        w.I32(sensors.Count);
+        foreach (var s in sensors)
+        {
+            w.Str(s.Name).I32(s.Values.Length);
+            foreach (var v in s.Values)
+            {
+                w.F64(v);
+            }
+        }
         Send(w);
 
         var r = Receive(MessageType.State);
@@ -243,10 +260,22 @@ public sealed class RunnerSession : IDisposable
         {
             servos[i] = new ServoCommand(r.Text(), r.F64(), r.Bool());
         }
+        var commands = new SensorCommand[r.I32()];
+        for (var i = 0; i < commands.Length; i++)
+        {
+            var name = r.Text();
+            var command = r.Text();
+            var args = new double[r.I32()];
+            for (var a = 0; a < args.Length; a++)
+            {
+                args[a] = r.F64();
+            }
+            commands[i] = new SensorCommand(name, command, args);
+        }
         var transmissions = r.I64();
         var telemetry = ReadStrings(r);
         var log = ReadStrings(r);
-        return new TickResult(now, state, error, motors, servos, transmissions, telemetry, log);
+        return new TickResult(now, state, error, motors, servos, transmissions, telemetry, log, commands);
     }
 
     public void Dispose()

@@ -9,6 +9,7 @@ using Sim.Core.Numerics;
 using Sim.Field;
 using Sim.Hardware;
 using Sim.Robots;
+using Sim.Sensors;
 
 namespace Sim.Robot;
 
@@ -74,6 +75,11 @@ public partial class RobotBody : RigidBody3D
     }
 
     public RobotPowertrain Powertrain { get; private set; } = null!;
+
+    /// <summary>The robot's sensors (robot YAML sensors), stepped from this body's ground truth every tick.</summary>
+    public SensorSuite Sensors { get; private set; } = null!;
+
+    private GodotSensorWorld _sensorWorld = null!;
     public RobotDefinition Definition { get; private set; } = null!;
     public HardwareConfig HardwareConfig { get; private set; } = null!;
     public IRobotDriver? Driver { get; set; }
@@ -108,7 +114,7 @@ public partial class RobotBody : RigidBody3D
     public Vector3 VelocityAt(Vector3 point) => LinearVelocity + AngularVelocity.Cross(point - GlobalTransform * CenterOfMass);
 
     /// <summary>Loads robot NAME (config/robots/NAME.yaml + generated/NAME) and adds it to <paramref name="parent"/> at <paramref name="pose"/>.</summary>
-    public static RobotBody Spawn(Node parent, string name, Transform3D pose, PhysicsConfig physics)
+    public static RobotBody Spawn(Node parent, string name, Transform3D pose, PhysicsConfig physics, ulong sensorSeed = 1)
     {
         var definition = RobotDefinition.Load(RepoPaths.Config(Path.Combine("robots", name + ".yaml")));
         var hardware = HardwareConfig.Load(Path.Combine(RepoPaths.RepoRoot, "config"));
@@ -140,6 +146,8 @@ public partial class RobotBody : RigidBody3D
         robot.Build(name, parent);
         robot.MeasureOutline();
         robot._ballPath = definition.BallPath is { } path ? new GuidedBallPath(path) : null;
+        robot.Sensors = new SensorSuite(definition, SensorModels.Load(RepoPaths.Config("sensors.yaml")), sensorSeed);
+        robot._sensorWorld = new GodotSensorWorld(robot);
         return robot;
     }
 
@@ -222,7 +230,7 @@ public partial class RobotBody : RigidBody3D
 
     private void Build(string name, Node parent)
     {
-        var dir = $"res://generated/{name}/";
+        var dir = $"res://{Definition.CadPath}/";   // a robot variant uses the CAD of its base robot
         var layout = JsonSerializer.Deserialize<FieldLayout>(Godot.FileAccess.GetFileAsString(dir + "layout.json"), FieldLayout.Json)
             ?? throw new InvalidDataException($"{dir}layout.json is empty");
         _meshToRobot = CadToRobot(Definition.CadToRobot) * MeshToCad(layout.UpAxis);
@@ -331,6 +339,9 @@ public partial class RobotBody : RigidBody3D
 
     public override void _PhysicsProcess(double delta)
     {
+        var ts = TickProfiler.Start();
+        Sensors.Step(_sensorWorld, _tick / (double)Engine.PhysicsTicksPerSecond, delta);   // state after the last step
+        TickProfiler.Stop("sensors", ts);
         var t0 = TickProfiler.Start();
         Driver?.BeforeStep(this, _tick);
         TickProfiler.Stop("driver", t0);

@@ -1,4 +1,4 @@
-# Simulator ↔ OpMode runner protocol (version 1)
+# Simulator ↔ OpMode runner protocol (version 2)
 
 The simulator (C#, `sim/Sim.Runner`) starts one JVM per OpMode session (`java/runner`, JDK 17) and
 talks to it over a TCP socket on `127.0.0.1`. The simulator listens; the runner connects to the port
@@ -18,22 +18,27 @@ on wall-clock timing (determinism).
 |---|---|---|---|
 | 1 | HELLO | int32 protocolVersion | 101 HELLO_ACK: int32 version, string sdkVersion, string token |
 | 2 | LIST_OPMODES | – | 102 OPMODES: int32 n × (string className, string name, string group, uint8 kind 0=TeleOp 1=Autonomous, string preselectTeleOp) |
-| 3 | CONFIGURE | 6 × int64 costs (controlHubCommand, expansionHubCommand, i2cRead, loopOverhead, trivialCall, gamepadPeriod; ns), int32 hubCount, int32 n × device | 103 ACK |
+| 3 | CONFIGURE | 9 × int64 costs (controlHubCommand, expansionHubCommand, controlHubI2cRead, loopOverhead, trivialCall, gamepadPeriod, expansionHubI2cRead, controlHubI2cWrite, expansionHubI2cWrite; ns), int32 hubCount, int32 n × device | 103 ACK |
 | 4 | INIT | string className | 104 ACK or 199 ERROR(string) |
 | 5 | START | – | 105 ACK |
 | 6 | STOP | – | 106 ACK |
 | 7 | TICK | see below | 107 STATE |
 | 8 | QUIT | – | (runner exits) |
 
-device = string name, string type (`motor`, `servo`, `crservo`, `imu`), int32 hub (0 = Control Hub,
-1 = Expansion Hub), int32 port, string motorTypeName, double ticksPerRev, double gearing,
-double maxRpm, double achievableFraction, string orientation (`cw`/`ccw`).
+device = string name, string type (`motor`, `servo`, `crservo`, `imu`, `pinpoint`, `otos`, `color`,
+`distance`, `touch`, `digital`, `webcam`), int32 hub (0 = Control Hub, 1 = Expansion Hub), int32 port
+(I2C bus or digital port for sensors), string motorTypeName, double ticksPerRev, double gearing,
+double maxRpm, double achievableFraction, string orientation (`cw`/`ccw`), int32 n × (string key,
+double value) parameters (e.g. a webcam's width, height, fx, fy, cx, cy, fps).
 
 ### TICK
 int64 tick, int64 endNanos (virtual time at the end of this step), gamepad1, gamepad2,
 double batteryVolts, double[4] imuQuaternion (w, x, y, z: IMU chip frame in a Z-up world),
 double[3] imuAngularVelocity (rad/s about the chip axes), int32 n × motor input
-(string key `hub:port`, int32 position, double velocity ticks/s, double currentAmps, bool busy).
+(string key `hub:port`, int32 position, double velocity ticks/s, double currentAmps, bool busy),
+int32 n × sensor input (string name, int32 count, double[count] values: what the robot code can read
+from the device now; layout per device type in `sim/Sim.Sensors` (`PinpointDevice`, `OtosDevice`,
+`ColorSensorDevice`, `DistanceSensorDevice`, `TouchSensorDevice`)).
 
 gamepad = float left_stick_x, left_stick_y, right_stick_x, right_stick_y, left_trigger,
 right_trigger, int32 buttons, int32 id. Button bits: 0 a/cross, 1 b/circle, 2 x/square,
@@ -48,10 +53,16 @@ int32 n × motor command (string key, string mode, double power, bool velocitySe
 int32 targetPosition, string zeroPower, int32 tolerance, bool enabled, int32 resetCount,
 bool hasVelocityPidf, double[4] velocityPidf, double positionP (NaN = firmware default)),
 int32 n × servo command (string key, double pulseUs (NaN = never set), bool pwmEnabled),
-int64 telemetryTransmissions, int32 n × string telemetryLine, int32 n × string logLine.
+int32 n × sensor command (string name, string command, int32 count, double[count] args; e.g. a Pinpoint
+register write `write(register, value)`), int64 telemetryTransmissions, int32 n × string telemetryLine,
+int32 n × string logLine.
 
 Motor and servo values are **raw** (after the SDK applied directions); the hub firmware behaviour
-(PIDF, RUN_TO_POSITION, PWM → servo motion) runs in the simulator (`sim/Sim.Hardware`).
+(PIDF, RUN_TO_POSITION, PWM → servo motion) runs in the simulator (`sim/Sim.Hardware`). Sensor firmware
+(Pinpoint odometry, OTOS tracking, ...) also runs in the simulator (`sim/Sim.Sensors`); the shim's
+drivers read the values and send writes. A value the driver wrote reads back as written until the
+inputs of the second TICK after the write (the simulator applies it after the step of the write's
+tick, so it is first measured one step later).
 
 ## Timing
 The runner lets the OpMode run until its virtual clock reaches `endNanos`; hardware calls advance the

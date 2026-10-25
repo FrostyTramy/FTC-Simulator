@@ -13,6 +13,7 @@ public sealed class SensorSuite
 
     public SensorSuite(RobotDefinition robot, SensorModels models, ulong seed)
     {
+        Models = models;
         var devices = new List<SensorDevice>();
         foreach (var s in robot.Sensors)
         {
@@ -37,6 +38,8 @@ public sealed class SensorSuite
     }
 
     public IReadOnlyList<SensorDevice> Devices { get; }
+
+    public SensorModels Models { get; }
 
     public SensorDevice? Device(string name) => _byName.GetValueOrDefault(name);
 

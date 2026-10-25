@@ -25,7 +25,10 @@ public enum RunnerState : byte
 /// <summary>A registered OpMode (@TeleOp/@Autonomous, not @Disabled) as the Driver Station lists it.</summary>
 public sealed record OpModeInfo(string ClassName, string Name, string Group, bool Autonomous, string PreselectTeleOp);
 
-/// <summary>One configured device in CONFIGURE. Motor type fields are used for motors only.</summary>
+/// <summary>
+/// One configured device in CONFIGURE. Motor type fields are used for motors only; Port is the I2C bus or digital port
+/// for sensors; Params carries static values of a sensor (e.g. ids).
+/// </summary>
 public sealed record RunnerDevice(
     string Name,
     string Type,
@@ -36,11 +39,12 @@ public sealed record RunnerDevice(
     double Gearing = 0,
     double MaxRpm = 0,
     double AchievableFraction = 0,
-    string? Orientation = null);
+    string? Orientation = null,
+    IReadOnlyDictionary<string, double>? Params = null);
 
 /// <summary>Virtual time SDK calls take, in nanoseconds (config/hardware_latency.yaml).</summary>
 public sealed record HardwareCosts(long ControlHubCommand, long ExpansionHubCommand, long ControlHubI2cRead, long LoopOverhead,
-    long TrivialCall, long GamepadPeriod)
+    long TrivialCall, long GamepadPeriod, long ExpansionHubI2cRead, long ControlHubI2cWrite, long ExpansionHubI2cWrite)
 {
     /// <summary>Reads config/hardware_latency.yaml (default: the repository's).</summary>
     public static HardwareCosts Load(string? path = null)
@@ -52,7 +56,8 @@ public sealed record HardwareCosts(long ControlHubCommand, long ExpansionHubComm
         var expansion = (Dictionary<object, object>)hubs["expansion_hub"];
         var opmode = (Dictionary<object, object>)root["opmode"];
         return new HardwareCosts(Ms(control, "lynx_command"), Ms(expansion, "lynx_command"), Ms(control, "i2c_read"),
-            Ms(opmode, "loop_overhead"), Ms(opmode, "trivial_sdk_call"), Ms(opmode, "driver_station_gamepad_period"));
+            Ms(opmode, "loop_overhead"), Ms(opmode, "trivial_sdk_call"), Ms(opmode, "driver_station_gamepad_period"),
+            Ms(expansion, "i2c_read"), Ms(control, "i2c_write"), Ms(expansion, "i2c_write"));
     }
 
     private static long Ms(Dictionary<object, object> section, string key)
@@ -107,6 +112,12 @@ public readonly record struct GamepadState(
 /// <summary>Raw state of one motor port (motor's own direction).</summary>
 public sealed record MotorInput(string Key, int Position, double Velocity, double CurrentAmps, bool Busy);
 
+/// <summary>What the robot code can read from one sensor (layout per device type, see Sim.Sensors).</summary>
+public sealed record SensorInput(string Name, double[] Values);
+
+/// <summary>A write of the robot code to a sensor (e.g. a Pinpoint register), applied in the next step.</summary>
+public sealed record SensorCommand(string Name, string Command, double[] Args);
+
 /// <summary>Everything the runner gets for one simulation step.</summary>
 /// <param name="ImuOrientation">IMU chip frame in a Z-up world, (w, x, y, z).</param>
 /// <param name="ImuAngularVelocity">Rad/s about the IMU chip axes.</param>
@@ -118,7 +129,8 @@ public sealed record TickInput(
     double BatteryVolts,
     Quat ImuOrientation,
     Vec3d ImuAngularVelocity,
-    IReadOnlyList<MotorInput> Motors);
+    IReadOnlyList<MotorInput> Motors,
+    IReadOnlyList<SensorInput>? Sensors = null);
 
 /// <summary>Raw command of one motor port after the SDK applied directions (DeviceBus.MotorCommand).</summary>
 /// <param name="VelocityPidf">Null = firmware default.</param>
@@ -149,7 +161,8 @@ public sealed record TickResult(
     IReadOnlyList<ServoCommand> Servos,
     long TelemetryTransmissions,
     IReadOnlyList<string> Telemetry,
-    IReadOnlyList<string> Log);
+    IReadOnlyList<string> Log,
+    IReadOnlyList<SensorCommand> SensorCommands);
 
 /// <summary>Double-precision vector.</summary>
 public readonly record struct Vec3d(double X, double Y, double Z);

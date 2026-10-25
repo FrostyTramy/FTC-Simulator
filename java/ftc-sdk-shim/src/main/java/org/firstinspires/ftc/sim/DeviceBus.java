@@ -43,10 +43,16 @@ public final class DeviceBus {
     public boolean pwmEnabled = true;
   }
 
+  /** A write of the robot code to a sensor device, applied by the simulator in its next step. */
+  public record SensorCommand(String name, String command, double[] args) {}
+
   private final Map<String, MotorInput> motorInputs = new LinkedHashMap<>();
   private final Map<String, MotorCommand> motorCommands = new LinkedHashMap<>();
   private final Map<String, ServoCommand> servoCommands = new LinkedHashMap<>();
   private final List<String> logLines = new ArrayList<>();
+  private final Map<String, double[]> sensorInputs = new LinkedHashMap<>();
+  private final List<SensorCommand> sensorCommands = new ArrayList<>();
+  private long ticks;
   private double batteryVolts = 12.0;
   private double[] imuQuaternion = {1, 0, 0, 0}; // w, x, y, z of the IMU chip frame in the world (Z up)
   private double[] imuAngularVelocity = {0, 0, 0}; // rad/s about the IMU chip axes
@@ -107,6 +113,45 @@ public final class DeviceBus {
   public synchronized void setImu(double[] quaternionWxyz, double[] angularVelocity) {
     imuQuaternion = quaternionWxyz.clone();
     imuAngularVelocity = angularVelocity.clone();
+  }
+
+  /** The latest values of one sensor (layout per device type), or null before the first TICK. */
+  public synchronized double[] sensorInput(String name) {
+    double[] v = sensorInputs.get(name);
+    return v == null ? null : v.clone();
+  }
+
+  /** Deep copy of all sensor inputs (a bulk read snapshot of digital inputs). */
+  public synchronized Map<String, double[]> copySensorInputs() {
+    Map<String, double[]> copy = new LinkedHashMap<>();
+    for (Map.Entry<String, double[]> e : sensorInputs.entrySet()) {
+      copy.put(e.getKey(), e.getValue().clone());
+    }
+    return copy;
+  }
+
+  public synchronized void setSensorInput(String name, double[] values) {
+    sensorInputs.put(name, values.clone());
+  }
+
+  /** Queues a write to a sensor for the next STATE. */
+  public synchronized void sensorCommand(String name, String command, double... args) {
+    sensorCommands.add(new SensorCommand(name, command, args.clone()));
+  }
+
+  public synchronized List<SensorCommand> drainSensorCommands() {
+    List<SensorCommand> out = new ArrayList<>(sensorCommands);
+    sensorCommands.clear();
+    return out;
+  }
+
+  /** Number of TICK inputs received so far (a device's own writes show until the simulator reports them). */
+  public synchronized long ticks() {
+    return ticks;
+  }
+
+  public synchronized void countTick() {
+    ticks++;
   }
 
   /** Simulation time of the latest inputs (for bulk-cache staleness and timestamps). */

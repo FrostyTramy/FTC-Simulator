@@ -3,6 +3,7 @@
        lockstep protocol and connects the runner's raw device commands to the robot's hub models. -->
   <ItemGroup>
     <ProjectReference Include="..\Sim.Robots\Sim.Robots.csproj" />
+    <ProjectReference Include="..\Sim.Sensors\Sim.Sensors.csproj" />
     <ProjectReference Include="..\Sim.Core\Sim.Core.csproj" />
   </ItemGroup>
 </Project>

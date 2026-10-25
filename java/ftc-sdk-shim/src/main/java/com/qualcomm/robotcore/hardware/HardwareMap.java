@@ -78,10 +78,17 @@ public class HardwareMap implements Iterable<HardwareDevice> {
   public DeviceMapping<ServoController> servoController = new DeviceMapping<>(ServoController.class);
   public DeviceMapping<Servo> servo = new DeviceMapping<>(Servo.class);
   public DeviceMapping<CRServo> crservo = new DeviceMapping<>(CRServo.class);
+  public DeviceMapping<DigitalChannel> digitalChannel = new DeviceMapping<>(DigitalChannel.class);
+  public DeviceMapping<OpticalDistanceSensor> opticalDistanceSensor = new DeviceMapping<>(OpticalDistanceSensor.class);
+  public DeviceMapping<TouchSensor> touchSensor = new DeviceMapping<>(TouchSensor.class);
+  public DeviceMapping<I2cDeviceSynch> i2cDeviceSynch = new DeviceMapping<>(I2cDeviceSynch.class);
+  public DeviceMapping<ColorSensor> colorSensor = new DeviceMapping<>(ColorSensor.class);
+  public DeviceMapping<LightSensor> lightSensor = new DeviceMapping<>(LightSensor.class);
   public DeviceMapping<VoltageSensor> voltageSensor = new DeviceMapping<>(VoltageSensor.class);
 
-  public final List<DeviceMapping<? extends HardwareDevice>> allDeviceMappings =
-      List.of(dcMotorController, dcMotor, servoController, servo, crservo, voltageSensor);
+  public final List<DeviceMapping<? extends HardwareDevice>> allDeviceMappings = List.of(dcMotorController, dcMotor,
+      servoController, servo, crservo, digitalChannel, opticalDistanceSensor, touchSensor, i2cDeviceSynch, colorSensor,
+      lightSensor, voltageSensor);
   public final Context appContext;
 
   private final Map<String, List<HardwareDevice>> allDevicesMap = new LinkedHashMap<>();

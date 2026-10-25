@@ -27,7 +27,7 @@ public sealed class RobotProgram : IRobotDriver, IRobotLink, IDisposable
         _robot = robot;
         _input = input;
         TeamCodeJar = teamCodeJar;
-        _bridge = new RunnerBridge(robot.Powertrain.Hardware, robot.HardwareConfig.HubController);
+        _bridge = new RunnerBridge(robot.Powertrain.Hardware, robot.HardwareConfig.HubController, robot.Sensors);
         _costs = HardwareCosts.Load(RepoPaths.Config("hardware_latency.yaml"));
         Ds = DriverStationApp.WithRules(this, Sim.Core.Config.RulesConfig.Load(RepoPaths.Config("rules_biobuzz.yaml")));
     }
@@ -108,7 +108,7 @@ public sealed class RobotProgram : IRobotDriver, IRobotLink, IDisposable
         }
         var (orientation, rate) = _bridge.Imu(RobotOrientation(robot), RobotAngularVelocity(robot));
         var input = new TickInput(tick, EndNanos(tick), _input.Gamepad1, _input.Gamepad2, robot.Powertrain.Battery.BusVolts,
-            orientation, rate, _bridge.Inputs());
+            orientation, rate, _bridge.Inputs(), _bridge.SensorInputs());
         try
         {
             _pending = _session.Tick(input);

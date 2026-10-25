@@ -67,7 +67,7 @@ public class ProtocolTests
     public void Hardware_costs_load_from_the_latency_config()
     {
         var costs = HardwareCosts.Load();
-        Assert.Equal(new HardwareCosts(2_000_000, 3_000_000, 3_000_000, 500_000, 1_000, 20_000_000), costs);
+        Assert.Equal(new HardwareCosts(2_000_000, 3_000_000, 3_000_000, 500_000, 1_000, 20_000_000, 7_000_000, 2_000_000, 3_000_000), costs);
     }
 
     [Fact]

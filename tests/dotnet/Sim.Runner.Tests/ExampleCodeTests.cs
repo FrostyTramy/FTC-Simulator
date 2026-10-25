@@ -7,6 +7,7 @@ namespace RunnerTests;
 /// java/build-adapter, run in the sandboxed JVM runner against the simulated StarterBot. Tests in this class share one
 /// collection so only one runner JVM runs at a time.
 /// </summary>
+[Collection("runner")]
 public class ExampleCodeTests
 {
     private const string TeleOp = "Mec BioBuzz StarterBot Teleop";

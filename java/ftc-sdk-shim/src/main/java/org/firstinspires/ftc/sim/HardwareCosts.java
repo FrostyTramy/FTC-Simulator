@@ -2,7 +2,7 @@ package org.firstinspires.ftc.sim;
 
 /**
  * Simulated time each SDK hardware transaction takes (spec 06 "Timing"; values from
- * config/hardware_latency.yaml, sent by the simulator in the INIT message; defaults equal the YAML).
+ * config/hardware_latency.yaml, sent by the simulator in CONFIGURE; defaults equal the YAML).
  */
 public final class HardwareCosts {
   /** One Lynx command to the Control Hub's own hub (gm0: ~2 ms over UART). */
@@ -17,6 +17,12 @@ public final class HardwareCosts {
   public final long trivialCallNanos;
   /** Driver Station gamepad packet period, ASSUMED 20 ms. */
   public final long gamepadPeriodNanos;
+  /** One I2C read on an Expansion Hub (gm0: upwards of 7 ms). */
+  public final long expansionHubI2cReadNanos;
+  /** One I2C write on the Control Hub, ASSUMED one Lynx command. */
+  public final long controlHubI2cWriteNanos;
+  /** One I2C write on an Expansion Hub, ASSUMED one Lynx command. */
+  public final long expansionHubI2cWriteNanos;
 
   public HardwareCosts(
       long controlHubCommandNanos,
@@ -24,21 +30,38 @@ public final class HardwareCosts {
       long controlHubI2cReadNanos,
       long loopOverheadNanos,
       long trivialCallNanos,
-      long gamepadPeriodNanos) {
+      long gamepadPeriodNanos,
+      long expansionHubI2cReadNanos,
+      long controlHubI2cWriteNanos,
+      long expansionHubI2cWriteNanos) {
     this.controlHubCommandNanos = controlHubCommandNanos;
     this.expansionHubCommandNanos = expansionHubCommandNanos;
     this.controlHubI2cReadNanos = controlHubI2cReadNanos;
     this.loopOverheadNanos = loopOverheadNanos;
     this.trivialCallNanos = trivialCallNanos;
     this.gamepadPeriodNanos = gamepadPeriodNanos;
+    this.expansionHubI2cReadNanos = expansionHubI2cReadNanos;
+    this.controlHubI2cWriteNanos = controlHubI2cWriteNanos;
+    this.expansionHubI2cWriteNanos = expansionHubI2cWriteNanos;
   }
 
   public static HardwareCosts defaults() {
-    return new HardwareCosts(2_000_000L, 3_000_000L, 3_000_000L, 500_000L, 1_000L, 20_000_000L);
+    return new HardwareCosts(2_000_000L, 3_000_000L, 3_000_000L, 500_000L, 1_000L, 20_000_000L, 7_000_000L, 2_000_000L,
+        3_000_000L);
   }
 
   /** Cost of one command to the hub with this index (0 = Control Hub, 1 = Expansion Hub). */
   public long commandNanos(int hub) {
     return hub == 0 ? controlHubCommandNanos : expansionHubCommandNanos;
+  }
+
+  /** Cost of one I2C read transaction on the hub with this index. */
+  public long i2cReadNanos(int hub) {
+    return hub == 0 ? controlHubI2cReadNanos : expansionHubI2cReadNanos;
+  }
+
+  /** Cost of one I2C write transaction on the hub with this index. */
+  public long i2cWriteNanos(int hub) {
+    return hub == 0 ? controlHubI2cWriteNanos : expansionHubI2cWriteNanos;
   }
 }
