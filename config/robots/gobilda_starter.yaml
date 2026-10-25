@@ -183,6 +183,18 @@ ball_path:
   chute_width: {value: 0.088, unit: m, source: "CAD: inner faces of the C plates (x ±0.044); NECTAR (0.0914 m) is wider — ASSUMED the plates flex or NECTAR jams; check in Phase 5"}
   launch_direction: {value: [0, 0.94, 0.34], unit: "1", source: "ASSUMED from hood G end tangent (mostly up, slightly backward); measure in Phase 5"}
   preload_drop_points: {value: [[-0.03, 0.15, -0.06], [0.03, 0.15, -0.06], [-0.03, 0.15, -0.01], [0.03, 0.15, -0.01]], unit: m, source: "ASSUMED: 4 POLLEN dropped into the hopper and left to settle (RULES §10.3.4, G304.G)"}
+  # Guided path (D-027): the CAD gap between the Gecko row and the foam bar (42 mm) is far smaller than a POLLEN (71 mm);
+  # without measured ball/foam deformation the contact model jams there, so capture, storage, feeding and the launch
+  # follow these values. The sweepers still push elements by contact.
+  model: {value: guided, unit: label, source: "D-027 (godot scenario robot_intake_pickup: contact-only intake jams at the bar, z = -0.151 m)"}
+  capture_zone: {value: {min: [-0.105, 0.0, -0.215], max: [0.090, 0.085, -0.125]}, unit: m, source: "CAD: Gecko row (x -0.101..0.083, axle z -0.174, bottom y 0.066) to the front bar (z -0.115), floor to above the ball top; ASSUMED"}
+  capture_min_surface_speed: {value: 0.3, unit: m/s, source: "ASSUMED: the Gecko row must turn inwards at least this fast to take an element"}
+  storage_slots: {value: [[-0.03, 0.08, -0.06], [0.03, 0.08, -0.06], [-0.03, 0.08, -0.01], [0.03, 0.08, -0.01]], unit: m, source: "hopper floor E at y 0.044 + POLLEN radius; positions of preload_drop_points lowered onto the floor; ASSUMED"}
+  feed_angle: {value: 90, unit: deg, source: "4 paddles on the windmill (INSTR STEP 52-53): one element per quarter turn in the feeding direction"}
+  feed_power_sign: {value: 1, unit: "1", source: "CODE:291: windmillServo.setPower(1) feeds"}
+  launch_point: {value: [-0.004, 0.245, 0.17], unit: m, source: "CAD: exit of the gap between the Hogback (centre z 0.052, y 0.174) and the top of hood G (z 0.2, y 0.21), in the flywheel's plane; ASSUMED"}
+  exit_speed_ratio: {value: 0.5, unit: "1", source: "kinematics: an element rolling without slip between the moving flywheel rim and the fixed hood moves at half the rim speed; losses not modelled (calibrate in Phase 11)"}
+  min_launch_surface_speed: {value: 2.0, unit: m/s, source: "ASSUMED: below this rim speed the element stays in the nip"}
 
 sensors: []        # no webcam/distance/colour sensors in the kit (INSTR p2-4 BOM)
 bumpers: []

@@ -44,7 +44,8 @@ public partial class GamepadInput : Node
             _known.Add(device);
             Assignment.Update(device, Read(device).Buttons);
         }
-        Gamepad1 = Assignment.Gamepad1 is { } g1 ? GamepadMapper.ToGamepad(Read(g1), g1, _settings) : Keyboard();
+        Gamepad1 = Assignment.Gamepad1 is { } g1 ? GamepadMapper.ToGamepad(Read(g1), g1, _settings)
+            : UiFocus.Typing(this) ? GamepadState.Neutral with { Id = KeyboardId } : Keyboard();
         Gamepad2 = Assignment.Gamepad2 is { } g2 ? GamepadMapper.ToGamepad(Read(g2), g2, _settings) : GamepadState.Neutral;
     }
 

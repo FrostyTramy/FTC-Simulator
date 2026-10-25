@@ -45,6 +45,9 @@ public sealed class LoadedField
     public Dictionary<string, HingeMechanism> Mechanisms { get; } = new();
     public List<FieldElement> Elements { get; } = new();
     public float GroundY { get; set; }
+
+    /// <summary>Top of the field tiles: the playing surface, y = 0 of the CAD/sim frame (robots stand here).</summary>
+    public float TileTopY { get; set; }
     public int ColliderCount { get; set; }
 }
 
@@ -105,6 +108,7 @@ public static class FieldLoader
                         if (group.Name == "tiles")
                         {
                             tilesBottom = bottom;
+                            field.TileTopY = HighestBoxTop(colliders) ?? 0f;
                         }
                     }
                     break;
@@ -218,6 +222,27 @@ public static class FieldLoader
         };
         ground.AddChild(floor);
         root.AddChild(ground);
+    }
+
+    /// <summary>Highest Y of all box colliders (corners transformed), or null when there are none.</summary>
+    private static float? HighestBoxTop(List<ColliderSpec> colliders)
+    {
+        float? highest = null;
+        foreach (var spec in colliders)
+        {
+            if (spec.Type != "box" || spec.Transform == null || spec.Size == null)
+            {
+                continue;
+            }
+            var t = ShapeFactory.RigidOnly(ShapeFactory.ToTransform(spec.Transform));
+            var h = new Vector3((float)spec.Size[0], (float)spec.Size[1], (float)spec.Size[2]) / 2;
+            for (var i = 0; i < 8; i++)
+            {
+                var corner = t * new Vector3((i & 1) == 0 ? -h.X : h.X, (i & 2) == 0 ? -h.Y : h.Y, (i & 4) == 0 ? -h.Z : h.Z);
+                highest = Math.Max(highest ?? corner.Y, corner.Y);
+            }
+        }
+        return highest;
     }
 
     /// <summary>Lowest Y of all box colliders (corners transformed), or null when there are none.</summary>

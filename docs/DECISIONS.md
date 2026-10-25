@@ -126,3 +126,56 @@ Why we chose X over Y. Newest last. Format: ID, date, decision, why, alternative
 - **Why:** the launcher's velocity PIDF, the encoder velocity the code checks and the battery sag all
   need the real load; the Phase 6 tests run the example code against it without Godot.
 
+## D-021 — Godot robot: one rigid chassis on raycast wheel suspension (2026-10-25)
+- **Decision:** the robot is one RigidBody3D (YAML mass, centre of mass, inertia; CAD colliders except wheels and
+  gripping mechanisms) carried by one ray per wheel: a stiff spring-damper (1 mm static sag, ζ = 0.7, physics.yaml,
+  ASSUMED) whose force is the wheel's normal load. The shared `RobotPowertrain` (also used by the flat-floor sim)
+  turns hub commands into wheel forces. Meshes from the pipeline are Y-up; the robot undoes that turn before applying
+  the YAML cad_to_robot. The field's y = 0 is the tile top (`LoadedField.TileTopY`); `GroundY` is the venue floor.
+- **Why:** wheel loads, weight transfer and tilt come out of the rigid-body motion; the same powertrain in tests and in
+  Godot keeps the C# benchmarks valid (Godot forward run 1.82 m vs 1.85 m flat-floor reference).
+- **Alternatives:** wheel colliders (Godot friction is per body, so frictionless wheels would make the whole chassis
+  frictionless); joints per wheel (stiff, slow, unnecessary for the force model).
+
+## D-022 — Mechanism contacts with compliance (2026-10-25)
+- **Decision:** rollers, sweeper wheels and the flywheel touch elements through `CompliantContact` (squeeze spring with
+  element and surface stiffness in series, slip friction from the pair table); the reaction loads their motor or servo.
+  Windmill paddles are kinematic bodies. These parts have no colliders.
+
+## D-023 — Code editor = Godot CodeEdit + Eclipse JDT LS 1.62 (2026-10-25)
+- **Decision:** the editor uses Godot's CodeEdit with an LSP client for JDT LS (runs on Java 21+, here JDK 26; team
+  code still compiles for Java 17). The server sees a generated Eclipse project outside the team repository that links
+  TeamCode/src/main/java and the shim jar + sources jar. JDT LS was downloaded from download.eclipse.org (1.62.0,
+  SHA-256 f587dafd…09342 verified) into generated/tools.
+- **Evidence:** completion of `telemetry.` lists `addData` from the shim; a syntax error is reported on its line and
+  clears after the fix; 12 s including server start (tests/dotnet/Sim.Editor.Tests).
+
+## D-024 — Per-project build folder for TeamCode (2026-10-25)
+- **Decision:** `build-adapter` takes `-PbuildOut`; each project builds into the app's own folder (incremental, the
+  repository is never written to). Save → build → OpModes listed in about 2 s with a warm Gradle daemon.
+
+## D-025 — Phase 8 uses the git CLI (2026-10-25)
+- **Decision:** git CLI (user delegated the choice: "For github you choose"). It reuses the user's git config and
+  credential helper, supports every operation (clone, status v2, diff, stage, commit, push, pull, branches, conflicts)
+  and needs no native library. GitHub device-flow sign-in stores the token only in Windows Credential Manager and gives
+  it to git through the environment of its own process (never as an argument or in a log). No force push exists in the
+  client; commits with likely secrets or files > 10 MB and pushes to main/master need confirmation.
+- **Alternatives:** LibGit2Sharp (native binaries per platform, credential handling to reimplement, no Git Credential
+  Manager integration).
+
+## D-026 — Practice start pose and field control (2026-10-25)
+- **Decision:** in practice the robot starts on the audience-side lane facing blue (ASSUMED, D-006 "somewhere ok");
+  during a match the rules engine (Assisted mode) disables robot outputs between periods; starting a match presses
+  PLAY on an INIT-ed OpMode like the drive team would.
+
+## D-027 — Guided element path for the StarterBot intake and launcher (2026-10-25)
+- **Decision:** capture, hopper storage, feeding and launching follow robot YAML ball_path rules instead of contact
+  physics: an element in the capture zone of the inward-turning Gecko row is stored (capacity 4); each 90° of windmill
+  rotation in the feeding direction launches the oldest one at half the flywheel rim speed (rolling between rim and
+  hood) along the YAML launch direction, and the flywheel loses m·v·R of angular momentum (RPM drop and recovery stay
+  physical). The sweepers keep the contact model.
+- **Evidence:** with contact-only intake the CAD gap between the Gecko row and the foam bar (42 mm) is far smaller than
+  a POLLEN (71 mm); the ball jammed in the nip at z = −0.151 m (Godot scenario robot_intake_pickup trace). Passing it
+  needs ball/foam deformation data that the resources do not contain (spec 04 allows "compression"; the numbers are
+  unknown). The spec deviation is limited to this robot's ball path and can be replaced when measured.
+

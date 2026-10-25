@@ -64,7 +64,7 @@ public partial class Main : Node3D
         {
             var input = new GamepadInput { Name = "GamepadInput" };
             AddChild(input);
-            var pose = new Transform3D(new Basis(Vector3.Up, -Mathf.Pi / 2), PracticeStart + new Vector3(0, field.GroundY, 0));
+            var pose = new Transform3D(new Basis(Vector3.Up, -Mathf.Pi / 2), PracticeStart + new Vector3(0, field.TileTopY, 0));
             var robot = RobotBody.Spawn(this, "gobilda_starter", pose, physics);
             robot.Elements = field.Elements;
             var jar = args.TeamCodeJar ?? System.IO.Path.Combine(RepoPaths.RepoRoot, "java", "build-adapter", "build", "libs", "teamcode.jar");
@@ -93,6 +93,23 @@ public partial class Main : Node3D
                 }
             };
             layer.AddChild(scoreboard);
+
+            // Code editor (F4): the team project lives in workspace/ (git-ignored); the first run copies the goBILDA
+            // example's TeamCode there so the original resources are never edited.
+            var project = args.Project != null ? System.IO.Path.GetFullPath(args.Project)
+                : System.IO.Path.Combine(RepoPaths.RepoRoot, "workspace", "starter");
+            if (args.Project == null)
+            {
+                EnsureStarterProject(project);
+            }
+            var tools = System.IO.Path.Combine(RepoPaths.RepoRoot, "workspace", ".ftcsim", System.IO.Path.GetFileName(project));
+            layer.AddChild(new Sim.EditorUi.CodePanel(program, project, tools) { Name = "CodeEditor" });
+            layer.AddChild(new Sim.EditorUi.GitPanel(project) { Name = "Git" });
+        }
+
+        if (args.CapturePath != null)
+        {
+            AddChild(new CaptureRunner { Path = args.CapturePath, Seconds = args.CaptureSeconds, ShowPanels = args.CapturePanels });
         }
 
         if (args.ScreenshotDir != null)
@@ -106,6 +123,23 @@ public partial class Main : Node3D
                 Field = field,
                 LayoutPath = layoutPath,
             });
+        }
+    }
+
+    /// <summary>Copies tests/compat/gobilda_starter/TeamCode into a new workspace project (once).</summary>
+    private static void EnsureStarterProject(string project)
+    {
+        var target = System.IO.Path.Combine(project, "TeamCode");
+        if (System.IO.Directory.Exists(target))
+        {
+            return;
+        }
+        var source = System.IO.Path.Combine(RepoPaths.RepoRoot, "tests", "compat", "gobilda_starter", "TeamCode");
+        foreach (var file in System.IO.Directory.GetFiles(source, "*", System.IO.SearchOption.AllDirectories))
+        {
+            var dest = System.IO.Path.Combine(target, System.IO.Path.GetRelativePath(source, file));
+            System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(dest)!);
+            System.IO.File.Copy(file, dest);
         }
     }
 

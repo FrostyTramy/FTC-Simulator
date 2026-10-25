@@ -109,7 +109,7 @@ public partial class ScenarioRunner : Node3D
         }
         foreach (var e in _field!.Elements)
         {
-            var y = e.Body.GlobalPosition.Y - _field.GroundY;
+            var y = e.Body.GlobalPosition.Y - _field.TileTopY;
             _peakHeight[e] = Math.Max(_peakHeight.GetValueOrDefault(e, y), y);
         }
         Trace();
@@ -157,7 +157,7 @@ public partial class ScenarioRunner : Node3D
                 {
                     var layer = i / (perRow * perRow);
                     var inLayer = i % (perRow * perRow);
-                    var offset = new Vector3(
+                    var offset = count == 1 ? Vector3.Zero : new Vector3(   // a single element goes exactly to CENTER
                         (inLayer % perRow - (perRow - 1) / 2f) * spacing,
                         layer * spacing,
                         (inLayer / perRow - (perRow - 1) / 2f) * spacing);
@@ -168,7 +168,7 @@ public partial class ScenarioRunner : Node3D
             {
                 // Spawns robot NAME at POSITION (y above the ground) turned YAW_DEG about +Y (0 = facing −Z), driven by
                 // a direct-drive script: drive: [{at_s, forward, strafe, rotate}, ...] (seconds since the scenario start).
-                var position = Vec(action, "position") + new Vector3(0, _field!.GroundY, 0);
+                var position = Vec(action, "position") + new Vector3(0, _field!.TileTopY, 0);
                 var yaw = Mathf.DegToRad((float)Num(action, "yaw_deg", 0));
                 _robot = RobotBody.Spawn(this, Str(action, "name", "gobilda_starter"), new Transform3D(new Basis(Vector3.Up, yaw), position), _physics);
                 var script = List(action, "drive").Cast<Dictionary<object, object>>()

@@ -100,7 +100,7 @@ public partial class MatchController : Node
 
     private WorldSnapshot Build(long tick)
     {
-        var ground = _field.GroundY;
+        var ground = _field.TileTopY;   // the sim frame's y = 0 is the tile top
         var footprints = _robots.ToDictionary(r => r.Id, r => Footprint(r.Body));
         var controlled = new Dictionary<int, List<int>>();
         var elements = new List<ElementState>(_field.Elements.Count);

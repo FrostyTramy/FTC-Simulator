@@ -92,6 +92,10 @@ public partial class FreeCamera : Camera3D
     public override void _Process(double delta)
     {
         var dir = Vector3.Zero;
+        if (UiFocus.Typing(this))
+        {
+            return;   // keys belong to the code editor
+        }
         if (Input.IsKeyPressed(Key.W)) dir -= Basis.Z;
         if (Input.IsKeyPressed(Key.S)) dir += Basis.Z;
         if (Input.IsKeyPressed(Key.A)) dir -= Basis.X;

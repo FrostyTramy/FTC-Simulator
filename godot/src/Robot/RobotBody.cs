@@ -46,6 +46,10 @@ public partial class RobotBody : RigidBody3D
     private double _stiffness;
     private double _damping;
     private long _tick;
+    private GuidedBallPath? _ballPath;
+    private readonly Dictionary<RigidBody3D, int> _elementIds = new();
+    private readonly Dictionary<int, (FieldElement Element, uint Layer, uint Mask)> _stored = new();
+    private double _lastFeederAngle;
 
     /// <summary>A roller/wheel/flywheel that grips elements: axle in the robot frame, the port that drives it.</summary>
     private sealed record RollerMechanism(MechanismDef Def, Vector3 AxisPoint, Vector3 Axis, MotorPort? Motor, ServoPort? Servo)
@@ -135,7 +139,22 @@ public partial class RobotBody : RigidBody3D
         parent.AddChild(robot);
         robot.Build(name, parent);
         robot.MeasureOutline();
+        robot._ballPath = definition.BallPath is { } path ? new GuidedBallPath(path) : null;
         return robot;
+    }
+
+    /// <summary>Elements held in the robot by the guided path (hopper), oldest first.</summary>
+    public IEnumerable<FieldElement> StoredElements => _ballPath?.Stored.Select(id => _stored[id].Element) ?? Enumerable.Empty<FieldElement>();
+
+    /// <summary>Puts an element straight into the hopper (pre-loads at match setup, G304.G). False if full or no hopper.</summary>
+    public bool Preload(FieldElement element)
+    {
+        if (_ballPath == null || !_ballPath.Preload(IdOf(element.Body)))
+        {
+            return false;
+        }
+        Store(element);
+        return true;
     }
 
     /// <summary>Footprint (convex hull in x/z) and top height from the chassis colliders plus the wheel cylinders.</summary>
@@ -327,6 +346,7 @@ public partial class RobotBody : RigidBody3D
         }
         ApplySuspension();
         ApplyElementContacts();
+        RunBallPath();
         var (velocity, yawRate) = PlanarMotion();
         var forces = Powertrain.Step(velocity, yawRate, _normals);
         var basis = GlobalBasis;
@@ -422,6 +442,107 @@ public partial class RobotBody : RigidBody3D
                 ApplyForce(-force, point - GlobalPosition);
                 roller.Load(contact.ShaftTorque);
             }
+        }
+    }
+
+    /// <summary>
+    /// Guided element path (D-027): capture in front of the running intake roller, hold in the hopper slots, launch one
+    /// element per feeder quarter turn at the flywheel's exit speed; the flywheel loses the angular momentum it gives.
+    /// </summary>
+    private void RunBallPath()
+    {
+        if (_ballPath is not { } path || Elements == null)
+        {
+            return;
+        }
+        var intake = _rollers.FirstOrDefault(r => r.Motor != null && r.Def.Id == "intake_roller");
+        var flywheel = _rollers.FirstOrDefault(r => r.Motor != null && r.Def.Type == "flywheel");
+        var feeder = Powertrain.Hardware.Servos.FirstOrDefault(sv => sv.Device.Drives == "mechanism:windmill");
+        var transform = GlobalTransform;
+        var inverse = transform.AffineInverse();
+
+        // Capture: positive raw intake power pulls in (CODE:201-212), so the inward rim speed follows the motor.
+        if (intake?.Motor is { } intakeMotor)
+        {
+            var inward = intakeMotor.OutputOmega * intakeMotor.Device.SpeedRatio * intake.Def.Radius!.Value;
+            foreach (var element in Elements)
+            {
+                var body = element.Body;
+                if (!IsInstanceValid(body) || body.Freeze || body.GlobalPosition.DistanceTo(GlobalPosition) > 0.5f)
+                {
+                    continue;
+                }
+                var local = inverse * body.GlobalPosition;
+                if (path.TryCapture(IdOf(body), new System.Numerics.Vector3(local.X, local.Y, local.Z), inward))
+                {
+                    Store(element);
+                }
+            }
+        }
+
+        // Feed: the feeder's rotation in the direction positive SDK power turns it (CODE:291 setPower(1) feeds).
+        if (feeder != null && flywheel?.Motor is { } launcher)
+        {
+            var rawFeedSign = path.Def.FeedPowerSign * (feeder.Device.Direction == "REVERSE" ? -1 : 1);
+            var angle = feeder.Model.AngleDeg;
+            var turned = (angle - _lastFeederAngle) * rawFeedSign;
+            _lastFeederAngle = angle;
+            var rim = Math.Abs(launcher.OutputOmega * launcher.Device.SpeedRatio) * flywheel.Def.Radius!.Value;
+            if (path.Feed(turned, rim) is { } id)
+            {
+                Launch(id, path, path.ExitSpeed(rim), launcher, flywheel.Def.Radius!.Value);
+            }
+        }
+
+        // Stored elements ride in their slots.
+        foreach (var id in path.Stored)
+        {
+            var slot = path.SlotOf(id);
+            _stored[id].Element.Body.GlobalTransform = new Transform3D(transform.Basis, transform * new Vector3(slot.X, slot.Y, slot.Z));
+        }
+    }
+
+    private int IdOf(RigidBody3D body)
+    {
+        if (!_elementIds.TryGetValue(body, out var id))
+        {
+            id = _elementIds.Count + 1;
+            _elementIds[body] = id;
+        }
+        return id;
+    }
+
+    /// <summary>Holds an element in the hopper: kinematic and without collisions until it is launched.</summary>
+    private void Store(FieldElement element)
+    {
+        var body = element.Body;
+        _stored[IdOf(body)] = (element, body.CollisionLayer, body.CollisionMask);
+        body.FreezeMode = FreezeModeEnum.Kinematic;
+        body.Freeze = true;
+        body.CollisionLayer = 0;
+        body.CollisionMask = 0;
+    }
+
+    private void Launch(int id, GuidedBallPath path, double exitSpeed, MotorPort launcher, double rimRadius)
+    {
+        var (element, layer, mask) = _stored[id];
+        _stored.Remove(id);
+        var body = element.Body;
+        var t = GlobalTransform;
+        var point = t * new Vector3(path.Def.LaunchPoint.X, path.Def.LaunchPoint.Y, path.Def.LaunchPoint.Z);
+        var direction = t.Basis * new Vector3(path.Def.LaunchDirection.X, path.Def.LaunchDirection.Y, path.Def.LaunchDirection.Z);
+        body.GlobalTransform = new Transform3D(Basis.Identity, point);
+        body.Freeze = false;
+        body.CollisionLayer = layer;
+        body.CollisionMask = mask;
+        body.LinearVelocity = VelocityAt(point) + direction.Normalized() * (float)exitSpeed;
+        body.AngularVelocity = Vector3.Zero;
+        // The flywheel gives the element m·v·R of angular momentum: its shaft slows down (RPM drop per shot).
+        var impulse = GuidedBallPath.FlywheelImpulse(_physics.Element(element.Group).MassKg, exitSpeed, rimRadius);
+        if (launcher.LoadInertia is { } inertia && launcher.OutputOmega != 0)
+        {
+            var drop = impulse * launcher.Device.SpeedRatio / inertia;
+            launcher.OutputOmega -= Math.Sign(launcher.OutputOmega) * Math.Min(Math.Abs(launcher.OutputOmega), drop);
         }
     }
 

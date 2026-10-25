@@ -1,0 +1,6 @@
+# GitHub sign-in for the built-in git panel (spec 07 "Sign in"). The device flow needs the client ID of a GitHub OAuth
+# App created by the user (Settings → Developer settings → OAuth Apps, "Enable Device Flow" ticked). A client ID is not
+# a secret; there is no client secret in the app. Until it is set, git uses the system's credentials (Git Credential
+# Manager).
+oauth_client_id: {value: "", unit: label, source: "to be provided by the user (docs/open_questions.md Q-010)"}
+scope: {value: repo, unit: label, source: "GitHub OAuth scopes: repo = push/pull private and public repositories"}

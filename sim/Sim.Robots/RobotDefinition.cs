@@ -72,6 +72,9 @@ public sealed class RobotDefinition
     /// <summary>Row-major 4×4 matrix from CAD coordinates to the robot frame (robot = M · cad), frame.cad_to_robot.</summary>
     public required double[] CadToRobot { get; init; }
 
+    /// <summary>Guided element path (ball_path.model = guided), or null when elements only move by contact.</summary>
+    public BallPathDef? BallPath { get; init; }
+
     public DeviceDef Device(string name) =>
         Devices.FirstOrDefault(d => d.Name == name) ?? throw new RobotConfigException($"{Name}: no device '{name}'");
 
@@ -162,7 +165,29 @@ public sealed class RobotDefinition
             Mechanisms = mechanisms,
             BatteryModel = QRaw(Map(root, "battery"), "model").ToString()!,
             CadToRobot = ((List<object>)QRaw(Map(root, "frame"), "cad_to_robot")).SelectMany(row => ((List<object>)row).Select(Num)).ToArray(),
+            BallPath = ReadBallPath(root),
         };
+    }
+
+    private static BallPathDef? ReadBallPath(Dictionary<object, object> root)
+    {
+        if (!root.TryGetValue("ball_path", out var raw) || raw is not Dictionary<object, object> b
+            || !b.ContainsKey("model") || QRaw(b, "model").ToString() != "guided")
+        {
+            return null;
+        }
+        var zone = (Dictionary<object, object>)QRaw(b, "capture_zone");
+        return new BallPathDef(
+            Vec(zone["min"]), Vec(zone["max"]),
+            Q(b, "capture_min_surface_speed"),
+            ((List<object>)QRaw(b, "storage_slots")).Select(Vec).ToList(),
+            (int)Q(b, "hopper_capacity"),
+            Q(b, "feed_angle"),
+            (int)Q(b, "feed_power_sign"),
+            Vec(QRaw(b, "launch_point")),
+            Vector3.Normalize(Vec(QRaw(b, "launch_direction"))),
+            Q(b, "exit_speed_ratio"),
+            Q(b, "min_launch_surface_speed"));
     }
 
     public static string FindConfig(string name)

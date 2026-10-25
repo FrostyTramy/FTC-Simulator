@@ -7,7 +7,8 @@ namespace Sim.App;
 /// <code>
 /// godot --path godot -- [--layout field|synthetic|res://...] [--quality low|medium]
 ///                       [--screenshot DIR] [--run-scenarios [FILTER]] [--seconds N]
-///                       [--no-robot] [--teamcode JAR]
+///                       [--no-robot] [--teamcode JAR] [--project DIR]
+///                       [--capture PNG [--capture-seconds N] [--capture-panels]]
 /// </code></summary>
 public sealed class CommandLine
 {
@@ -22,6 +23,14 @@ public sealed class CommandLine
 
     /// <summary>Compiled TeamCode for the runner (default: the example built by java/build-adapter).</summary>
     public string? TeamCodeJar { get; private set; }
+
+    /// <summary>Team project folder (contains TeamCode/src/main/java), e.g. a cloned FtcRobotController repository.</summary>
+    public string? Project { get; private set; }
+
+    /// <summary>Interactive app screenshot (CaptureRunner): output PNG, delay, open the code editor first.</summary>
+    public string? CapturePath { get; private set; }
+    public double CaptureSeconds { get; private set; } = 3;
+    public bool CapturePanels { get; private set; }
 
     /// <summary>Seconds of fps measurement per view in screenshot mode.</summary>
     public double MeasureSeconds { get; private set; } = 3.0;
@@ -56,6 +65,21 @@ public sealed class CommandLine
                 case "--teamcode" when next != null:
                     cl.TeamCodeJar = next;
                     i++;
+                    break;
+                case "--project" when next != null:
+                    cl.Project = next;
+                    i++;
+                    break;
+                case "--capture" when next != null:
+                    cl.CapturePath = next;
+                    i++;
+                    break;
+                case "--capture-seconds" when next != null:
+                    cl.CaptureSeconds = double.Parse(next, CultureInfo.InvariantCulture);
+                    i++;
+                    break;
+                case "--capture-panels":
+                    cl.CapturePanels = true;
                     break;
                 case "--run-scenarios":
                     cl.RunScenarios = true;

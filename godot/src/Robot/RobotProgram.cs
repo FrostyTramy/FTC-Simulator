@@ -32,7 +32,7 @@ public sealed class RobotProgram : IRobotDriver, IRobotLink, IDisposable
         Ds = DriverStationApp.WithRules(this, Sim.Core.Config.RulesConfig.Load(RepoPaths.Config("rules_biobuzz.yaml")));
     }
 
-    public string TeamCodeJar { get; }
+    public string TeamCodeJar { get; private set; }
     public DriverStationApp Ds { get; }
     public TickResult? Last { get; private set; }
 
@@ -68,6 +68,13 @@ public sealed class RobotProgram : IRobotDriver, IRobotLink, IDisposable
         _pending = null;
         Connect();
         Ds.RobotRestarted();
+    }
+
+    /// <summary>"Run on robot" with new code (spec 07): a fresh JVM with the new jar and a refreshed OpMode list.</summary>
+    public void ReloadTeamCode(string jar)
+    {
+        TeamCodeJar = jar;
+        RestartRobot();
     }
 
     public void InitOpMode(OpModeInfo opMode)
