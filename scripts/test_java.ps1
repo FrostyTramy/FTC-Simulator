@@ -12,7 +12,7 @@ if (-not (Test-Path $gradle)) { $gradle = Join-Path $RepoRoot 'java\gradlew.bat'
 
 Push-Location (Join-Path $RepoRoot 'java')
 try {
-    & $gradle --console=plain -q test jar
+    & $gradle --console=plain -q test assemble
     if ($LASTEXITCODE -ne 0) { Write-Host 'FAILED: Java build or tests'; exit 1 }
 } finally {
     Pop-Location

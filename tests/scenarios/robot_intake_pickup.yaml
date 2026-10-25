@@ -1,0 +1,14 @@
+# Phase 5 mechanisms: with the intake running (example TeleOp mapping: roller + corner sweepers), the StarterBot drives
+# slowly onto a POLLEN lying in front of it; the Gecko roller grabs the top of the ball and pulls it over the front bar
+# into the hopper (robot YAML ball_path). The ball must end up inside the robot.
+name: robot_intake_pickup
+layout: field
+duration_s: 3.0
+actions:
+  - {action: robot, at_s: 0, name: gobilda_starter, position: [-1.3, 0.0, 1.05], yaw_deg: -90,
+     drive: [{at_s: 0.25, intake: 1}, {at_s: 0.5, forward: 0.3}, {at_s: 1.6, forward: 0}]}
+  - {action: spawn, at_s: 0, group: pollen, count: 1, relative_to: robot, center: [0.0, 0.0376, -0.33]}
+trace: {group: pollen, index: -1, every_s: 0.1}
+checks:
+  - {check: element_in_robot, group: pollen, index: -1, min: [-0.16, 0.03, -0.2], max: [0.16, 0.25, 0.15]}
+  - {check: robot_upright, max_tilt_deg: 3.0}

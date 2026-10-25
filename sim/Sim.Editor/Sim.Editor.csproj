@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Code editor back end (spec 07): LSP client for the Eclipse JDT Language Server, the generated Eclipse project
+       that puts TeamCode + the SDK shim on the classpath, OpMode templates. Pure C#; the Godot editor UI uses it. -->
+  <ItemGroup>
+    <ProjectReference Include="..\Sim.Runner\Sim.Runner.csproj" />
+  </ItemGroup>
+</Project>

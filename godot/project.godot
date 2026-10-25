@@ -27,6 +27,7 @@ project/assembly_name="FtcSim"
 3d_physics/layer_3="elements"
 3d_physics/layer_4="robots"
 3d_physics/layer_5="zones"
+3d_physics/layer_6="robot_mechanisms"
 
 [physics]
 

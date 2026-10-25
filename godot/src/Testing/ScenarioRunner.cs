@@ -6,6 +6,7 @@ using System.Text.Json;
 using Godot;
 using Sim.App;
 using Sim.Field;
+using Sim.Robot;
 using YamlDotNet.Serialization;
 
 namespace Sim.Testing;
@@ -28,6 +29,8 @@ public partial class ScenarioRunner : Node3D
     private ulong _startUsec;
     private int _failures;
     private readonly List<(int Step, Dictionary<object, object> Action)> _pendingActions = new();
+    private RobotBody? _robot;
+    private readonly Dictionary<FieldElement, float> _peakHeight = new();
 
     public string Filter { get; set; } = "";
 
@@ -70,6 +73,12 @@ public partial class ScenarioRunner : Node3D
             _current = def;
             _currentFile = file;
             _field = FieldLoader.Load(this, layoutPath, _physics);
+            if (Str(def, "mechanisms", "false") == "true")
+            {
+                // Hive hinges, dampers and tip detection (config/field_mechanisms.yaml joints, Phase 4).
+                FieldMechanisms.Apply(_field, RepoPaths.Config("field_mechanisms.yaml"), _physics,
+                    System.IO.Path.Combine(RepoPaths.RepoRoot, "generated", "field", "manifest.json"));
+            }
             _step = 0;
             _targetSteps = (int)Math.Round(Num(def, "duration_s", 5.0) * Engine.PhysicsTicksPerSecond);
             _pendingActions.Clear();
@@ -98,6 +107,12 @@ public partial class ScenarioRunner : Node3D
         {
             RunAction(action);
         }
+        foreach (var e in _field!.Elements)
+        {
+            var y = e.Body.GlobalPosition.Y - _field.GroundY;
+            _peakHeight[e] = Math.Max(_peakHeight.GetValueOrDefault(e, y), y);
+        }
+        Trace();
         _step++;
         if (_step < _targetSteps)
         {
@@ -115,6 +130,9 @@ public partial class ScenarioRunner : Node3D
         Record(Str(_current, "name", _currentFile), ok ? "PASS" : "FAIL", messages, wallMs);
         _field!.Root.QueueFree();
         _field = null;
+        _robot?.QueueFree();
+        _robot = null;
+        _peakHeight.Clear();
         _current = null;
         _cooldown = 3;
     }
@@ -129,6 +147,10 @@ public partial class ScenarioRunner : Node3D
                 var group = Str(action, "group", "pollen");
                 var count = (int)Num(action, "count", 1);
                 var center = Vec(action, "center");
+                if (Str(action, "relative_to", "field") == "robot")
+                {
+                    center = (_robot ?? throw new InvalidOperationException("spawn relative_to robot needs a robot")).GlobalTransform * center;
+                }
                 var spacing = (float)Num(action, "spacing_m", 0.08);
                 var perRow = Math.Max(1, (int)Num(action, "per_row", 3));
                 for (var i = 0; i < count; i++)
@@ -142,8 +164,76 @@ public partial class ScenarioRunner : Node3D
                     FieldLoader.SpawnElement(_field!, group, new Transform3D(Basis.Identity, center + offset));
                 }
                 break;
+            case "robot":
+            {
+                // Spawns robot NAME at POSITION (y above the ground) turned YAW_DEG about +Y (0 = facing −Z), driven by
+                // a direct-drive script: drive: [{at_s, forward, strafe, rotate}, ...] (seconds since the scenario start).
+                var position = Vec(action, "position") + new Vector3(0, _field!.GroundY, 0);
+                var yaw = Mathf.DegToRad((float)Num(action, "yaw_deg", 0));
+                _robot = RobotBody.Spawn(this, Str(action, "name", "gobilda_starter"), new Transform3D(new Basis(Vector3.Up, yaw), position), _physics);
+                var script = List(action, "drive").Cast<Dictionary<object, object>>()
+                    .Select(d => ((int)Math.Round(Num(d, "at_s", 0) * Engine.PhysicsTicksPerSecond), d))
+                    .ToList();
+                _robot.Driver = new ScriptedDrive(script, _step);
+                _robot.Elements = _field.Elements;
+                break;
+            }
             default:
                 throw new InvalidOperationException($"unknown scenario action '{kind}'");
+        }
+    }
+
+    /// <summary>
+    /// Direct drive from a scenario script. Each entry (at_s) sets some of: forward/strafe/rotate (mecanum mixing),
+    /// intake (power on the intake motor and both corner servos, as the example TeleOp), launcher (ticks/s, velocity
+    /// mode with the example's PIDF), windmill (CR servo power). Values hold until an entry changes them.
+    /// </summary>
+    private sealed class ScriptedDrive : IRobotDriver
+    {
+        private static readonly Sim.Hardware.Pidf LauncherPidf = new(40, 0, 0, 12.5);
+        private readonly List<(int Step, Dictionary<object, object> Entry)> _script;
+        private readonly Dictionary<string, double> _state = new();
+        private readonly int _startStep;
+
+        public ScriptedDrive(List<(int Step, Dictionary<object, object> Entry)> script, int startStep)
+        {
+            _script = script;
+            _startStep = startStep;
+        }
+
+        public void BeforeStep(RobotBody robot, long tick)
+        {
+            var now = _startStep + (int)tick;
+            foreach (var (_, entry) in _script.Where(s => s.Step == now))
+            {
+                foreach (var key in new[] { "forward", "strafe", "rotate", "intake", "launcher", "windmill" })
+                {
+                    if (entry.ContainsKey(key))
+                    {
+                        _state[key] = Num(entry, key, 0);
+                    }
+                }
+            }
+            var p = robot.Powertrain;
+            p.MecanumDrive(_state.GetValueOrDefault("forward"), _state.GetValueOrDefault("strafe"), _state.GetValueOrDefault("rotate"));
+            if (_state.TryGetValue("intake", out var intake))
+            {
+                p.SetPowerFromSdk("intake", intake);
+                p.SetCrServoFromSdk("left_intake_servo", intake);
+                p.SetCrServoFromSdk("right_intake_servo", intake);
+            }
+            if (_state.TryGetValue("launcher", out var launcher))
+            {
+                p.SetVelocityFromSdk("launcher", launcher, LauncherPidf);
+            }
+            if (_state.TryGetValue("windmill", out var windmill))
+            {
+                p.SetCrServoFromSdk("windmillServo", windmill);
+            }
+        }
+
+        public void AfterStep(RobotBody robot, long tick)
+        {
         }
     }
 
@@ -215,9 +305,126 @@ public partial class ScenarioRunner : Node3D
                 var hi = (float)Num(c, "max_deg", 1e9);
                 return (deg >= lo && deg <= hi, $"{name} rotation about {axis} = {deg:F2}° (expected {lo}..{hi})");
             }
+            case "element_in_robot":
+            {
+                // Element GROUP[INDEX] inside a box in the robot frame (+X right, +Y up, −Z forward).
+                if (_robot == null)
+                {
+                    return (false, "no robot in this scenario");
+                }
+                var group = Str(c, "group", "");
+                var index = (int)Num(c, "index", 0);
+                var matching = elements.Where(e => e.Group == group).ToList();
+                index = index < 0 ? matching.Count + index : index;   // -1 = the last one (e.g. spawned by the scenario)
+                if (index < 0 || index >= matching.Count)
+                {
+                    return (false, $"element {group}[{index}] does not exist");
+                }
+                var local = _robot.GlobalTransform.AffineInverse() * matching[index].Body.GlobalPosition;
+                var min = Vec(c, "min");
+                var max = Vec(c, "max");
+                return (Inside(local, min, max), $"{group}[{index}] at {local} (robot frame) inside [{min} .. {max}]");
+            }
+            case "element_peak_height":
+            {
+                var group = Str(c, "group", "");
+                var index = (int)Num(c, "index", 0);
+                var matching = elements.Where(e => e.Group == group).ToList();
+                index = index < 0 ? matching.Count + index : index;
+                if (index < 0 || index >= matching.Count)
+                {
+                    return (false, $"element {group}[{index}] does not exist");
+                }
+                var peak = _peakHeight.GetValueOrDefault(matching[index]);
+                var min = Num(c, "min_m", 0);
+                return (peak >= min, $"{group}[{index}] peak height {peak:F3} m (min {min})");
+            }
+            case "robot_position":
+            {
+                // Robot origin (on the floor, between the wheels); y = height above the surface under it (tile top).
+                if (_robot == null)
+                {
+                    return (false, "no robot in this scenario");
+                }
+                var origin = _robot.GlobalPosition;
+                var down = PhysicsRayQueryParameters3D.Create(origin + Vector3.Up * 0.5f, origin + Vector3.Down * 0.5f, CollisionLayers.FieldStatic,
+                    new Godot.Collections.Array<Rid> { _robot.GetRid() });
+                var hit = _robot.GetWorld3D().DirectSpaceState.IntersectRay(down);
+                var surface = hit.Count > 0 ? ((Vector3)hit["position"]).Y : field.GroundY;
+                var p = new Vector3(origin.X, origin.Y - surface, origin.Z);
+                var min = Vec(c, "min");
+                var max = Vec(c, "max");
+                return (Inside(p, min, max), $"robot at {p} inside [{min} .. {max}]");
+            }
+            case "robot_upright":
+            {
+                if (_robot == null)
+                {
+                    return (false, "no robot in this scenario");
+                }
+                var tilt = Mathf.RadToDeg(_robot.GlobalBasis.Y.Normalized().AngleTo(Vector3.Up));
+                var limit = Num(c, "max_tilt_deg", 2);
+                return (tilt <= limit, $"robot tilt {tilt:F2}° (max {limit}°)");
+            }
+            case "robot_yaw":
+            {
+                if (_robot == null)
+                {
+                    return (false, "no robot in this scenario");
+                }
+                var forward = -_robot.GlobalBasis.Z;
+                var yaw = Mathf.RadToDeg(Mathf.Atan2(-forward.X, -forward.Z));   // 0 = facing −Z, CCW from above positive
+                var lo = Num(c, "min_deg", -180);
+                var hi = Num(c, "max_deg", 180);
+                return (yaw >= lo && yaw <= hi, $"robot yaw {yaw:F2}° (expected {lo}..{hi})");
+            }
+            case "robot_at_rest":
+            {
+                if (_robot == null)
+                {
+                    return (false, "no robot in this scenario");
+                }
+                var lin = Num(c, "linear_mps", 0.01);
+                var v = _robot.LinearVelocity.Length();
+                return (v <= lin, $"robot speed {v:F4} m/s (max {lin})");
+            }
             default:
                 return (false, $"unknown check '{check}'");
         }
+    }
+
+    /// <summary>
+    /// trace: {group, index, every_s}: prints the element's position and velocity in the robot frame and the mechanism
+    /// speeds (intake roller rad/s, launcher ticks/s, windmill degrees) to diagnose ball paths.
+    /// </summary>
+    private void Trace()
+    {
+        if (_current == null || _robot == null || !_current.TryGetValue("trace", out var raw) || raw is not Dictionary<object, object> trace)
+        {
+            return;
+        }
+        var every = Math.Max(1, (int)Math.Round(Num(trace, "every_s", 0.1) * Engine.PhysicsTicksPerSecond));
+        if (_step % every != 0)
+        {
+            return;
+        }
+        var group = Str(trace, "group", "pollen");
+        var matching = _field!.Elements.Where(e => e.Group == group).ToList();
+        var index = (int)Num(trace, "index", -1);
+        index = index < 0 ? matching.Count + index : index;
+        if (index < 0 || index >= matching.Count)
+        {
+            return;
+        }
+        var body = matching[index].Body;
+        var inv = _robot.GlobalTransform.AffineInverse();
+        var local = inv * body.GlobalPosition;
+        var v = inv.Basis * body.LinearVelocity;
+        var hw = _robot.Powertrain.Hardware;
+        string Motor(string name) => hw.Motors.FirstOrDefault(m => m.Device.Name == name) is { } m ? $"{m.OutputOmega:F1}" : "-";
+        var windmill = hw.Servos.FirstOrDefault(sv => sv.Device.Name == "windmillServo");
+        GD.Print($"    t={_step / (double)Engine.PhysicsTicksPerSecond:F2}s ball=({local.X:F3},{local.Y:F3},{local.Z:F3}) v=({v.X:F2},{v.Y:F2},{v.Z:F2}) " +
+                 $"intake={Motor("intake")}rad/s launcher={_robot.Powertrain.VelocityFromSdk("launcher"):F0}tps windmill={windmill?.Model.AngleDeg:F0}°");
     }
 
     private void Record(string name, string status, List<string> messages, double wallMs)

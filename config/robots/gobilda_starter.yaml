@@ -113,8 +113,10 @@ mechanisms:
     width: {value: 0.184, unit: m, source: "CAD: outer Gecko faces x -0.1013 .. 0.0827"}
     wheel_x_positions: {value: [0.093, 0.065, 0.037, 0.009, -0.019, -0.047, -0.075], unit: m, source: "CAD Gecko centres (robot x = -CAD x), 28 mm pitch"}
     contact_material: {value: gecko, unit: label, source: "config/physics.yaml materials"}
+    contact_stiffness: {value: 1500, unit: N/m, source: "ASSUMED: soft 30A Gecko tread (goBILDA GripForce Gecko); in series with the element's own compliance"}
     inertia: {value: 0.000035, unit: kg·m^2, source: "7 × 17 g × (0.024 m)² / 2 + shaft; ASSUMED solid-disc approximation"}
     positive_direction: {value: pulls_in, unit: label, source: "CODE:201-212 (right trigger = intake in); sign vs. motor rotation computed from geometry in Phase 5, ASSUMED"}
+    drive_sign: {value: -1, unit: "1", source: "geometry: the Gecko row grabs the top of an element in front of the robot; pulling it in (+Z, rearward) needs the surface under the axle to move +Z, i.e. rotation about -X; positive raw power = intake in (CODE:201-212, intake FORWARD)"}
   - id: front_bar
     type: static_roller_bar
     parts: {value: "16 × intake roller 3618-4008-0016 stretched over a fixed 264 mm 8 mm REX shaft (2106-4008-2640)", unit: label, source: "INSTR STEP 6-9 (shaft bolted to the frame with a 10 mm screw, STEP 7); CAD"}
@@ -123,6 +125,9 @@ mechanisms:
     length: {value: 0.264, unit: m, source: "INSTR p3 BOM (264 mm shaft)"}
     rotates: {value: false, unit: bool, source: "ASSUMED: shaft fixed by a screw at STEP 7 and rollers are stretch-fit; verify in CAD joints"}
     contact_material: {value: intake_foam, unit: label, source: "config/physics.yaml materials"}
+    axis: {value: [1, 0, 0], unit: "1", source: "CAD: bar along X"}
+    width: {value: 0.264, unit: m, source: "INSTR p3 BOM (264 mm shaft)"}
+    contact_stiffness: {value: 400, unit: N/m, source: "ASSUMED: the stretched foam rollers give way so elements squeeze between the Gecko row and the bar (CAD gap 42 mm for a 71 mm POLLEN); calibrate with an intake test"}
   - id: sweeper_left
     type: wheel
     parts: {value: "72 mm Gecko (3613-0014-0072) on Compact ServoBlock hub", unit: label, source: "INSTR STEP 32-33 p20"}
@@ -132,6 +137,7 @@ mechanisms:
     width: {value: 0.024, unit: m, source: "CAD bbox"}
     contact_material: {value: gecko, unit: label, source: "config/physics.yaml materials"}
     positive_direction: {value: pulls_in, unit: label, source: "CODE:157-160 comment ('both servos work to pull elements into the intake')"}
+    drive_sign: {value: -1, unit: "1", source: "geometry: left corner wheel touches elements on its inner (+X) side; pulling in (+Z) needs rotation about -Y; intake-in sends raw +power to the left servo (FORWARD, CODE:152,225)"}
   - id: sweeper_right
     type: wheel
     parts: {value: "72 mm Gecko (3613-0014-0072) on Compact ServoBlock hub", unit: label, source: "INSTR STEP 32-33 p20"}
@@ -141,6 +147,7 @@ mechanisms:
     width: {value: 0.024, unit: m, source: "CAD bbox"}
     contact_material: {value: gecko, unit: label, source: "config/physics.yaml materials"}
     positive_direction: {value: pulls_in, unit: label, source: "CODE:157-160"}
+    drive_sign: {value: -1, unit: "1", source: "geometry: right corner wheel touches elements on its inner (-X) side; pulling in (+Z) needs rotation about +Y; intake-in sends raw -power to the right servo (REVERSE, CODE:153,160,226)"}
   - id: windmill
     type: paddle_wheel
     parts: {value: "4 × Small Gridplate A (5×12 holes) paddles on the torque servo's ServoBlock hub", unit: label, source: "INSTR STEP 52-53 p32, p5 cutline A"}
@@ -150,6 +157,7 @@ mechanisms:
     paddle_height: {value: 0.040, unit: m, source: "CAD gridplate A bbox 40 mm"}
     contact_material: {value: polycarbonate, unit: label, source: "config/physics.yaml materials"}
     positive_direction: {value: feeds_launcher, unit: label, source: "CODE:291 (setPower(1) feeds when the launcher is at speed) with REVERSE at CODE:161"}
+    drive_sign: {value: 1, unit: "1", source: "ASSUMED: rotation sense of the paddle wheel that feeds the flywheel not yet checked against the instructions; verify in the Godot ball-path test"}
   - id: launcher_flywheel
     type: flywheel
     parts: {value: "Hogback 96 mm (3626-0014-0096) on Hyper Hub (1310-0016-4008) on the 1:1 motor", unit: label, source: "INSTR STEP 51, 55; CAD"}
@@ -163,6 +171,7 @@ mechanisms:
     target_velocity: {value: 1250, unit: ticks/s, source: "CODE:76 (2678 RPM at 28 ticks/rev)"}
     min_launch_velocity: {value: 1200, unit: ticks/s, source: "CODE:77"}
     positive_direction: {value: launches, unit: label, source: "CODE:278 (setVelocity(1250) to launch)"}
+    drive_sign: {value: 1, unit: "1", source: "geometry: elements are pinched between the top of the Hogback and the hood G, which curves up and back (+Z); the top surface moves +Z for rotation about +X; positive raw velocity launches (CODE:278, launcher FORWARD)"}
 
 # Passive geometry that guides elements (colliders come from the CAD pipeline; listed here so the
 # hopper volume and launch path are explicit).

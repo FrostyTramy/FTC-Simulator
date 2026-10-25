@@ -44,6 +44,9 @@ public sealed class MotorPort
     /// <summary>Duty and winding current of the last step (the current is what DcMotorEx.getCurrent reports).</summary>
     public double Duty { get; internal set; }
     public double CurrentA { get; internal set; }
+
+    /// <summary>External torque on the output shaft for the next step (element contacts), N·m; cleared after use.</summary>
+    public double LoadTorque { get; set; }
 }
 
 /// <summary>One hub servo port ("hub:port"). The hub's servo outputs start disabled until the SDK sends a pulse.</summary>
@@ -64,6 +67,9 @@ public sealed class ServoPort
     public string Key { get; }
     public DeviceDef Device { get; }
     public ServoModel Model { get; }
+
+    /// <summary>Load torque against positive servo rotation for the next step (element contacts), N·m; cleared after use.</summary>
+    public double LoadTorque { get; set; }
 }
 
 /// <summary>
@@ -174,12 +180,15 @@ public sealed class RobotHardware
             var applied = electrical[m.Index].AppliedVolts;
             var driving = m.Duty != 0;
             var brake = m.Controller.BrakeWhenIdle;
+            var load = m.LoadTorque;
+            m.LoadTorque = 0;
             double omega = m.OutputOmega, angle = m.OutputAngle;
             for (var s = 0; s < MechanismSubsteps; s++)
             {
                 var current = driving ? m.Motor.Current(applied, omega) : brake ? m.Motor.Current(0, omega) : 0;
-                var next = omega + m.Motor.Torque(current, omega) / inertia * h;
-                if (omega != 0 && Math.Sign(next) != Math.Sign(omega) && Math.Abs(m.Motor.TorqueConstant * current) <= m.Motor.FrictionTorqueNm)
+                var drive = m.Motor.Torque(current, omega);
+                var next = omega + (drive + load) / inertia * h;
+                if (omega != 0 && Math.Sign(next) != Math.Sign(omega) && Math.Abs(m.Motor.TorqueConstant * current + load) <= m.Motor.FrictionTorqueNm)
                 {
                     next = 0;
                 }
@@ -191,12 +200,13 @@ public sealed class RobotHardware
         }
     }
 
-    /// <summary>Moves every servo for one tick (no load torque until mechanisms are physics joints).</summary>
+    /// <summary>Moves every servo for one tick against its load torque (element contacts).</summary>
     public void StepServos(double dt)
     {
         foreach (var s in _servos)
         {
-            s.Model.Step(dt);
+            s.Model.Step(dt, s.LoadTorque);
+            s.LoadTorque = 0;
         }
     }
 

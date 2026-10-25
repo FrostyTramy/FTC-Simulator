@@ -6,5 +6,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Sim.Hardware\Sim.Hardware.csproj" />
+    <ProjectReference Include="..\Sim.Core\Sim.Core.csproj" />
   </ItemGroup>
 </Project>

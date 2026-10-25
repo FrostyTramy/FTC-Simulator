@@ -96,7 +96,8 @@ public sealed class RunnerSession : IDisposable
             };
             foreach (var arg in new[]
             {
-                "-Xss4m", "-Dfile.encoding=UTF-8", "-cp", launch.ShimJar + Path.PathSeparator + launch.RunnerJar,
+                // Heap limit like a Robot Controller app (spec 07 sandbox "memory limit"; 512 MB ASSUMED).
+                "-Xmx512m", "-Xss4m", "-Dfile.encoding=UTF-8", "-cp", launch.ShimJar + Path.PathSeparator + launch.RunnerJar,
                 "org.firstinspires.ftc.sim.runner.RunnerMain",
                 "--port", port.ToString(System.Globalization.CultureInfo.InvariantCulture), "--token", token,
                 "--teamcode", launch.TeamCodeJar, "--workdir", launch.WorkDir,

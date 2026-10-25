@@ -1,0 +1,14 @@
+# Phase 5 mechanisms: a POLLEN pre-load dropped into the hopper (robot YAML ball_path.preload_drop_points), the
+# launcher spun to 1250 ticks/s (example code), then the windmill feeds it into the Hogback flywheel, which pinches it
+# against the hood and launches it up and back. The ball must fly well above the robot.
+name: robot_launch
+layout: field
+duration_s: 4.0
+actions:
+  - {action: robot, at_s: 0, name: gobilda_starter, position: [-1.3, 0.0, 1.05], yaw_deg: -90,
+     drive: [{at_s: 0.5, launcher: 1250}, {at_s: 1.5, windmill: 1}]}
+  - {action: spawn, at_s: 0.1, group: pollen, count: 1, relative_to: robot, center: [0.03, 0.15, -0.01]}
+trace: {group: pollen, index: -1, every_s: 0.1}
+checks:
+  - {check: element_peak_height, group: pollen, index: -1, min_m: 0.6}
+  - {check: robot_upright, max_tilt_deg: 3.0}

@@ -1,0 +1,22 @@
+# Phase 4: POLLEN dropped one pair at a time into the red HIVE's upper (audience) CELL. The hive is a real pivot with
+# masses and dampers (D-011): enough elements in the upper cell must tip it to its other stable state (+60°, rear cell
+# up, config/field_mechanisms.yaml hive_red_pivot). The number needed is not in the manual; this scenario reports it.
+name: hive_red_tips
+layout: field
+mechanisms: true
+duration_s: 12.0
+actions:
+  - {action: spawn, at_s: 0.5, group: pollen, count: 2, center: [-0.3236, 1.75, 0.27], spacing_m: 0.08, per_row: 2}
+  - {action: spawn, at_s: 1.0, group: pollen, count: 2, center: [-0.3236, 1.75, 0.27], spacing_m: 0.08, per_row: 2}
+  - {action: spawn, at_s: 1.5, group: pollen, count: 2, center: [-0.3236, 1.75, 0.27], spacing_m: 0.08, per_row: 2}
+  - {action: spawn, at_s: 2.0, group: pollen, count: 2, center: [-0.3236, 1.75, 0.27], spacing_m: 0.08, per_row: 2}
+  - {action: spawn, at_s: 2.5, group: pollen, count: 2, center: [-0.3236, 1.75, 0.27], spacing_m: 0.08, per_row: 2}
+  - {action: spawn, at_s: 3.0, group: pollen, count: 2, center: [-0.3236, 1.75, 0.27], spacing_m: 0.08, per_row: 2}
+  - {action: spawn, at_s: 3.5, group: pollen, count: 2, center: [-0.3236, 1.75, 0.27], spacing_m: 0.08, per_row: 2}
+  - {action: spawn, at_s: 4.0, group: pollen, count: 2, center: [-0.3236, 1.75, 0.27], spacing_m: 0.08, per_row: 2}
+  - {action: spawn, at_s: 4.5, group: pollen, count: 2, center: [-0.3236, 1.75, 0.27], spacing_m: 0.08, per_row: 2}
+  - {action: spawn, at_s: 5.0, group: pollen, count: 2, center: [-0.3236, 1.75, 0.27], spacing_m: 0.08, per_row: 2}
+  - {action: spawn, at_s: 5.5, group: pollen, count: 2, center: [-0.3236, 1.75, 0.27], spacing_m: 0.08, per_row: 2}
+  - {action: spawn, at_s: 6.0, group: pollen, count: 2, center: [-0.3236, 1.75, 0.27], spacing_m: 0.08, per_row: 2}
+checks:
+  - {check: body_rotation, body: hive_red, axis: [1, 0, 0], min_deg: 50, max_deg: 70}

@@ -62,7 +62,7 @@ public partial class Hud : CanvasLayer
         var cam = _camera?.GlobalPosition ?? Vector3.Zero;
         _label.Text = string.Format(
             CultureInfo.InvariantCulture,
-            "{0:F0} fps   draw calls {1}   primitives {2:N0}   objects {3}\nphysics {4:F2} ms/frame   camera ({5:F2}, {6:F2}, {7:F2})\n1-4 views, RMB look, WASD/QE move, Shift fast, wheel speed{8}",
+            "{0:F0} fps   draw calls {1}   primitives {2:N0}   objects {3}\nphysics {4:F2} ms/frame   camera ({5:F2}, {6:F2}, {7:F2})\n1-4 views, RMB look, WASD/QE move, Shift fast, wheel speed · LMB drag element, P/N spawn pollen/nectar\nkeyboard gamepad: arrows drive, Z/X turn, C/V intake, Space launch{8}",
             s.Fps, s.DrawCalls, s.Primitives, s.Objects, s.PhysicsMs, cam.X, cam.Y, cam.Z,
             Message.Length > 0 ? "\n" + Message : "");
     }

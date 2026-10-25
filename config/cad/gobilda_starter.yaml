@@ -23,6 +23,7 @@ groups:
   - {name: sweeper_right, kind: rigid, path_regex: "/3613-0014-0072#0$"}
   - {name: windmill, kind: rigid, path_regex: '/1117-0040-0352 \(3200-2627-0004_A\)#[0-3]$'}
   - {name: flywheel, kind: rigid, path_regex: "/3626-0014-0096#0$|/1310-0016-4008#0$"}
+  - {name: front_bar, kind: rigid, path_regex: '/3618-4008-0016 \(Stretched over 8 REX\)#\d+$|/2106-4008-2640#0(/|$)'}   # foam rollers on the fixed bar (STEP 6-9): compliant contact, not a collider
 
 # Fine CAD detail (tyre tread, gear teeth, servo-block pockets) rendered as smooth convex hulls (D-007);
 # colliders still use the full geometry.
@@ -40,8 +41,9 @@ tessellation:
 colliders:
   default: hull
   rules:
-    - {regex: "(?i)^1117-|^1116-|gridplate", mode: box}               # flat polycarbonate gridplates (hopper walls)
+    # First matching rule wins: the curved hood must come before the generic flat-gridplate rule.
     - {regex: '(?i)1117-0088-0352 \(3200-2627-0004_G\)', mode: coacd, threshold: 0.04, max_hulls: 8}   # curved hood (STEP 48)
+    - {regex: "(?i)^1117-|^1116-|gridplate", mode: box}               # flat polycarbonate gridplates (hopper walls)
   max_fit_error: 0.12
   convex_ratio: 0.92
   coacd_max_hulls: 8

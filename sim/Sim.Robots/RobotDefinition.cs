@@ -31,8 +31,22 @@ public sealed record DeviceDef(
 /// ImuLogo/ImuUsb: how the hub (and its IMU) is mounted, RevHubOrientationOnRobot terms (UP, FORWARD, ...).</summary>
 public sealed record HubDef(string Id, string Type, string ImuLogo, string ImuUsb);
 
-/// <summary>A moving mechanism (robot YAML mechanisms). Inertia is about its own axis, kg·m² (null if not given).</summary>
-public sealed record MechanismDef(string Id, string Type, double? InertiaKgM2);
+/// <summary>
+/// A moving mechanism (robot YAML mechanisms). Inertia is about its own axis, kg·m² (null if not given); the axis
+/// line (robot frame) is null for mechanisms that do not rotate. DriveSign: rotation about Axis for a positive raw
+/// output of the driving device. Radius/Width/ContactMaterial describe a roller, wheel or flywheel surface.
+/// </summary>
+public sealed record MechanismDef(
+    string Id,
+    string Type,
+    double? InertiaKgM2,
+    Vector3? AxisPoint,
+    Vector3? Axis,
+    int DriveSign = 1,
+    double? Radius = null,
+    double? Width = null,
+    string? ContactMaterial = null,
+    double? ContactStiffness = null);
 
 /// <summary>Typed view of config/robots/&lt;name&gt;.yaml (spec 05) for the simulation.</summary>
 public sealed class RobotDefinition
@@ -54,6 +68,9 @@ public sealed class RobotDefinition
     public required IReadOnlyList<HubDef> Hubs { get; init; }
     public required IReadOnlyList<MechanismDef> Mechanisms { get; init; }
     public required string BatteryModel { get; init; }
+
+    /// <summary>Row-major 4×4 matrix from CAD coordinates to the robot frame (robot = M · cad), frame.cad_to_robot.</summary>
+    public required double[] CadToRobot { get; init; }
 
     public DeviceDef Device(string name) =>
         Devices.FirstOrDefault(d => d.Name == name) ?? throw new RobotConfigException($"{Name}: no device '{name}'");
@@ -119,7 +136,13 @@ public sealed class RobotDefinition
             ? mechList.Select(o =>
             {
                 var m = (Dictionary<object, object>)o;
-                return new MechanismDef(Str(m, "id"), Str(m, "type"), m.ContainsKey("inertia") ? Q(m, "inertia") : null);
+                return new MechanismDef(Str(m, "id"), Str(m, "type"), m.ContainsKey("inertia") ? Q(m, "inertia") : null,
+                    m.ContainsKey("axis_point") ? Vec(QRaw(m, "axis_point")) : null, m.ContainsKey("axis") ? Vec(QRaw(m, "axis")) : null,
+                    m.ContainsKey("drive_sign") ? (int)Q(m, "drive_sign") : 1,
+                    m.ContainsKey("radius") ? Q(m, "radius") : null,
+                    m.ContainsKey("width") ? Q(m, "width") : m.ContainsKey("length") ? Q(m, "length") : null,
+                    m.ContainsKey("contact_material") ? QRaw(m, "contact_material").ToString() : null,
+                    m.ContainsKey("contact_stiffness") ? Q(m, "contact_stiffness") : null);
             }).ToList()
             : [];
         return new RobotDefinition
@@ -138,6 +161,7 @@ public sealed class RobotDefinition
             Hubs = hubs,
             Mechanisms = mechanisms,
             BatteryModel = QRaw(Map(root, "battery"), "model").ToString()!,
+            CadToRobot = ((List<object>)QRaw(Map(root, "frame"), "cad_to_robot")).SelectMany(row => ((List<object>)row).Select(Num)).ToArray(),
         };
     }
 

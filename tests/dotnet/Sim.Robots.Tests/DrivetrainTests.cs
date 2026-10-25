@@ -37,6 +37,22 @@ public class DrivetrainTests
     }
 
     [Fact]
+    public void Robot_definition_has_the_cad_transform_hubs_and_mechanism_axles()
+    {
+        // robot = M · cad (frame.cad_to_robot): x_r = −X_cad, y_r = Z_cad + 0.0537, z_r = Y_cad + 0.012.
+        Assert.Equal([-1.0, 0, 0, 0, 0, 0, 1, 0.0537, 0, 1, 0, 0.012, 0, 0, 0, 1], Robot.CadToRobot);
+        Assert.Equal(["control_hub", "expansion_hub"], Robot.Hubs.Select(h => h.Id));
+        Assert.Equal(("UP", "FORWARD"), (Robot.Hubs[0].ImuLogo, Robot.Hubs[0].ImuUsb));
+        var flywheel = Robot.Mechanism("launcher_flywheel");
+        Assert.Equal(0.000165, flywheel.InertiaKgM2);
+        Assert.Equal(1f, flywheel.Axis!.Value.X);
+        var bar = Robot.Mechanism("front_bar");          // fixed foam bar: a compliant surface, not driven
+        Assert.Equal((0.264, 400.0, "intake_foam"), (bar.Width, bar.ContactStiffness, bar.ContactMaterial));
+        Assert.DoesNotContain(Robot.Devices, d => d.Drives == "mechanism:front_bar");
+        Assert.Equal(1, Robot.HubIndex("expansion_hub"));
+    }
+
+    [Fact]
     public void Left_stick_forward_drives_the_robot_forward_and_straight()
     {
         var sim = Drive(1, 0, 0, 2.0);

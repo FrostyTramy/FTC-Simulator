@@ -1,6 +1,5 @@
 <Project Sdk="Godot.NET.Sdk/4.7.2">
-  <!-- Godot game project (C#). Pure simulation libraries live in ../sim and are added here as
-       ProjectReferences once they exist (Sim.Core, Sim.Game, Sim.Hardware, Sim.Runner). -->
+  <!-- Godot game project (C#). The pure simulation libraries in ../sim are project references. -->
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <EnableDynamicLoading>true</EnableDynamicLoading>
@@ -12,6 +11,10 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="YamlDotNet" Version="18.1.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\sim\Sim.DriverStation\Sim.DriverStation.csproj" />
+    <ProjectReference Include="..\sim\Sim.Game\Sim.Game.csproj" />
   </ItemGroup>
   <ItemGroup>
     <!-- Python helper for the synthetic test assets is not part of the build. -->

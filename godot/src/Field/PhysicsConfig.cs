@@ -151,6 +151,66 @@ public sealed class PhysicsConfig
         return result;
     }
 
+    /// <summary>
+    /// Raycast wheel contact of a robot (drivetrain.wheel_suspension_sag and _damping_ratio): stiffness k from the
+    /// static load per wheel, damping c = 2ζ√(k·m) for the mass carried by one wheel.
+    /// </summary>
+    public (double Stiffness, double Damping) WheelSuspension(double massPerWheelKg)
+    {
+        var sag = ParseFloat(Path("drivetrain", "wheel_suspension_sag", "value"));
+        var zeta = ParseFloat(Path("drivetrain", "wheel_suspension_damping_ratio", "value"));
+        if (sag == null || zeta == null)
+        {
+            AssumedValues.Add("drivetrain.wheel_suspension_*");
+        }
+        var k = massPerWheelKg * 9.80665 / (sag ?? 0.001f);
+        return (k, 2 * (zeta ?? 0.7f) * Math.Sqrt(k * massPerWheelKg));
+    }
+
+    /// <summary>
+    /// Squeeze contact of an element type for intakes and flywheels (elements.TYPE.contact_compliance_stiffness and
+    /// _damping), its shell material, and the slip speed of full sliding friction (drivetrain.full_slip_speed).
+    /// </summary>
+    public (double Stiffness, double Damping, string Material, double SlipSpeed) ElementContact(string type)
+    {
+        var k = ParseFloat(Path("elements", type, "contact_compliance_stiffness", "value"));
+        var c = ParseFloat(Path("elements", type, "contact_compliance_damping", "value"));
+        var material = Text(Path("elements", type, "material", "value"));
+        var slip = ParseFloat(Path("drivetrain", "full_slip_speed", "value"));
+        if (k == null || c == null || material == null || slip == null)
+        {
+            AssumedValues.Add($"elements.{type} contact compliance");
+        }
+        return (k ?? 2000f, c ?? 5f, material ?? ReferenceShell, slip ?? 0.05f);
+    }
+
+    /// <summary>How long an element must be supported by a robot to count as CONTROLLED (thresholds.control_support_min_time).</summary>
+    public double ControlSupportSeconds()
+    {
+        var t = ParseFloat(Path("thresholds", "control_support_min_time", "value"));
+        if (t == null)
+        {
+            AssumedValues.Add("thresholds.control_support_min_time");
+        }
+        return t ?? 0.25f;
+    }
+
+    /// <summary>Dynamic friction of a material pair from the contacts table (default pair if not listed).</summary>
+    public double PairFriction(string a, string b) => (Pair(a, b, "pair friction") ?? Default()).Friction;
+
+    /// <summary>Robot chassis colliders: aluminium frame on the tiles (contacts foam_tile / aluminum).</summary>
+    public PhysicsMaterial RobotChassis()
+    {
+        if (_surfaces.TryGetValue("robot_chassis", out var cached))
+        {
+            return cached;
+        }
+        var pair = Pair("foam_tile", "aluminum", "robot chassis") ?? Default();
+        var result = new PhysicsMaterial { Friction = pair.Friction, Bounce = pair.Restitution };
+        _surfaces["robot_chassis"] = result;
+        return result;
+    }
+
     private HiveParams ReadHive()
     {
         var damperArms = Floats(Path("hive", "damper", "lever_arms", "value"));

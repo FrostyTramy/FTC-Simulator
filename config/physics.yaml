@@ -157,6 +157,8 @@ drivetrain:
   wheel_bearing_friction_torque: {value: 0.02, unit: N·m, source: "ASSUMED per wheel"}
   miter_gear_efficiency: {value: 0.95, unit: "1", source: "ASSUMED (1:1 steel/sintered miter gears, goBILDA 2320-4008-0024)"}
   spur_gear_efficiency: {value: 0.95, unit: "1", source: "ASSUMED (goBILDA MOD 0.8 spur gears)"}
+  wheel_suspension_sag: {value: 0.001, unit: m, source: "ASSUMED: static compression of the Godot robot's raycast wheel contact (rollers on foam tiles are stiff); sets k = (m g / wheels) / sag, stable at 240 Hz"}
+  wheel_suspension_damping_ratio: {value: 0.7, unit: "1", source: "ASSUMED: damping ratio of the raycast wheel contact (settles without bouncing)"}
 
 # Mechanism defaults (specs/04 Mechanisms); robot YAMLs may override per mechanism.
 mechanisms:

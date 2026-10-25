@@ -13,6 +13,7 @@ public static class CollisionLayers
     public const uint Elements = 1u << 2;
     public const uint Robots = 1u << 3;
     public const uint Zones = 1u << 4;
+    public const uint RobotMechanisms = 1u << 5;
 }
 
 /// <summary>A scoring element body created from a layout instance (or spawned by a test/tool).</summary>

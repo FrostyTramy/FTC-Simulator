@@ -1,11 +1,15 @@
 // Compiles an unchanged FTC TeamCode source tree against the SDK shim (spec 06, spec 07):
-//   gradle :build-adapter:jar -PteamCode=<folder with org/firstinspires/ftc/teamcode/...>
-// Default: the goBILDA StarterBot compatibility project in tests/compat.
+//   gradle :build-adapter:jar -PteamCode=<folder with org/firstinspires/ftc/teamcode/...> [-PbuildOut=<dir>]
+// Default: the goBILDA StarterBot compatibility project in tests/compat. buildOut gives every opened project its own
+// build folder (incremental compilation per project; the team's repository is never written to).
 plugins {
     id 'java'
 }
 
 def teamCodeDir = project.findProperty('teamCode') ?: "${rootDir}/../tests/compat/gobilda_starter/TeamCode/src/main/java"
+if (project.hasProperty('buildOut')) {
+    layout.buildDirectory = file(project.property('buildOut'))
+}
 
 sourceSets {
     main {
