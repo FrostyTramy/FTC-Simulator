@@ -26,6 +26,9 @@ public partial class Scoreboard : PanelContainer
     /// <summary>Called when a match starts (the drive team presses PLAY on an initialized OpMode).</summary>
     public event Action? MatchStarted;
 
+    /// <summary>The "Reset field" button: elements, hives and robot back to their start (key R does the same).</summary>
+    public event Action? ResetRequested;
+
     public override void _Ready()
     {
         AnchorLeft = 0.5f;
@@ -61,6 +64,9 @@ public partial class Scoreboard : PanelContainer
         buttons.AddChild(_start);
         buttons.AddChild(_abort);
         buttons.AddChild(practice);
+        var reset = new Button { Text = "Reset field (R)", FocusMode = FocusModeEnum.None };
+        reset.Pressed += () => ResetRequested?.Invoke();
+        buttons.AddChild(reset);
         box.AddChild(buttons);
     }
 

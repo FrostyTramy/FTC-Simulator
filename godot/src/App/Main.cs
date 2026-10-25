@@ -13,6 +13,7 @@ public partial class Main : Node3D
     private static readonly Vector3 PracticeStart = new(-1.3f, 0f, 1.05f);
 
     private RobotProgram? _program;
+    private FieldReset? _reset;
     private VisionCheck? _visionCheck;
 
     public override void _Ready()
@@ -71,6 +72,7 @@ public partial class Main : Node3D
                 : new Transform3D(new Basis(Vector3.Up, -Mathf.Pi / 2), PracticeStart + new Vector3(0, field.TileTopY, 0));
             var robot = RobotBody.Spawn(this, args.Robot, pose, physics);
             robot.Elements = field.Elements;
+            _reset = new FieldReset(field, robot);
             var jar = args.TeamCodeJar ?? System.IO.Path.Combine(RepoPaths.RepoRoot, "java", "build-adapter", "build", "libs", "teamcode.jar");
             _program = new RobotProgram(robot, input, jar);
             _program.Connect();
@@ -96,6 +98,7 @@ public partial class Main : Node3D
                     program.Ds.Play(robot.NowNanos);   // the drive team starts its INIT-ed OpMode with the match
                 }
             };
+            scoreboard.ResetRequested += () => _reset?.Apply();
             layer.AddChild(scoreboard);
 
             // Code editor (F4): the team project lives in workspace/ (git-ignored); the first run copies the goBILDA
@@ -114,6 +117,11 @@ public partial class Main : Node3D
                 _visionCheck = new VisionCheck { Name = "VisionCheck", Program = program, Robot = robot, OpMode = args.OpMode };
                 AddChild(_visionCheck);
             }
+        }
+
+        if (args.ScreenshotDir == null)
+        {
+            _reset ??= new FieldReset(field, null);
         }
 
         if (args.CapturePath != null)
@@ -155,6 +163,16 @@ public partial class Main : Node3D
             var dest = System.IO.Path.Combine(target, System.IO.Path.GetRelativePath(source, file));
             System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(dest)!);
             System.IO.File.Copy(file, dest);
+        }
+    }
+
+    /// <summary>R: reset the field and the robot (practice), unless a text field has the keyboard.</summary>
+    public override void _UnhandledKeyInput(InputEvent @event)
+    {
+        if (@event is InputEventKey { Pressed: true, Echo: false, Keycode: Key.R })
+        {
+            _reset?.Apply();
+            GetViewport().SetInputAsHandled();
         }
     }
 

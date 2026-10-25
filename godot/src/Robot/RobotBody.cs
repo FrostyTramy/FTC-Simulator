@@ -541,6 +541,26 @@ public partial class RobotBody : RigidBody3D
         return id;
     }
 
+    /// <summary>
+    /// Puts the robot back at <paramref name="pose"/> at rest (field reset): held elements are let go first so the field
+    /// reset can put them back too.
+    /// </summary>
+    public void ResetTo(Transform3D pose)
+    {
+        foreach (var (element, layer, mask) in _stored.Values)
+        {
+            element.Body.Freeze = false;
+            element.Body.CollisionLayer = layer;
+            element.Body.CollisionMask = mask;
+        }
+        _stored.Clear();
+        _ballPath?.Clear();
+        GlobalTransform = pose;
+        LinearVelocity = Vector3.Zero;
+        AngularVelocity = Vector3.Zero;
+        ResetPhysicsInterpolation();
+    }
+
     /// <summary>Holds an element in the hopper: kinematic and without collisions until it is launched.</summary>
     private void Store(FieldElement element)
     {
