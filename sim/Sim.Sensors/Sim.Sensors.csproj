@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Sensor and vision models (spec 09): AprilTag detection on rendered camera frames (native AprilTag 3 library,
+       BSD-2, from pupil-apriltags; generated/tools/apriltag), camera intrinsics, odometry sensors. -->
+  <PropertyGroup>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Sim.Core\Sim.Core.csproj" />
+  </ItemGroup>
+</Project>

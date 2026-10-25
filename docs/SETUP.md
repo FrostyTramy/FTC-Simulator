@@ -41,7 +41,15 @@ Already installed. `java` on PATH is JDK 26, so scripts never use PATH java: the
 Adoptium and Microsoft folders). For the release build we bundle Eclipse Temurin 17, because
 Oracle JDK may not be redistributed.
 
-## 4. Godot MCP server (for the AI assistant only)
+## 4. Generated tools (Gradle, JDT LS, AprilTag)
+```powershell
+./scripts/setup_tools.ps1
+```
+Downloads Gradle 8.14.3 and Eclipse JDT LS 1.62.0 (SHA-256 checked) and copies the AprilTag 3 native library with its
+runtime DLLs from the pinned `pupil-apriltags` wheel in `.venv`, all into `generated/tools`. JDT LS runs on Java 21+
+(the `java` on PATH, here JDK 26); team code still compiles with JDK 17.
+
+## 5. Godot MCP server (for the AI assistant only)
 Run once in Claude Code, inside this folder, then restart Claude Code:
 ```
 ! claude mcp add godot -s local -e GODOT_PATH=D:/Code/FTC-Simulator/Godot_v4.7.2-stable_mono_win64/Godot_v4.7.2-stable_mono_win64_console.exe -- cmd /c npx -y @coding-solo/godot-mcp
