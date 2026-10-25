@@ -1,0 +1,48 @@
+// The OpMode runner JVM: loads compiled TeamCode, talks to the simulator over a local socket
+// (docs/ipc_protocol.md), runs one OpMode at a time through the SDK shim.
+plugins {
+    id 'application'
+}
+
+dependencies {
+    implementation project(':ftc-sdk-shim')
+}
+
+application {
+    mainClass = 'org.firstinspires.ftc.sim.runner.RunnerMain'
+}
+
+jar {
+    archiveBaseName = 'ftc-sim-runner'
+    manifest {
+        attributes('Main-Class': 'org.firstinspires.ftc.sim.runner.RunnerMain')
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    // The runner installs a SecurityManager (deprecated since JDK 17, still functional there).
+    options.compilerArgs += ['-Xlint:-removal']
+}
+
+// A stand-in for team code that tries every forbidden operation; packaged as its own jar so the sandbox
+// policy sees it exactly like a team's teamcode.jar (SandboxTest).
+sourceSets {
+    probe {
+        java.srcDir 'src/probe/java'
+    }
+}
+
+dependencies {
+    probeImplementation project(':ftc-sdk-shim')
+}
+
+def probeJar = tasks.register('probeJar', Jar) {
+    from sourceSets.probe.output
+    archiveFileName = 'sandbox-probe.jar'
+    destinationDirectory = layout.buildDirectory.dir('probe')
+}
+
+tasks.named('test') {
+    dependsOn probeJar
+    systemProperty 'probeJar', probeJar.get().archiveFile.get().asFile.absolutePath
+}

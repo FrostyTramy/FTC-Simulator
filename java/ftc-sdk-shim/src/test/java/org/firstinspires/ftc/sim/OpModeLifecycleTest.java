@@ -1,6 +1,7 @@
 package org.firstinspires.ftc.sim;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
@@ -76,6 +77,19 @@ class OpModeLifecycleTest {
       while (true) {
         sleep(10);
         Thread.interrupted(); // swallows the stop request, a classic mistake
+      }
+    }
+  }
+
+  /** LinearOpMode whose telemetry value producer reads an encoder: it spends virtual time while rendering. */
+  public static class EncoderTelemetry extends LinearOpMode {
+    @Override
+    public void runOpMode() {
+      DcMotor m = hardwareMap.get(DcMotor.class, "left_front_drive");
+      telemetry.addData("pos", () -> m.getCurrentPosition());
+      waitForStart();
+      while (opModeIsActive()) {
+        telemetry.update();
       }
     }
   }
@@ -172,6 +186,31 @@ class OpModeLifecycleTest {
     run(d, t, 5);
     assertEquals(OpModeDriver.State.CRASHED, d.state());
     assertTrue(d.error().startsWith("User code threw an uncaught exception: NullPointerException"), d.error());
+  }
+
+  @Test
+  void runnerCanReadTelemetryWhileTheOpModeIsParkedInsideAValueProducer() {
+    assertTimeoutPreemptively(java.time.Duration.ofSeconds(20), () -> {
+      SimRuntime runtime = ShimTestSupport.freshRuntime();
+      SimRobot robot = ShimTestSupport.starterBot(runtime);
+      SimTelemetry telemetry = new SimTelemetry(runtime);
+      OpModeDriver d = new OpModeDriver(runtime, EncoderTelemetry.class, robot.hardwareMap(), telemetry);
+      d.init();
+      long t = 0;
+      for (int i = 0; i < 480; i++) { // 2 s
+        if (i == 5) {
+          d.start();
+        }
+        t++;
+        assertTrue(d.runUntil(t * TICK, 5_000));
+        d.eventLoopIteration();
+        telemetry.transmissions(); // the runner's reads must never wait for the OpMode thread
+        telemetry.lastTransmitted();
+      }
+      assertEquals(OpModeDriver.State.RUNNING, d.state());
+      assertTrue(telemetry.transmissions() >= 7, "transmissions: " + telemetry.transmissions());
+      assertEquals(List.of("pos : 0"), telemetry.lastTransmitted());
+    });
   }
 
   @Test

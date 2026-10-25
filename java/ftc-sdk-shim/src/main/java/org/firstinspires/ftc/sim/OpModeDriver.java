@@ -98,10 +98,9 @@ public final class OpModeDriver {
     if (op != null) {
       op.internalSimRequestStop();
     }
-    if (linear && thread != null) {
-      thread.interrupt();
+    if (linear) {
+      runtime.requestInterrupt();
     }
-    runtime.wakeOpModeThread();
   }
 
   /** New Driver Station gamepad data (called by the runner between ticks, while the OpMode is parked). */
@@ -136,6 +135,23 @@ public final class OpModeDriver {
     return true;
   }
 
+  /**
+   * One Robot Controller event loop iteration, run by the runner between ticks while the OpMode thread is parked: a
+   * LinearOpMode's throttled telemetry goes out once the interval allows (SDK LinearOpMode.internalOnEventLoopIteration
+   * calls TelemetryImpl.tryUpdateIfDirty). Iterative OpModes send telemetry after every user method instead.
+   */
+  public void eventLoopIteration() {
+    if (!linear || (state != State.INIT && state != State.RUNNING && state != State.STOPPING)) {
+      return;
+    }
+    try {
+      telemetry.tryUpdateIfDirty();
+    } catch (RuntimeException e) { // a telemetry action or value producer threw
+      String message = e.getMessage();
+      fail("User code threw an uncaught exception: " + e.getClass().getSimpleName() + (message != null ? " - " + message : ""));
+    }
+  }
+
   private void fail(String message) {
     if (error == null) {
       error = message;
@@ -148,6 +164,7 @@ public final class OpModeDriver {
 
   private void run() {
     try {
+      runtime.consume(0); // wait for the runner's first tick: no user code runs outside a tick window
       OpMode op = opModeClass.getDeclaredConstructor().newInstance();
       op.hardwareMap = hardwareMap;
       op.telemetry = telemetry;
@@ -190,6 +207,7 @@ public final class OpModeDriver {
     if (startRequested && !isStopping(op)) {
       op.internalSimUpdateTime();
       op.start();
+      op.internalPostLoop(); // SDK internalPostUserCode: telemetry after every user call
       runtime.consume(overhead);
       while (!isStopping(op)) {
         copyGamepads(op);

@@ -1,0 +1,6 @@
+# Driver Station gamepad settings (spec 08 "Gamepads"). Read by sim/Sim.DriverStation (GamepadSettings).
+
+stick_deadzone: {value: 0.05, unit: "1", source: "ASSUMED: SDK 12.0.0 RobotCore Gamepad has no joystick deadzone (javap: only DEFAULT_TRIGGER_THRESHOLD 0.5); the DS app applies its own, value not published; 0.05 covers typical stick rest noise"}
+trigger_threshold: {value: 0.5, unit: "1", source: "SDK 12.0.0 Gamepad.DEFAULT_TRIGGER_THRESHOLD (javap); applied by the shim, listed for reference"}
+assign_gamepad1: {value: "Start + A (PlayStation: Options + Cross)", unit: label, source: "specs/08 Gamepads; FTC Driver Station user guide"}
+assign_gamepad2: {value: "Start + B (PlayStation: Options + Circle)", unit: label, source: "specs/08 Gamepads; FTC Driver Station user guide"}

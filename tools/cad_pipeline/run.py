@@ -129,9 +129,17 @@ def bbox_world(props: MassProps, world: np.ndarray) -> tuple[list[float], list[f
     return pts.min(0).round(6).tolist(), pts.max(0).round(6).tolist()
 
 
+PROXY_HULL_POINTS = 256
+
+
 def hull_proxy(mesh: Mesh) -> Mesh:
-    """Convex hull of a part's vertices, smooth-shaded below 35 degrees between faces."""
-    hull = trimesh.convex.convex_hull(mesh.vertices.astype(np.float64))
+    """Convex hull of a part's vertices, at most PROXY_HULL_POINTS extreme points (deterministic
+    direction set), smooth-shaded below 35 degrees between faces."""
+    pts = trimesh.convex.convex_hull(mesh.vertices.astype(np.float64)).vertices
+    if len(pts) > PROXY_HULL_POINTS:
+        dirs = trimesh.sample.sample_surface_sphere(PROXY_HULL_POINTS * 4, seed=2)
+        pts = pts[np.unique(np.argmax(pts @ dirs.T, axis=0))]
+    hull = trimesh.convex.convex_hull(pts)
     shaded = trimesh.graph.smooth_shade(hull, angle=np.radians(35), facet_minarea=None)
     return Mesh(
         shaded.vertices.astype(np.float32),
@@ -348,13 +356,19 @@ class Pipeline:
 
     def build(self) -> None:
         t0 = time.perf_counter()
-        props_cache: dict[str, MassProps] = {}
+        # Prototype keys come from XCAF label entries, which can change when the STEP changes:
+        # the cache is only valid for the exact same source file.
+        digest = (self.cache / "source.sha256").read_text().strip()[:16]
+        props_file = self.cache / f"props_v{PIPELINE_VERSION}_{digest}.json"
+        stored = json.loads(props_file.read_text("utf-8")) if props_file.exists() else {}
+        props_cache: dict[str, MassProps] = {k: MassProps(**v) for k, v in stored.items()}
         for inst in self.instances:
             if inst.prototype not in props_cache:
                 props_cache[inst.prototype] = mass_props(self.reader.prototypes[inst.prototype].shape)
             inst.props = props_cache[inst.prototype]
             inst.sig = signature(inst.props)
             inst.world_bbox = bbox_world(inst.props, inst.world)
+        props_file.write_text(json.dumps({k: vars(v) for k, v in sorted(props_cache.items())}), "utf-8")
         self.timings["mass_props_s"] = round(time.perf_counter() - t0, 1)
 
         kept = [i for i in self.instances if not i.dropped]

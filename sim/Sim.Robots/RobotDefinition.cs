@@ -27,6 +27,13 @@ public sealed record DeviceDef(
     double[]? Pidf,
     double SpeedRatio);
 
+/// <summary>One REV hub. Index in <see cref="RobotDefinition.Hubs"/> = SDK hub index (0 = Control Hub).
+/// ImuLogo/ImuUsb: how the hub (and its IMU) is mounted, RevHubOrientationOnRobot terms (UP, FORWARD, ...).</summary>
+public sealed record HubDef(string Id, string Type, string ImuLogo, string ImuUsb);
+
+/// <summary>A moving mechanism (robot YAML mechanisms). Inertia is about its own axis, kg·m² (null if not given).</summary>
+public sealed record MechanismDef(string Id, string Type, double? InertiaKgM2);
+
 /// <summary>Typed view of config/robots/&lt;name&gt;.yaml (spec 05) for the simulation.</summary>
 public sealed class RobotDefinition
 {
@@ -44,10 +51,28 @@ public sealed class RobotDefinition
     public required double WheelMassKg { get; init; }
     public required IReadOnlyList<WheelDef> Wheels { get; init; }
     public required IReadOnlyList<DeviceDef> Devices { get; init; }
+    public required IReadOnlyList<HubDef> Hubs { get; init; }
+    public required IReadOnlyList<MechanismDef> Mechanisms { get; init; }
     public required string BatteryModel { get; init; }
 
     public DeviceDef Device(string name) =>
         Devices.FirstOrDefault(d => d.Name == name) ?? throw new RobotConfigException($"{Name}: no device '{name}'");
+
+    /// <summary>SDK hub index of a hub id ("control_hub" → 0).</summary>
+    public int HubIndex(string hubId)
+    {
+        for (var i = 0; i < Hubs.Count; i++)
+        {
+            if (Hubs[i].Id == hubId)
+            {
+                return i;
+            }
+        }
+        throw new RobotConfigException($"{Name}: no hub '{hubId}'");
+    }
+
+    public MechanismDef Mechanism(string id) =>
+        Mechanisms.FirstOrDefault(m => m.Id == id) ?? throw new RobotConfigException($"{Name}: no mechanism '{id}'");
 
     public static RobotDefinition Load(string path)
     {
@@ -75,6 +100,28 @@ public sealed class RobotDefinition
                 d.TryGetValue("pidf", out var pidf) ? ((List<object>)pidf).Select(Num).ToArray() : null,
                 d.TryGetValue("speed_ratio", out var ratio) ? Num(ratio) : 1.0);
         }).ToList();
+        var hubs = ((List<object>)root["hubs"]).Select(o =>
+        {
+            var h = (Dictionary<object, object>)o;
+            var mount = (Dictionary<object, object>)QRaw(h, "pose");
+            if (h.TryGetValue("imu", out var imu) && imu is Dictionary<object, object> imuQ
+                && imuQ["value"] is Dictionary<object, object> imuV && imuV.TryGetValue("orientation", out var o2))
+            {
+                mount = (Dictionary<object, object>)o2;   // the IMU's own mounting, when given
+            }
+            return new HubDef(Str(h, "id"), Str(h, "type"), Str(mount, "logo"), Str(mount, "usb"));
+        }).ToList();
+        if (hubs.Count == 0 || hubs[0].Type != "control_hub")
+        {
+            throw new RobotConfigException("the first hub must be the Control Hub (SDK hub index 0)");
+        }
+        var mechanisms = root.TryGetValue("mechanisms", out var mechs) && mechs is List<object> mechList
+            ? mechList.Select(o =>
+            {
+                var m = (Dictionary<object, object>)o;
+                return new MechanismDef(Str(m, "id"), Str(m, "type"), m.ContainsKey("inertia") ? Q(m, "inertia") : null);
+            }).ToList()
+            : [];
         return new RobotDefinition
         {
             Name = Str(root, "name"),
@@ -88,6 +135,8 @@ public sealed class RobotDefinition
             WheelMassKg = Q(drive, "wheel_mass"),
             Wheels = wheels,
             Devices = devices,
+            Hubs = hubs,
+            Mechanisms = mechanisms,
             BatteryModel = QRaw(Map(root, "battery"), "model").ToString()!,
         };
     }

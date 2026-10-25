@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Driver Station gamepad settings (config/gamepads.yaml)",
+  "type": "object",
+  "required": [
+    "stick_deadzone",
+    "trigger_threshold"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "quantity": {
+      "type": "object",
+      "required": [
+        "value",
+        "unit",
+        "source"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "value": {},
+        "unit": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source": {
+          "type": "string",
+          "minLength": 3
+        }
+      }
+    }
+  },
+  "properties": {
+    "stick_deadzone": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/quantity"
+        },
+        {
+          "properties": {
+            "value": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 0.5
+            }
+          }
+        }
+      ]
+    },
+    "trigger_threshold": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/quantity"
+        },
+        {
+          "properties": {
+            "value": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            }
+          }
+        }
+      ]
+    },
+    "assign_gamepad1": {
+      "$ref": "#/$defs/quantity"
+    },
+    "assign_gamepad2": {
+      "$ref": "#/$defs/quantity"
+    }
+  }
+}

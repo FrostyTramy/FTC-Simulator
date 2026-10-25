@@ -110,8 +110,9 @@ public sealed class HubMotorController
     /// <summary>DcMotor.isBusy(): RUN_TO_POSITION and not yet within the tolerance.</summary>
     public bool IsBusy => Mode == RunMode.RunToPosition && Math.Abs(TargetPosition - Encoder.Counts) > TargetPositionTolerance;
 
-    /// <summary>Zero duty shorts the windings (BRAKE) rather than leaving them open.</summary>
-    public bool BrakeWhenIdle => ZeroPower == ZeroPowerBehavior.Brake;
+    /// <summary>Zero duty shorts the windings (BRAKE) rather than leaving them open. A disabled port
+    /// (setMotorDisable, hub failsafe) turns its H-bridge off, so it floats (ASSUMED, docs/open_questions.md Q-008).</summary>
+    public bool BrakeWhenIdle => Enabled && ZeroPower == ZeroPowerBehavior.Brake;
 
     public void SetMode(RunMode mode, double shaftAngleRad)
     {

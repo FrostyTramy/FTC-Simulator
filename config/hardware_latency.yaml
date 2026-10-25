@@ -35,5 +35,6 @@ skip_unchanged_writes: {value: 1, unit: bool, source: "SDK 12.0.0 LynxDcMotorCon
 # OpMode framework overheads per loop iteration (not hardware): event loop + telemetry.
 opmode:
   loop_overhead: {value: 0.5, unit: ms, source: "ASSUMED (SDK event loop bookkeeping per iteration)"}
+  trivial_sdk_call: {value: 0.001, unit: ms, source: "ASSUMED (an SDK call that touches no hardware, e.g. LinearOpMode.idle(); lets busy-wait loops advance virtual time)"}
   telemetry_min_interval: {value: 250, unit: ms, source: "ASSUMED default Telemetry.setMsTransmissionInterval (SDK default 250 ms)"}
   driver_station_gamepad_period: {value: 20, unit: ms, source: "ASSUMED (DS gamepad update rate ~50 Hz)"}

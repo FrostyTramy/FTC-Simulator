@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Simulator side of the OpMode runner (spec 01, docs/ipc_protocol.md): starts the sandboxed JVM, speaks the
+       lockstep protocol and connects the runner's raw device commands to the robot's hub models. -->
+  <ItemGroup>
+    <ProjectReference Include="..\Sim.Robots\Sim.Robots.csproj" />
+    <ProjectReference Include="..\Sim.Core\Sim.Core.csproj" />
+  </ItemGroup>
+</Project>

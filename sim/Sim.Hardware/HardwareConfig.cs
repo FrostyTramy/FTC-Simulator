@@ -21,7 +21,8 @@ public sealed record MotorSpec(
     string SdkMotorType);
 
 /// <summary>SDK @MotorType constants (config/motors.yaml sdk_motor_types).</summary>
-public sealed record SdkMotorType(string Key, double TicksPerRev, double MaxRpm, double AchievableMaxRpmFraction, string Orientation)
+public sealed record SdkMotorType(string Key, string DisplayName, double TicksPerRev, double Gearing, double MaxRpm,
+    double AchievableMaxRpmFraction, string Orientation)
 {
     /// <summary>MotorConfigurationType.getAchieveableMaxTicksPerSecondRounded(): ticks/rev × max RPM × fraction / 60, rounded.</summary>
     public double AchievableMaxTicksPerSecond => Math.Round(TicksPerRev * MaxRpm * AchievableMaxRpmFraction / 60.0);
@@ -140,7 +141,8 @@ public sealed class HardwareConfig
         foreach (var (key, raw) in Map(motors, "sdk_motor_types"))
         {
             var t = AsMap(raw, key);
-            sdkTypes[key] = new SdkMotorType(key, Q(t, "ticks_per_rev"), Q(t, "max_rpm"), Q(t, "achievable_max_rpm_fraction"), QStr(t, "orientation"));
+            sdkTypes[key] = new SdkMotorType(key, Str(t, "display_name"), Q(t, "ticks_per_rev"), Q(t, "gearing"), Q(t, "max_rpm"),
+                Q(t, "achievable_max_rpm_fraction"), QStr(t, "orientation"));
         }
 
         var hub = AsMap(motors["hub_motor_controller"], "hub_motor_controller");

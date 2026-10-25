@@ -1,4 +1,4 @@
-"""Hardware configs (motors, servos, battery, latency): schema, a source on every number, and
+"""Hardware configs (motors, servos, battery, latency, gamepads): schema, a source on every number, and
 consistency checks against the datasheet relations the models rely on."""
 
 from __future__ import annotations
@@ -14,8 +14,8 @@ import pytest
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-CONFIGS = ["motors", "servos", "battery", "hardware_latency"]
-SOURCE_RE = re.compile(r"(https?://|SDK|goBILDA|REV|gm0|ASSUMED|R\d{3}|§\d|Table \d)")
+CONFIGS = ["motors", "servos", "battery", "hardware_latency", "gamepads"]
+SOURCE_RE = re.compile(r"(https?://|SDK|goBILDA|REV|gm0|ASSUMED|R\d{3}|§\d|Table \d|specs/\d)")
 KGF_CM = 0.0980665  # N·m per kgf·cm
 
 

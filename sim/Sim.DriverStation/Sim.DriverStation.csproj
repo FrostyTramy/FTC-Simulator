@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Driver Station logic (spec 08): OpMode lists, INIT/PLAY/STOP states, autonomous timer, gamepad
+       assignment and mapping. Pure C#; the Godot panel only displays it and forwards input. -->
+  <ItemGroup>
+    <ProjectReference Include="..\Sim.Runner\Sim.Runner.csproj" />
+  </ItemGroup>
+</Project>

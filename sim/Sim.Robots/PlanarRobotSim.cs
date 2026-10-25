@@ -4,15 +4,15 @@ namespace Sim.Robots;
 
 /// <summary>
 /// Flat-floor robot simulation for benchmarks and tests (spec 05 "physics benchmarks", spec 12 layer 7):
-/// rigid chassis in the ground plane (x, z, yaw) driven by <see cref="MecanumDrivetrain"/>, motors on one
-/// battery bus through REV hub controllers, normal forces from the static load split plus weight transfer.
-/// The Godot robot uses the same drivetrain model with normal forces from its wheel raycasts.
+/// rigid chassis in the ground plane (x, z, yaw) driven by <see cref="MecanumDrivetrain"/>, all motors on one
+/// battery bus through REV hub controllers (<see cref="RobotHardware"/>), normal forces from the static load
+/// split plus weight transfer. The Godot robot uses the same drivetrain model with normal forces from its wheel
+/// raycasts.
 /// </summary>
 public sealed class PlanarRobotSim
 {
     private const double Gravity = 9.80665;
-    private readonly HubMotorController[] _controllers;
-    private readonly Encoder[] _encoders;
+    private readonly MotorPort[] _drivePorts;
     private Vec2d _lastAccel;   // robot frame, for weight transfer
 
     public PlanarRobotSim(RobotDefinition robot, HardwareConfig hardware, DriveContact contact, int tickRate = 240)
@@ -21,22 +21,21 @@ public sealed class PlanarRobotSim
         TickRate = tickRate;
         Drive = new MecanumDrivetrain(robot, hardware, contact);
         Battery = new Battery(hardware.Batteries[robot.BatteryModel]);
-        _encoders = Drive.Wheels.Select(w => new Encoder(w.Motor.Spec.CountsPerOutputRev, hardware.HubController.VelocityWindowS, tickRate)).ToArray();
-        _controllers = Drive.Wheels.Select((w, i) =>
+        Hardware = new RobotHardware(robot, hardware, tickRate);
+        _drivePorts = Drive.Wheels.Select(w => Hardware.Motor(w.Def.Motor)).ToArray();
+        foreach (var port in _drivePorts)
         {
-            var device = robot.Device(w.Def.Motor);
-            var c = new HubMotorController(hardware.HubController, hardware.SdkTypeOf(w.Motor.Spec), _encoders[i])
-            {
-                ZeroPower = device.ZeroPower == "BRAKE" ? ZeroPowerBehavior.Brake : ZeroPowerBehavior.Float,
-            };
-            return c;
-        }).ToArray();
+            // Direct drive (Phase 5) stands in for the robot's code: apply the zero-power behaviour its init sets.
+            // Code running in the runner overrides it with its own commands.
+            port.Controller.ZeroPower = port.Device.ZeroPower == "BRAKE" ? ZeroPowerBehavior.Brake : ZeroPowerBehavior.Float;
+        }
     }
 
     public RobotDefinition Robot { get; }
     public int TickRate { get; }
     public MecanumDrivetrain Drive { get; }
     public Battery Battery { get; }
+    public RobotHardware Hardware { get; }
 
     /// <summary>World pose: X right of the audience view, Z towards the audience, yaw CCW seen from above.</summary>
     public Vec2d Position { get; private set; }
@@ -50,8 +49,7 @@ public sealed class PlanarRobotSim
     /// <summary>Velocity in the robot frame (X right, Z back).</summary>
     public Vec2d RobotVelocity => Velocity.Rotated(-Yaw);
 
-    public HubMotorController Controller(string motorName) =>
-        _controllers[Array.FindIndex(Drive.Wheels.ToArray(), w => w.Def.Motor == motorName)];
+    public HubMotorController Controller(string motorName) => Hardware.Motor(motorName).Controller;
 
     /// <summary>
     /// What the SDK sends to the hub for DcMotor.setPower(power) with the configured direction: DcMotorImpl
@@ -82,21 +80,24 @@ public sealed class PlanarRobotSim
     {
         var dt = 1.0 / TickRate;
         var wheels = Drive.Wheels;
-        var duties = new double[wheels.Count];
-        var loads = new List<PowerBus.Load>(wheels.Count);
         for (var i = 0; i < wheels.Count; i++)
         {
-            _encoders[i].Sample(Drive.WheelAngle(i) * wheels[i].Def.DriveSign * Robot.DriveGearing);   // motor output angle
-            duties[i] = Battery.BrownedOut ? 0 : _controllers[i].Update(dt);
-            loads.Add(new PowerBus.Load(wheels[i].Motor, duties[i], Drive.MotorOmega(i), _controllers[i].BrakeWhenIdle));
+            _drivePorts[i].OutputAngle = Drive.WheelAngle(i) * wheels[i].Def.DriveSign * Robot.DriveGearing;   // motor output angle
+            _drivePorts[i].OutputOmega = Drive.MotorOmega(i);
         }
-        var (volts, current, electrical) = PowerBus.Solve(Battery, loads);
-        Battery.Update(volts, current, dt);
+        Hardware.SampleEncoders();
+        Hardware.UpdateControllers(dt, Battery.BrownedOut);
+        var electrical = Hardware.SolveBus(Battery, dt);
 
         var normals = NormalForces();
-        var inputs = wheels.Select((w, i) => new MecanumDrivetrain.WheelInput(electrical[i].AppliedVolts, duties[i] != 0,
-            _controllers[i].BrakeWhenIdle, normals[i])).ToList();
+        var inputs = wheels.Select((w, i) =>
+        {
+            var port = _drivePorts[i];
+            return new MecanumDrivetrain.WheelInput(electrical[port.Index].AppliedVolts, port.Duty != 0, port.Controller.BrakeWhenIdle, normals[i]);
+        }).ToList();
         var forces = Drive.Step(dt, RobotVelocity, YawRate, inputs);
+        Hardware.StepMechanisms(electrical, dt);
+        Hardware.StepServos(dt);
 
         // Newton–Euler in the plane about the centre of mass (robot frame), then to the world frame.
         var com = new Vec2d(Robot.CenterOfMass.X, Robot.CenterOfMass.Z);

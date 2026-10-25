@@ -41,7 +41,13 @@ public sealed class ServoModel
     public void SetPosition(double position)
     {
         var p = Math.Clamp(position, 0, 1);
-        PulseUs = Port.PulseLowerUs + p * (Port.PulseUpperUs - Port.PulseLowerUs);
+        SetPulse(Port.PulseLowerUs + p * (Port.PulseUpperUs - Port.PulseLowerUs));
+    }
+
+    /// <summary>Raw pulse width from the hub port (the SDK already applied direction, scaleRange and PwmRange).</summary>
+    public void SetPulse(double pulseUs)
+    {
+        PulseUs = pulseUs;
         var half = Spec.TravelDeg / 2;
         TargetAngleDeg = Math.Clamp((PulseUs - CentreUs) * Spec.DegreesPerUs, -half, half);
     }

@@ -1,4 +1,4 @@
-# Unit tests: Python (pytest) and C# (xUnit, tests/dotnet). Java (JUnit) is added with the Java projects.
+# Unit tests: Python (pytest), Java (JUnit; also builds the runner jars) and C# (xUnit, tests/dotnet).
 . "$PSScriptRoot\lib\tools.ps1"
 
 $failed = 0
@@ -12,6 +12,10 @@ try {
 } finally {
     Pop-Location
 }
+
+Write-Host '== Java (JUnit)'
+& "$PSScriptRoot\test_java.ps1"
+if ($LASTEXITCODE -ne 0) { $failed++ }
 
 Write-Host '== C# (xUnit)'
 & "$PSScriptRoot\test_dotnet.ps1"

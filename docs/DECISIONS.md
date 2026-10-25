@@ -84,3 +84,45 @@ Why we chose X over Y. Newest last. Format: ID, date, decision, why, alternative
   (Godot app; game logic; hardware models; Java side; robot/physics data; CAD pipeline). Agents do
   not commit or edit shared docs; they write `docs/notes/<area>.md`, the lead integrates and commits.
 - **Frame:** all code uses the CAD/Godot frame (X → blue, Y up, Z → audience); `game_rules.md` §1 fixed.
+
+## D-016 — Back to sequential work (2026-10-25)
+- **Decision:** the parallel agents of D-015 used up the usage quota within minutes, so the user asked
+  to work "1 by 1" again. One lead works through the phases; D-015's folder split stays as the module map.
+
+## D-017 — Runner sandbox = Java security policy for the team-code jar (2026-10-25)
+- **Decision:** the runner installs a `Policy` + the standard `SecurityManager` (JDK 17). Only classes
+  whose code source is the team's jar are restricted: read files, write/delete in the session work
+  directory, read system properties, reflect on declared members. Processes, sockets, System.exit,
+  native libraries, class loaders, environment variables, private access and changing the security
+  setup are denied whenever team code is on the stack. The simulator verifies the runner with a
+  one-time token echoed in HELLO_ACK.
+- **Alternatives:** a custom SecurityManager subclass (first version: ignores doPrivileged, cannot tell
+  team code from JDK code, and its own fields could be changed by reflection); OS-level sandbox (Windows
+  AppContainer/job objects: much more code, later if needed). The SecurityManager is removed after JDK
+  17, so the runner is pinned to Java 17 (like FTC itself).
+
+## D-018 — Lockstep details: no team code outside a tick window (2026-10-25)
+- **Decision:** the OpMode thread gets no time until the first TICK (static initializers included), a
+  STOP's interrupt is delivered when the thread next resumes (never while parked), and a park is never
+  cut short by an interrupt. The runner only touches shim state while the OpMode thread is parked and
+  never waits on a lock the OpMode thread can hold (telemetry snapshots are published lock-free; value
+  producers run outside the telemetry monitor). SDK calls from other threads do not move the OpMode clock.
+- **Why:** the first integration run deadlocked (telemetry monitor held across a park) and the OpMode
+  could run ahead of the simulator between INIT and the first TICK; both broke determinism.
+- **Limitation:** threads created by team code run freely (not deterministic); `System.nanoTime()` in
+  team code reads the wall clock.
+
+## D-019 — SDK behaviour taken from the 12.0.0 bytecode (2026-10-25)
+- **Decision:** where docs are silent, the shim and bridge follow the official AARs (javap):
+  Stop Robot default OpMode (setPower(0) at once, hub failsafe every 100 ms), TelemetryImpl
+  (throttled update marks dirty, flushed by the event loop; auto-clear at the next addData; log lines
+  transmit immediately when allowed), REV bulk data (int32 encoders, int16 velocities).
+- **Assumed:** what the hub firmware does on failsafe (outputs off → motors float, servos limp) — Q-008.
+
+## D-020 — Hub firmware emulation for every port on the C# side (2026-10-25)
+- **Decision:** `RobotHardware` owns a firmware model for every motor and servo port of the robot YAML;
+  all motors share one battery bus. Motors that drive a mechanism spin a rigid shaft with the YAML
+  inertia × speed_ratio² + rotor inertia (substepped) until mechanisms become Godot joints.
+- **Why:** the launcher's velocity PIDF, the encoder velocity the code checks and the battery sag all
+  need the real load; the Phase 6 tests run the example code against it without Godot.
+

@@ -19,6 +19,7 @@ public final class SimRuntime {
   private long budgetEndNanos = Long.MAX_VALUE; // unlimited until a runner takes control
   private boolean parked;
   private boolean controlled;
+  private boolean interruptPending;
   private Thread opModeThread;
 
   public SimRuntime(HardwareCosts costs) {
@@ -49,11 +50,15 @@ public final class SimRuntime {
     }
   }
 
-  /** Marks the calling thread as the OpMode thread (only that thread is ever parked). */
+  /**
+   * Marks the OpMode thread (only that thread is ever parked). It gets no time until the runner's first
+   * {@link #runUntil}, so user code never runs while the runner is between ticks.
+   */
   public void attachOpModeThread(Thread thread) {
     synchronized (lock) {
       opModeThread = thread;
       controlled = true;
+      budgetEndNanos = nowNanos;
     }
   }
 
@@ -66,6 +71,9 @@ public final class SimRuntime {
       throw new IllegalArgumentException("negative duration");
     }
     synchronized (lock) {
+      if (controlled && Thread.currentThread() != opModeThread) {
+        return; // other threads (the runner flushing telemetry, team threads) do not move the OpMode's clock
+      }
       nowNanos += nanos;
       parkWhileOverBudget();
     }
@@ -91,23 +99,33 @@ public final class SimRuntime {
     }
   }
 
+  /**
+   * Parks the OpMode thread until the runner grants time beyond {@code nowNanos}. Interrupts never cut
+   * a park short (the OpMode only runs inside the runner's time window, which keeps it deterministic);
+   * they and stop requests ({@link #requestInterrupt}) are delivered as the interrupt flag on resume.
+   */
   private void parkWhileOverBudget() {
     if (!controlled || Thread.currentThread() != opModeThread) {
       return;
     }
+    boolean interrupted = false;
     while (nowNanos >= budgetEndNanos) {
+      if (Thread.interrupted()) {
+        interrupted = true;
+      }
       parked = true;
       lock.notifyAll();
       try {
         lock.wait();
       } catch (InterruptedException e) {
-        // The runner interrupts to deliver a stop request; keep the flag for the user code.
-        Thread.currentThread().interrupt();
-        parked = false;
-        return;
+        interrupted = true;
       }
     }
     parked = false;
+    if (interrupted || interruptPending) {
+      interruptPending = false;
+      Thread.currentThread().interrupt();
+    }
   }
 
   // ------------------------------------------------------------------ runner side
@@ -145,10 +163,13 @@ public final class SimRuntime {
     }
   }
 
-  /** Runner: wakes a parked OpMode thread so it can see an interrupt or state change immediately. */
-  public void wakeOpModeThread() {
+  /**
+   * Runner: interrupts the OpMode thread when it next resumes (LinearOpMode STOP). Called between ticks
+   * while the thread is parked, so the interrupt lands at the same virtual time in every run.
+   */
+  public void requestInterrupt() {
     synchronized (lock) {
-      lock.notifyAll();
+      interruptPending = true;
     }
   }
 }

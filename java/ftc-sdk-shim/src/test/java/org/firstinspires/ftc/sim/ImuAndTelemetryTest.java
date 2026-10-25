@@ -98,14 +98,32 @@ class ImuAndTelemetryTest {
   }
 
   @Test
-  void telemetryLogKeepsTheLastLines() throws InterruptedException {
+  void telemetryLogKeepsTheLastLinesAndSendsThemAsSoonAsAllowed() throws InterruptedException {
     SimRuntime runtime = ShimTestSupport.freshRuntime();
     SimTelemetry t = new SimTelemetry(runtime);
     t.log().setCapacity(2);
-    t.log().add("one");
+    t.log().add("one"); // SDK LogImpl.add transmits at once when the interval allows
+    assertEquals(List.of("one"), t.lastTransmitted());
     t.log().add("two");
     t.log().add("three");
-    assertTrue(t.update());
+    assertFalse(t.update()); // within 250 ms
+    runtime.sleepUntil(runtime.nowNanos() + 260_000_000L);
+    assertTrue(t.tryUpdateIfDirty());
     assertEquals(List.of("two", "three"), t.lastTransmitted());
+  }
+
+  @Test
+  void throttledUpdateIsSentByTheEventLoopOnceTheIntervalPasses() throws InterruptedException {
+    SimRuntime runtime = ShimTestSupport.freshRuntime();
+    SimTelemetry t = new SimTelemetry(runtime);
+    t.addData("a", 1);
+    assertTrue(t.update());
+    t.addData("Status", "Done"); // auto-clear removes "a" now, at the next addData
+    assertFalse(t.update()); // throttled: marked dirty, items kept
+    assertFalse(t.tryUpdateIfDirty()); // still within 250 ms
+    runtime.sleepUntil(runtime.nowNanos() + 260_000_000L);
+    assertTrue(t.tryUpdateIfDirty());
+    assertEquals(List.of("Status : Done"), t.lastTransmitted());
+    assertFalse(t.tryUpdateIfDirty()); // clean again
   }
 }

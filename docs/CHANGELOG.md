@@ -1,5 +1,32 @@
 # Changelog
 
+## Phase 6 (in progress) — 2026-10-25
+- OpMode runner JVM (`java/runner`): protocol v1 (`docs/ipc_protocol.md`), OpMode discovery like the
+  DS, one-time connection token, security-policy sandbox (9 JUnit tests with a probe jar).
+- Simulator side (`sim/Sim.Runner`): runner launcher and client, Java 17 discovery, `RunnerBridge`
+  (hub commands, inputs, IMU mounting, SDK Stop Robot behaviour); `RobotHardware` in `Sim.Robots`.
+- Shim: deterministic start/stop (no team code outside tick windows), telemetry per SDK TelemetryImpl
+  (dirty flush, clear-on-add, log), deadlock fix (telemetry monitor held across a park); 26 tests.
+- End-to-end tests with the unchanged example code (15 tests): TeleOp powers and launcher PIDF,
+  TeleOp vs direct drive, Autonomous, Stop Robot, determinism.
+- `scripts/test_java.ps1`, Java tests in `test_unit.ps1`; `trivial_sdk_call` in hardware_latency.yaml.
+- Earlier in Phase 6: FTC SDK 12.0 shim, build adapter, example Autonomous (commit dae3cd9).
+
+## Phase 5 — 2026-10-24
+- Robot YAML for the goBILDA StarterBot with evidence tests and an OpMode parser cross-check.
+- Motor, battery, hub controller and servo models (`sim/Sim.Hardware`, 17 tests).
+- Mecanum force model and flat-floor robot sim with benchmarks (`sim/Sim.Robots`, 8 tests).
+
+## Phase 4 — 2026-10-24
+- BIOBUZZ rules engine: match state machine, scoring, fouls (`sim/Sim.Game`, 57 tests).
+
+## Phase 3 — 2026-10-24
+- Field mechanisms derived from CAD (`config/field_mechanisms.yaml`, 9 tests).
+
+## Phase 2 — 2026-10-24
+- CAD pipeline (STEP → glTF, colliders, mass properties, checks) for the field and the robot;
+  Godot field scene, cameras, HUD, screenshot and scenario runners; physics/hardware configs.
+
 ## Phase 1 — 2026-10-24
 - `tools/manual/extract.py` (page text, rendered pages, damaged-text report) and
   `tools/manual/apriltag_ids.py` (decodes tag IDs 30–45 from the printable PDFs).

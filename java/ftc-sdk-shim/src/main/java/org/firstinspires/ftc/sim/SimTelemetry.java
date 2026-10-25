@@ -9,9 +9,11 @@ import org.firstinspires.ftc.robotcore.external.Func;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 
 /**
- * Telemetry like the SDK's TelemetryImpl (spec 06): items and lines, "caption : value" with " | "
- * between items of a line, update() transmits at most every msTransmissionInterval (default 250 ms,
- * virtual time) and with auto-clear removes the non-retained items, plus a log of 9 lines.
+ * Telemetry like the SDK's TelemetryImpl (spec 06; SDK 12.0.0 bytecode): items and lines, "caption : value" with
+ * " | " between items of a line, plus a log of 9 lines. update() transmits at most every msTransmissionInterval
+ * (default 250 ms, virtual time); a throttled update marks the telemetry dirty and the event loop transmits it later
+ * ({@link #tryUpdateIfDirty}). With auto-clear the non-retained items are removed at the next addData/addLine after an
+ * update, not at the update itself. Messages without any line are not sent (the DS keeps the previous ones).
  */
 public final class SimTelemetry implements Telemetry {
   private final SimRuntime runtime;
@@ -24,20 +26,32 @@ public final class SimTelemetry implements Telemetry {
   private String captionValueSeparator = " : ";
   private DisplayFormat displayFormat = DisplayFormat.CLASSIC;
   private long lastTransmitNanos = Long.MIN_VALUE / 2;
-  private List<String> lastTransmitted = List.of();
-  private long transmissions;
+  private boolean dirty; // a throttled update() is waiting (SDK markDirty)
+  private boolean logDirty; // log lines added since the last transmission
+  private boolean clearOnAdd; // auto-clear pending until the next addData/addLine (SDK clearOnAdd)
+
+  private enum Reason {
+    USER,
+    LOG,
+    IFDIRTY
+  }
+
+  // Published snapshots: the runner reads them without taking this object's monitor, which the OpMode thread may
+  // hold while parked (a telemetry Func that calls the SDK spends virtual time inside update()).
+  private volatile List<String> lastTransmitted = List.of();
+  private volatile long transmissions;
 
   public SimTelemetry(SimRuntime runtime) {
     this.runtime = runtime;
   }
 
   /** Lines shown on the DS after the latest transmission. */
-  public synchronized List<String> lastTransmitted() {
+  public List<String> lastTransmitted() {
     return lastTransmitted;
   }
 
   /** Number of transmissions so far (the runner sends telemetry when this changes). */
-  public synchronized long transmissions() {
+  public long transmissions() {
     return transmissions;
   }
 
@@ -199,30 +213,36 @@ public final class SimTelemetry implements Telemetry {
 
   @Override
   public synchronized Item addData(String caption, String format, Object... args) {
-    ItemImpl item = new ItemImpl(null, caption, String.format(Locale.US, format, args));
-    entries.add(item);
-    return item;
+    return addItem(new ItemImpl(null, caption, String.format(Locale.US, format, args)));
   }
 
   @Override
   public synchronized Item addData(String caption, Object value) {
-    ItemImpl item = new ItemImpl(null, caption, String.valueOf(value));
-    entries.add(item);
-    return item;
+    return addItem(new ItemImpl(null, caption, String.valueOf(value)));
   }
 
   @Override
   public synchronized <T> Item addData(String caption, Func<T> valueProducer) {
-    ItemImpl item = new ItemImpl(null, caption, (Supplier) () -> String.valueOf(valueProducer.value()));
-    entries.add(item);
-    return item;
+    return addItem(new ItemImpl(null, caption, (Supplier) () -> String.valueOf(valueProducer.value())));
   }
 
   @Override
   public synchronized <T> Item addData(String caption, String format, Func<T> valueProducer) {
-    ItemImpl item = new ItemImpl(null, caption, (Supplier) () -> String.format(Locale.US, format, valueProducer.value()));
+    return addItem(new ItemImpl(null, caption, (Supplier) () -> String.format(Locale.US, format, valueProducer.value())));
+  }
+
+  private Item addItem(ItemImpl item) {
+    onAddData();
     entries.add(item);
     return item;
+  }
+
+  /** SDK onAddData: the auto-clear left pending by the last update() happens now; new data waits for update(). */
+  private void onAddData() {
+    if (clearOnAdd) {
+      clear();
+    }
+    dirty = false;
   }
 
   @Override
@@ -232,11 +252,13 @@ public final class SimTelemetry implements Telemetry {
 
   @Override
   public synchronized void clear() {
+    clearOnAdd = false;
     entries.removeIf(e -> !(e instanceof ItemImpl i && i.isRetained()));
   }
 
   @Override
   public synchronized void clearAll() {
+    clearOnAdd = false;
     entries.clear();
     log.clear();
   }
@@ -259,29 +281,63 @@ public final class SimTelemetry implements Telemetry {
   @Override
   public void speak(String text, String languageCode, String countryCode) {}
 
-  /** Transmits if the transmission interval has passed; with auto-clear the items are cleared. */
+  /** Transmits if the transmission interval has passed, otherwise marks the telemetry dirty. */
   @Override
-  public synchronized boolean update() {
-    runtime.consume(runtime.costs().trivialCallNanos);
+  public boolean update() {
+    runtime.consume(runtime.costs().trivialCallNanos); // outside the monitor: the OpMode thread may park here
+    return tryUpdate(Reason.USER);
+  }
+
+  /**
+   * The event loop's flush of a throttled update or of new log lines (SDK TelemetryImpl.tryUpdateIfDirty, called by
+   * LinearOpMode.internalOnEventLoopIteration on every event loop iteration).
+   */
+  public boolean tryUpdateIfDirty() {
+    return tryUpdate(Reason.IFDIRTY);
+  }
+
+  /**
+   * SDK TelemetryImpl.tryUpdate. Actions and value producers are team code that may call the SDK (and park the OpMode
+   * thread), so they run outside this object's monitor.
+   */
+  private boolean tryUpdate(Reason reason) {
     long now = runtime.nowNanos();
-    boolean transmit = now - lastTransmitNanos >= msTransmissionInterval * 1_000_000L;
-    if (transmit) {
-      for (Runnable action : actions.values()) {
-        action.run();
+    List<Object> snapshot;
+    List<Runnable> toRun;
+    synchronized (this) {
+      boolean due = now - lastTransmitNanos >= msTransmissionInterval * 1_000_000L;
+      boolean wanted = reason != Reason.IFDIRTY || dirty || logDirty;
+      if (!due || !wanted) {
+        if (reason == Reason.USER) {
+          dirty = true;
+          clearOnAdd = autoClear;
+        }
+        return false;
       }
-      List<String> lines = new ArrayList<>();
-      for (Object e : entries) {
-        lines.add(e instanceof ItemImpl i ? i.render() : ((LineImpl) e).render());
-      }
+      snapshot = new ArrayList<>(entries);
+      toRun = new ArrayList<>(actions.values());
+    }
+    for (Runnable action : toRun) {
+      action.run();
+    }
+    List<String> lines = new ArrayList<>();
+    for (Object e : snapshot) {
+      lines.add(e instanceof ItemImpl i ? i.render() : ((LineImpl) e).render());
+    }
+    synchronized (this) {
       lines.addAll(log.lines());
-      lastTransmitted = List.copyOf(lines);
+      if (!lines.isEmpty()) {
+        lastTransmitted = List.copyOf(lines);
+        transmissions++;
+      }
       lastTransmitNanos = now;
-      transmissions++;
+      dirty = false;
+      logDirty = false;
+      if (reason == Reason.USER) {
+        clearOnAdd = autoClear;
+      }
     }
-    if (autoClear) {
-      clear();
-    }
-    return transmit;
+    return true;
   }
 
   @Override
@@ -291,6 +347,7 @@ public final class SimTelemetry implements Telemetry {
 
   @Override
   public synchronized Line addLine(String lineCaption) {
+    onAddData();
     LineImpl line = new LineImpl(lineCaption);
     entries.add(line);
     return line;
@@ -390,7 +447,9 @@ public final class SimTelemetry implements Telemetry {
       synchronized (SimTelemetry.this) {
         lines.add(entry);
         trim();
+        logDirty = true;
       }
+      tryUpdate(Reason.LOG); // log lines go out as soon as the interval allows
     }
 
     @Override
@@ -402,6 +461,7 @@ public final class SimTelemetry implements Telemetry {
     public void clear() {
       synchronized (SimTelemetry.this) {
         lines.clear();
+        logDirty = true;
       }
     }
 
