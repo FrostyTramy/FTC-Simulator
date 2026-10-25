@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Sensor models (config/sensors.yaml, spec 09)",
+  "type": "object",
+  "required": ["version", "pinpoint", "odometry_pods", "otos", "color", "distance", "touch", "webcam"],
+  "additionalProperties": false,
+  "$defs": {
+    "quantity": {
+      "type": "object",
+      "required": ["value", "unit", "source"],
+      "additionalProperties": false,
+      "properties": {
+        "value": {},
+        "unit": {"type": "string", "minLength": 1},
+        "source": {"type": "string", "minLength": 3}
+      }
+    },
+    "models": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {"pattern": "^[a-z0-9_]+$"},
+      "additionalProperties": {
+        "type": "object",
+        "required": ["part"],
+        "additionalProperties": {"$ref": "#/$defs/quantity"}
+      }
+    }
+  },
+  "properties": {
+    "version": {"const": 1},
+    "pinpoint": {"$ref": "#/$defs/models"},
+    "otos": {"$ref": "#/$defs/models"},
+    "color": {"$ref": "#/$defs/models"},
+    "distance": {"$ref": "#/$defs/models"},
+    "touch": {"$ref": "#/$defs/models"},
+    "webcam": {"$ref": "#/$defs/models"},
+    "odometry_pods": {
+      "type": "object",
+      "required": ["lift_tilt"],
+      "properties": {"lift_tilt": {"$ref": "#/$defs/quantity"}},
+      "additionalProperties": {
+        "type": "object",
+        "required": ["ticks_per_mm"],
+        "additionalProperties": {"$ref": "#/$defs/quantity"}
+      }
+    }
+  }
+}

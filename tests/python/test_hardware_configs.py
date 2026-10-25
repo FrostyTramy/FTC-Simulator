@@ -1,4 +1,4 @@
-"""Hardware configs (motors, servos, battery, latency, gamepads): schema, a source on every number, and
+"""Hardware configs (motors, servos, battery, latency, gamepads, sensors): schema, a source on every number, and
 consistency checks against the datasheet relations the models rely on."""
 
 from __future__ import annotations
@@ -14,8 +14,8 @@ import pytest
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-CONFIGS = ["motors", "servos", "battery", "hardware_latency", "gamepads"]
-SOURCE_RE = re.compile(r"(https?://|SDK|goBILDA|REV|gm0|ASSUMED|R\d{3}|§\d|Table \d|specs/\d)")
+CONFIGS = ["motors", "servos", "battery", "hardware_latency", "gamepads", "sensors"]
+SOURCE_RE = re.compile(r"(https?://|SDK|goBILDA|GBDRV|CALIB|SparkFun|REV|ST VL53L0X|gm0|ASSUMED|R\d{3}|§\d|Table \d|specs/\d)")
 KGF_CM = 0.0980665  # N·m per kgf·cm
 
 
@@ -62,7 +62,7 @@ def test_no_bare_numbers_outside_quantities(name: str) -> None:
         elif isinstance(node, (int, float)) and not isinstance(node, bool):
             assert inside, f"{name}{path}: number {node} without a source"
 
-    walk(load(name), "", False)
+    walk({k: v for k, v in load(name).items() if k != "version"}, "", False)
 
 
 def test_motor_encoder_counts_match_ratio() -> None:

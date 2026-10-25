@@ -48,6 +48,24 @@ public sealed record MechanismDef(
     string? ContactMaterial = null,
     double? ContactStiffness = null);
 
+/// <summary>
+/// One sensor (robot YAML <c>sensors:</c>, spec 05/09): exact hardwareMap name, kind (pinpoint, otos, color, distance,
+/// touch, webcam), model key in config/sensors.yaml, SDK class, hub and I2C bus or digital port, and its mounting in the
+/// robot frame: <see cref="Forward"/> is the sensing direction (camera optical axis; the device +X for odometry
+/// computers), <see cref="Up"/> the device's up. <see cref="Params"/> keeps the other keys as raw YAML values.
+/// </summary>
+public sealed record SensorDef(
+    string Name,
+    string Type,
+    string Model,
+    string SdkClass,
+    string Hub,
+    int Port,
+    Vector3 Position,
+    Vector3 Forward,
+    Vector3 Up,
+    IReadOnlyDictionary<string, object> Params);
+
 /// <summary>Typed view of config/robots/&lt;name&gt;.yaml (spec 05) for the simulation.</summary>
 public sealed class RobotDefinition
 {
@@ -75,6 +93,12 @@ public sealed class RobotDefinition
     /// <summary>Guided element path (ball_path.model = guided), or null when elements only move by contact.</summary>
     public BallPathDef? BallPath { get; init; }
 
+    /// <summary>Sensors and cameras (robot YAML sensors).</summary>
+    public IReadOnlyList<SensorDef> Sensors { get; init; } = [];
+
+    /// <summary>Folder of the CAD pipeline output, relative to the repository (cad value, e.g. generated/gobilda_starter).</summary>
+    public string CadPath { get; init; } = "";
+
     public DeviceDef Device(string name) =>
         Devices.FirstOrDefault(d => d.Name == name) ?? throw new RobotConfigException($"{Name}: no device '{name}'");
 
@@ -94,10 +118,13 @@ public sealed class RobotDefinition
     public MechanismDef Mechanism(string id) =>
         Mechanisms.FirstOrDefault(m => m.Id == id) ?? throw new RobotConfigException($"{Name}: no mechanism '{id}'");
 
+    /// <summary>
+    /// Loads a robot file. A variant file names a <c>base</c> robot in the same folder and replaces whole top-level
+    /// sections of it (e.g. the same robot with sensors added).
+    /// </summary>
     public static RobotDefinition Load(string path)
     {
-        var root = new DeserializerBuilder().Build().Deserialize<Dictionary<object, object>>(File.ReadAllText(path))
-            ?? throw new RobotConfigException($"{path} is empty");
+        var root = LoadRaw(path, 0);
         var mass = Map(root, "mass");
         var drive = Map(root, "drivetrain");
         var wheels = ((List<object>)drive["wheels"]).Select(o =>
@@ -166,8 +193,82 @@ public sealed class RobotDefinition
             BatteryModel = QRaw(Map(root, "battery"), "model").ToString()!,
             CadToRobot = ((List<object>)QRaw(Map(root, "frame"), "cad_to_robot")).SelectMany(row => ((List<object>)row).Select(Num)).ToArray(),
             BallPath = ReadBallPath(root),
+            Sensors = ReadSensors(root),
+            CadPath = QRaw(root, "cad").ToString()!,
         };
     }
+
+    private static Dictionary<object, object> LoadRaw(string path, int depth)
+    {
+        var root = new DeserializerBuilder().Build().Deserialize<Dictionary<object, object>>(File.ReadAllText(path))
+            ?? throw new RobotConfigException($"{path} is empty");
+        if (!root.TryGetValue("base", out var baseName))
+        {
+            return root;
+        }
+        if (depth > 4)
+        {
+            throw new RobotConfigException($"{path}: base robots nested too deeply");
+        }
+        var merged = LoadRaw(Path.Combine(Path.GetDirectoryName(path)!, baseName + ".yaml"), depth + 1);
+        foreach (var (key, value) in root)
+        {
+            if (key.ToString() != "base")
+            {
+                merged[key] = value;
+            }
+        }
+        return merged;
+    }
+
+    private static readonly HashSet<string> SensorKeys = ["name", "type", "model", "sdk_class", "hub", "i2c_bus", "port", "pose"];
+
+    private static List<SensorDef> ReadSensors(Dictionary<object, object> root)
+    {
+        if (!root.TryGetValue("sensors", out var raw) || raw is not List<object> list)
+        {
+            return [];
+        }
+        var sensors = list.Select(o =>
+        {
+            var s = (Dictionary<object, object>)o;
+            var name = Str(s, "name");
+            var pose = (Dictionary<object, object>)QRaw(s, "pose");
+            var forward = pose.TryGetValue("forward", out var f) ? Vector3.Normalize(Vec(f)) : -Vector3.UnitZ;
+            var up = pose.TryGetValue("up", out var u) ? Vector3.Normalize(Vec(u)) : Vector3.UnitY;
+            if (Math.Abs(Vector3.Dot(forward, up)) > 1e-3)
+            {
+                throw new RobotConfigException($"sensor '{name}': pose forward and up are not perpendicular");
+            }
+            var port = s.TryGetValue("i2c_bus", out var bus) ? (int)Num(bus) : s.TryGetValue("port", out var p) ? (int)Num(p) : 0;
+            var extra = s.Where(kv => !SensorKeys.Contains(kv.Key.ToString()!)).ToDictionary(kv => kv.Key.ToString()!, kv => kv.Value);
+            return new SensorDef(name, Str(s, "type"), Str(s, "model"), Str(s, "sdk_class"), Str(s, "hub"), port,
+                Vec(pose["position"]), forward, up, extra);
+        }).ToList();
+        var devices = root.TryGetValue("devices", out var d) && d is List<object> dl
+            ? dl.Select(x => ((Dictionary<object, object>)x)["name"].ToString()).ToHashSet()
+            : [];
+        foreach (var dup in sensors.GroupBy(x => x.Name).Where(g => g.Count() > 1 || devices.Contains(g.Key)))
+        {
+            throw new RobotConfigException($"hardware name '{dup.Key}' is used twice");
+        }
+        return sensors;
+    }
+
+    /// <summary>A sensor's extra quantity (e.g. an odometry pod) as its raw YAML value map.</summary>
+    public static IReadOnlyDictionary<string, object> SensorParam(SensorDef sensor, string key)
+    {
+        if (!sensor.Params.TryGetValue(key, out var raw) || raw is not Dictionary<object, object> q || !q.ContainsKey("source"))
+        {
+            throw new RobotConfigException($"sensor '{sensor.Name}': missing '{key}' {{value, unit, source}}");
+        }
+        return q["value"] is Dictionary<object, object> v
+            ? v.ToDictionary(kv => kv.Key.ToString()!, kv => kv.Value)
+            : throw new RobotConfigException($"sensor '{sensor.Name}': '{key}' value must be a map");
+    }
+
+    /// <summary>A robot-frame vector from a raw YAML list.</summary>
+    public static Vector3 VectorValue(object raw) => Vec(raw);
 
     private static BallPathDef? ReadBallPath(Dictionary<object, object> root)
     {

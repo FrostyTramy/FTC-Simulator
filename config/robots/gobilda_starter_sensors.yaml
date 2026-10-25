@@ -1,0 +1,57 @@
+# goBILDA StarterBot with a sensor package (spec 05 robot library, spec 09): the base robot plus
+# the sensors of the FTC SDK 12.0 sensor/vision samples, under the hardwareMap names those
+# samples use, so the samples run unchanged. The kit has none of these sensors (INSTR p2-4 BOM):
+# every mounting is ASSUMED. Only top-level sections listed here replace the base robot's.
+
+version: 1
+base: gobilda_starter
+name: gobilda_starter_sensors
+display_name: "goBILDA StarterBot + sensors (Pinpoint, OTOS, webcam, colour, distance, touch)"
+description: "The StarterBot with the sensors the SDK samples expect, for vision and odometry practice."
+
+# Robot frame: +X right, +Y up, -Z forward, origin on the floor (see the base file).
+sensors:
+  - name: pinpoint
+    type: pinpoint
+    model: gobilda_pinpoint
+    sdk_class: GoBildaPinpointDriver
+    hub: control_hub
+    i2c_bus: 1
+    pose: {value: {position: [0.0, 0.06, 0.0], forward: [0, 0, -1], up: [0, 1, 0]}, unit: m, source: "ASSUMED (flat, X towards the robot front)"}
+    x_pod: {value: {model: goBILDA_4_BAR_POD, position: [0.084, 0.0, 0.0], axis: [0, 0, -1]}, unit: m, source: "ASSUMED: 84 mm right of the centre, measuring forward, as SDK sample SensorGoBildaPinpoint setOffsets(-84, -168 mm) and FORWARD directions expect"}
+    y_pod: {value: {model: goBILDA_4_BAR_POD, position: [0.0, 0.0, 0.168], axis: [-1, 0, 0]}, unit: m, source: "ASSUMED: 168 mm behind the centre, measuring to the left (SensorGoBildaPinpoint setOffsets)"}
+  - name: sensor_otos
+    type: otos
+    model: sparkfun_otos
+    sdk_class: SparkFunOTOS
+    hub: control_hub
+    i2c_bus: 2
+    pose: {value: {position: [0.0, 0.010, 0.05], forward: [0, 0, -1], up: [0, 1, 0]}, unit: m, source: "ASSUMED: centred, 10 mm above the tiles (SparkFun recommended height), +Y forward, so SensorSparkFunOTOS's zero offset is right"}
+  - name: Webcam 1
+    type: webcam
+    model: logitech_c920
+    sdk_class: WebcamName
+    hub: control_hub
+    port: 0
+    pose: {value: {position: [0.0, 0.25, -0.20], forward: [0, 0.5736, -0.8192], up: [0, 0.8192, 0.5736]}, unit: m, source: "ASSUMED: front centre, 25 cm high, tilted up 35° to see the AprilTags under the CELLS (§9.9 p75)"}
+  - name: sensor_color
+    type: color
+    model: rev_color_v3
+    sdk_class: RevColorSensorV3
+    hub: control_hub
+    i2c_bus: 3
+    pose: {value: {position: [0.0, 0.08, -0.215], forward: [0, -1, 0], up: [0, 0, -1]}, unit: m, source: "ASSUMED: in the intake mouth looking down at passing elements"}
+  - name: sensor_distance
+    type: distance
+    model: rev_2m
+    sdk_class: Rev2mDistanceSensor
+    hub: expansion_hub
+    i2c_bus: 0
+    pose: {value: {position: [0.15, 0.10, -0.226], forward: [0, 0, -1], up: [0, 1, 0]}, unit: m, source: "ASSUMED: front right, looking forward"}
+  - name: sensor_touch
+    type: touch
+    model: rev_touch
+    sdk_class: TouchSensor
+    hub: control_hub
+    port: 1
+    pose: {value: {position: [0.0, 0.06, 0.228], forward: [0, 0, 1], up: [0, 1, 0]}, unit: m, source: "ASSUMED: rear bumper, pressing backwards (e.g. against the wall)"}

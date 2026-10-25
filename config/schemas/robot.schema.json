@@ -11,7 +11,22 @@
       "properties": {"value": {}, "unit": {"type": "string"}, "source": {"$ref": "#/$defs/source"}},
       "additionalProperties": false
     },
-    "vec3": {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3}
+    "vec3": {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3},
+    "sensor": {
+      "type": "object",
+      "required": ["name", "type", "model", "sdk_class", "hub", "pose"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1},
+        "type": {"enum": ["pinpoint", "otos", "color", "distance", "touch", "webcam"]},
+        "model": {"type": "string", "pattern": "^[a-z0-9_]+$"},
+        "sdk_class": {"type": "string"},
+        "hub": {"enum": ["control_hub", "expansion_hub"]},
+        "i2c_bus": {"type": "integer", "minimum": 0, "maximum": 3},
+        "port": {"type": "integer", "minimum": 0, "maximum": 7},
+        "pose": {"$ref": "#/$defs/quantity"}
+      },
+      "additionalProperties": {"$ref": "#/$defs/quantity"}
+    }
   },
   "properties": {
     "version": {"const": 1},
@@ -76,7 +91,7 @@
     },
     "mechanisms": {"type": "array", "items": {"type": "object", "required": ["id", "type"]}},
     "ball_path": {"type": "object", "additionalProperties": {"$ref": "#/$defs/quantity"}},
-    "sensors": {"type": "array"},
+    "sensors": {"type": "array", "items": {"$ref": "#/$defs/sensor"}},
     "bumpers": {"type": "array"},
     "checks": {"type": "object", "additionalProperties": {"$ref": "#/$defs/quantity"}}
   }
