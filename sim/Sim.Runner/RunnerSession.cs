@@ -11,6 +11,9 @@ public sealed class RunnerException(string message) : Exception(message);
 /// <summary>What to start: the Java 17 executable, the shim + runner jars and the team's compiled code.</summary>
 public sealed record RunnerLaunch(string JavaExe, string ShimJar, string RunnerJar, string TeamCodeJar, string WorkDir)
 {
+    /// <summary>OpenCV Java bindings and native library (vision); null = vision unavailable.</summary>
+    public (string Jar, string Dll)? OpenCv { get; init; } = JavaLocator.FindOpenCv();
+
     /// <summary>JVM start-up plus connection (generous: antivirus scanners can hold a new process for a while).</summary>
     public TimeSpan ConnectTimeout { get; init; } = TimeSpan.FromSeconds(60);
 
@@ -94,14 +97,24 @@ public sealed class RunnerSession : IDisposable
                 CreateNoWindow = true,
                 WorkingDirectory = launch.WorkDir,
             };
+            var classPath = launch.ShimJar + Path.PathSeparator + launch.RunnerJar;
+            var openCv = new List<string>();
+            if (launch.OpenCv is { } cv)
+            {
+                classPath += Path.PathSeparator + cv.Jar;
+                openCv.Add("-Dftcsim.opencv.dll=" + cv.Dll);
+            }
             foreach (var arg in new[]
             {
                 // Heap limit like a Robot Controller app (spec 07 sandbox "memory limit"; 512 MB ASSUMED).
-                "-Xmx512m", "-Xss4m", "-Dfile.encoding=UTF-8", "-cp", launch.ShimJar + Path.PathSeparator + launch.RunnerJar,
+                "-Xmx512m", "-Xss4m", "-Dfile.encoding=UTF-8",
+            }.Concat(openCv).Concat(new[]
+            {
+                "-cp", classPath,
                 "org.firstinspires.ftc.sim.runner.RunnerMain",
                 "--port", port.ToString(System.Globalization.CultureInfo.InvariantCulture), "--token", token,
                 "--teamcode", launch.TeamCodeJar, "--workdir", launch.WorkDir,
-            })
+            }))
             {
                 info.ArgumentList.Add(arg);
             }

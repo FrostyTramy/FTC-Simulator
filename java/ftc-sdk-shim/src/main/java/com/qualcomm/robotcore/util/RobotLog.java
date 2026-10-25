@@ -67,6 +67,17 @@ public class RobotLog {
     e(tag + ": " + message + " (" + throwable + ")");
   }
 
+  /** A warning the Driver Station shows until it is cleared (here: one log line). */
+  public static void addGlobalWarningMessage(String message) {
+    w(message);
+  }
+
+  public static void setGlobalWarningMessage(String message) {
+    w(message);
+  }
+
+  public static void clearGlobalWarningMsg() {}
+
   public static void logStackTrace(Throwable throwable) {
     e(String.valueOf(throwable));
   }

@@ -58,6 +58,22 @@ public static class JavaLocator
         return (shims[0], runner);
     }
 
+    /// <summary>The OpenCV Java bindings and native library (scripts/setup_tools.ps1), or null if not set up.</summary>
+    public static (string Jar, string Dll)? FindOpenCv()
+    {
+        try
+        {
+            var dir = RepoPaths.Find(Path.Combine("generated", "tools", "opencv"));
+            var jar = Path.Combine(dir, "opencv-4.9.0-0.jar");
+            var dll = Path.Combine(dir, "opencv_java490.dll");
+            return File.Exists(jar) && File.Exists(dll) ? (jar, dll) : null;
+        }
+        catch (FileNotFoundException)
+        {
+            return null;
+        }
+    }
+
     private static bool IsJava17(string home)
     {
         var release = Path.Combine(home, "release");

@@ -36,10 +36,30 @@ if (-not (Test-Path (Join-Path $jdtls 'plugins'))) {
     $archive = Join-Path $download 'jdtls.tar.gz'
     Get-Verified 'https://download.eclipse.org/jdtls/milestones/1.62.0/jdt-language-server-1.62.0-202610131109.tar.gz' $archive 'f587dafd8410633c2c2bf005e853a2bbb03cddee88933d49bfe6d9cb1cf09342'
     New-Item -ItemType Directory -Force $jdtls | Out-Null
-    & tar -xzf $archive -C $jdtls
+    & (Join-Path $env:SystemRoot 'System32\tar.exe') -xzf $archive -C $jdtls
     if ($LASTEXITCODE -ne 0) { throw 'could not unpack JDT LS' }
 }
 Write-Host "JDT LS:   $jdtls"
+
+# OpenCV 4.9.0 Java bindings with the Windows x64 native library (openpnp packaging of the official build, Apache 2.0):
+# the SDK vision API hands frames to processors as OpenCV Mats (the SDK itself ships OpenCV 4.10, D-030)
+$opencv = Join-Path $tools 'opencv'
+$opencvJar = Join-Path $opencv 'opencv-4.9.0-0.jar'
+$opencvDll = Join-Path $opencv 'opencv_java490.dll'
+if (-not (Test-Path $opencvDll)) {
+    New-Item -ItemType Directory -Force $opencv | Out-Null
+    Get-Verified 'https://repo1.maven.org/maven2/org/openpnp/opencv/4.9.0-0/opencv-4.9.0-0.jar' $opencvJar '17823d249cb8ba18bc3cdb878db84936694d1cfaeac0f95517e320c8a8c458d9'
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $zip = [System.IO.Compression.ZipFile]::OpenRead($opencvJar)
+    try {
+        $entry = $zip.GetEntry('nu/pattern/opencv/windows/x86_64/opencv_java490.dll')
+        if (-not $entry) { throw 'the OpenCV jar has no Windows x64 native library' }
+        [System.IO.Compression.ZipFileExtensions]::ExtractToFile($entry, $opencvDll, $true)
+    } finally {
+        $zip.Dispose()
+    }
+}
+Write-Host "OpenCV:   $opencv"
 
 # AprilTag 3 (BSD-2) with its runtime DLLs (pthreads-win32, LGPL; msvcr100), from the pinned pupil-apriltags wheel
 $site = Join-Path $RepoRoot '.venv\Lib\site-packages'

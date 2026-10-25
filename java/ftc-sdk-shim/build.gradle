@@ -9,6 +9,16 @@ java {
     withSourcesJar()
 }
 
+// OpenCV Java bindings (scripts/setup_tools.ps1): part of the API team code compiles against, like the SDK's.
+def opencvDir = "${rootDir}/../generated/tools/opencv"
+dependencies {
+    api files("${opencvDir}/opencv-4.9.0-0.jar")
+}
+
+tasks.named('test') {
+    systemProperty 'ftcsim.opencv.dll', "${opencvDir}/opencv_java490.dll"
+}
+
 jar {
     archiveBaseName = 'ftc-sdk-shim'
     manifest {

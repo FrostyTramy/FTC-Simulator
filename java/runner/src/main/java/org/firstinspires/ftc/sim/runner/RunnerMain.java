@@ -71,6 +71,7 @@ public final class RunnerMain {
       System.exit(2);
     }
     Files.createDirectories(workdir);
+    loadOpenCv();
     int status = 0;
     try (Socket socket = new Socket("127.0.0.1", port)) {
       socket.setTcpNoDelay(true);
@@ -83,6 +84,17 @@ public final class RunnerMain {
       status = 1;
     }
     System.exit(status); // also ends threads the team code may have left running
+  }
+
+  /**
+   * Loads the OpenCV native library named by {@code -Dftcsim.opencv.dll}, as the Robot Controller app does at start-up,
+   * so team code and the vision processors can use OpenCV Mats right away. Without it, vision is unavailable.
+   */
+  static void loadOpenCv() {
+    String dll = System.getProperty("ftcsim.opencv.dll");
+    if (dll != null && Files.exists(Path.of(dll))) {
+      System.load(Path.of(dll).toAbsolutePath().toString());
+    }
   }
 
   /** Handles messages until QUIT or end of stream. */
