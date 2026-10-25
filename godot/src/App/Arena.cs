@@ -17,7 +17,7 @@ public static class Arena
                 {
                     SkyTopColor = new Color(0.32f, 0.36f, 0.42f),
                     SkyHorizonColor = new Color(0.55f, 0.57f, 0.6f),
-                    GroundBottomColor = new Color(0.12f, 0.12f, 0.13f),
+                    GroundBottomColor = new Color(0.36f, 0.36f, 0.37f),   // grey tiles reflect light upwards (ASSUMED)
                     GroundHorizonColor = new Color(0.4f, 0.4f, 0.42f),
                 },
             },
@@ -36,6 +36,16 @@ public static class Arena
             RotationDegrees = new Vector3(-62f, 28f, 0f),
         };
         parent.AddChild(sun);
+
+        // Light bouncing up from the grey tiles: downward faces (the AprilTags under the CELLS) are not black.
+        // ASSUMED ~30 % of the key light until the arena lighting of Phase 12.
+        parent.AddChild(new DirectionalLight3D
+        {
+            Name = "FloorBounce",
+            LightEnergy = 0.35f,
+            ShadowEnabled = false,
+            RotationDegrees = new Vector3(70f, 28f, 0f),
+        });
         return (sun, env);
     }
 }

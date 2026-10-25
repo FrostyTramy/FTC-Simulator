@@ -79,6 +79,7 @@ public partial class ScenarioRunner : Node3D
                 FieldMechanisms.Apply(_field, RepoPaths.Config("field_mechanisms.yaml"), _physics,
                     System.IO.Path.Combine(RepoPaths.RepoRoot, "generated", "field", "manifest.json"));
             }
+            AprilTagDecals.Build(_field, RepoPaths.Config("field_mechanisms.yaml"));
             _step = 0;
             _targetSteps = (int)Math.Round(Num(def, "duration_s", 5.0) * Engine.PhysicsTicksPerSecond);
             _pendingActions.Clear();

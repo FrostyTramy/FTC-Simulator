@@ -61,7 +61,12 @@ public sealed record WebcamModel(
     double Cy,
     double[] Distortion,
     double Fps,
-    double Latency);
+    double Latency,
+    double OpenTime,
+    double ExposureMinMs,
+    double ExposureMaxMs,
+    double GainMin,
+    double GainMax);
 
 /// <summary>All sensor models of config/sensors.yaml (spec 09: every value with a source or ASSUMED).</summary>
 public sealed class SensorModels
@@ -112,7 +117,10 @@ public sealed class SensorModels
                 var f = YamlObjects.Doubles(YamlObjects.QuantityValue(YamlObjects.Child(m, "focal_length", p), p + ".focal_length", "px"), p);
                 var c = YamlObjects.Doubles(YamlObjects.QuantityValue(YamlObjects.Child(m, "principal_point", p), p + ".principal_point", "px"), p);
                 var d = YamlObjects.Doubles(YamlObjects.QuantityValue(YamlObjects.Child(m, "distortion", p), p + ".distortion"), p);
-                return new WebcamModel((int)res[0], (int)res[1], f[0], f[1], c[0], c[1], d, Q(m, p, "fps", "Hz"), Q(m, p, "latency", "ms") / 1000);
+                var e = YamlObjects.Doubles(YamlObjects.QuantityValue(YamlObjects.Child(m, "exposure_range", p), p + ".exposure_range", "ms"), p);
+                var g = YamlObjects.Doubles(YamlObjects.QuantityValue(YamlObjects.Child(m, "gain_range", p), p + ".gain_range", "counts"), p);
+                return new WebcamModel((int)res[0], (int)res[1], f[0], f[1], c[0], c[1], d, Q(m, p, "fps", "Hz"), Q(m, p, "latency", "ms") / 1000,
+                    Q(m, p, "open_time", "s"), e[0], e[1], g[0], g[1]);
             }),
             PodTicksPerMm = pods.Where(kv => kv.Value is IReadOnlyDictionary<string, object?> pod && pod.ContainsKey("ticks_per_mm"))
                 .ToDictionary(kv => kv.Key, kv => Q(kv.Value, "odometry_pods." + kv.Key, "ticks_per_mm", "ticks/mm")),

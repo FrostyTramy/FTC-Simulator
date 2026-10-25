@@ -80,3 +80,6 @@ webcam:
     distortion: {value: [0.1208, -0.261599, 0, 0, 0.10308, 0, 0, 0], unit: "k1 k2 p1 p2 k3 k4 k5 k6", source: "CALIB C920 640x480 (not rendered yet: pinhole camera)"}
     fps: {value: 30, unit: Hz, source: "ASSUMED: 30 fps at 640x480"}
     latency: {value: 60, unit: ms, source: "ASSUMED: capture to processor (USB transfer + decoding)"}
+    open_time: {value: 1.0, unit: s, source: "ASSUMED: USB webcam open + stream start before the first frame"}
+    exposure_range: {value: [1, 204], unit: ms, source: "ASSUMED: UVC exposure_absolute 3..2047 in 100 µs steps"}
+    gain_range: {value: [0, 255], unit: counts, source: "ASSUMED: UVC gain 0..255"}

@@ -179,3 +179,33 @@ Why we chose X over Y. Newest last. Format: ID, date, decision, why, alternative
   needs ball/foam deformation data that the resources do not contain (spec 04 allows "compression"; the numbers are
   unknown). The spec deviation is limited to this robot's ball path and can be replaced when measured.
 
+
+## D-028 — AprilTag detection runs in the simulator with the AprilTag 3 library (2026-10-25)
+- **Decision:** the real AprilTag 3 C library (BSD-2, from the pinned pupil-apriltags wheel) runs in C# (P/Invoke) on
+  the grey rendered frame, with the decimation the robot code set; detections travel with the frame to the JVM, where
+  the SDK 12 AprilTagProcessor logic (ported) solves poses with OpenCV. Spec 09 asked to "decide and document" between
+  JNI and a Java port: this keeps one native library in one process and no JNI build.
+- **Consequences:** a new decimation applies to frames captured after it is set; APRILTAG_BUILTIN pose solving is
+  approximated with OpenCV IPPE_SQUARE (logged once). The bundled apriltag_to_image is the old buggy version, so tag
+  images are drawn from the family code table.
+
+## D-029 — Sensors at driver level with device firmware in the simulator (2026-10-25)
+- **Decision:** each sensor is a C# device model (Pinpoint odometry, OTOS tracking, colour, distance, touch) that steps
+  from ground truth and exposes the values its SDK driver reads; the shim drivers keep the SDK API, units,
+  quantization (OTOS int16, Pinpoint float32) and corrupt-read checks, and send register writes back. Protocol v2/v3.
+- **Why:** register-level emulation (VL53L0X init sequences, APDS-9151 registers) would cost much and add nothing a
+  team's code can observe through the SDK classes.
+
+## D-030 — OpenCV 4.9 (openpnp packaging) for the vision API (2026-10-25)
+- **Decision:** org.openpnp:opencv:4.9.0-0 from Maven Central (SHA-256 pinned in scripts/setup_tools.ps1): the official
+  Java bindings plus the Windows x64 native library, loaded by the runner at start-up. The SDK ships OpenCV 4.10; the
+  official 4.10 Windows package is a 180 MB self-extracting exe (antivirus removed the download). Java APIs used by
+  team code are the same; a 4.10-only call would fail to compile.
+
+## D-031 — BIOBUZZ tag stickers and cluster frame (2026-10-25)
+- **Decision:** sticker print axes from the CAD part frame: right = −X, up = −Y. Evidence: the reference-hole notches of
+  the CAD sticker are on its +Y edge, 7.0 in from the centre, which is the bottom edge with the notches in the printable
+  PDFs; §9.9 p75 "bottom edge oriented towards the center of the FIELD" agrees; with this orientation the SDK cluster
+  origin (7.1874 in above the tag row, 5.622 in behind it) lands within 3-4 cm of each CELL opening's centre (SDK 12.0
+  release notes: "the Origin of each cluster is located in the center of the Cell opening"). The other orientation
+  misses by 7 cm. Tag row 0.26 in above the sticker middle (printable pages).

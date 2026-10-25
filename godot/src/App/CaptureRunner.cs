@@ -16,6 +16,9 @@ public partial class CaptureRunner : Node
     public double Seconds { get; set; } = 3;
     public bool ShowPanels { get; set; }
 
+    /// <summary>Runs after the screenshot, before the app quits (reports).</summary>
+    public System.Action? BeforeQuit { get; set; }
+
     public override void _Process(double delta)
     {
         _elapsed += delta;
@@ -33,6 +36,7 @@ public partial class CaptureRunner : Node
         System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(System.IO.Path.GetFullPath(Path))!);
         var error = image.SavePng(Path);
         GD.Print(error == Error.Ok ? $"captured {Path}" : $"capture failed: {error}");
+        BeforeQuit?.Invoke();
         GetTree().Quit(error == Error.Ok ? 0 : 1);
         SetProcess(false);
     }

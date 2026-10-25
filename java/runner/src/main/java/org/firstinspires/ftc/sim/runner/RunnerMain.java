@@ -20,6 +20,8 @@ import org.firstinspires.ftc.sim.OpModeDriver;
 import org.firstinspires.ftc.sim.SimRobot;
 import org.firstinspires.ftc.sim.SimRuntime;
 import org.firstinspires.ftc.sim.SimTelemetry;
+import org.firstinspires.ftc.sim.vision.SimFrame;
+import org.firstinspires.ftc.sim.vision.SimVision;
 
 /**
  * The OpMode runner process (spec 01, docs/ipc_protocol.md). Usage:
@@ -28,7 +30,7 @@ import org.firstinspires.ftc.sim.SimTelemetry;
  * one-time token in HELLO_ACK), answers its messages and runs one OpMode in lockstep.
  */
 public final class RunnerMain {
-  static final int PROTOCOL_VERSION = 2;
+  static final int PROTOCOL_VERSION = 3;
   static final String SDK_VERSION = "12.0.0-sim";
   static final long STUCK_WALL_MS = 5_000;
 
@@ -37,6 +39,7 @@ public final class RunnerMain {
   private final ClassLoader teamCode;
   private final String teamCodeJar;
   private final String token;
+  private final Path workDir;
   private SimRuntime runtime;
   private SimRobot robot;
   private SimTelemetry telemetry;
@@ -44,12 +47,13 @@ public final class RunnerMain {
   private long lastGamepadNanos = Long.MIN_VALUE / 2;
   private long lastEndNanos;
 
-  RunnerMain(InputStream in, OutputStream out, ClassLoader teamCode, String teamCodeJar, String token) {
+  RunnerMain(InputStream in, OutputStream out, ClassLoader teamCode, String teamCodeJar, String token, Path workDir) {
     this.in = in;
     this.out = out;
     this.teamCode = teamCode;
     this.teamCodeJar = teamCodeJar;
     this.token = token;
+    this.workDir = workDir;
   }
 
   public static void main(String[] args) throws Exception {
@@ -78,7 +82,7 @@ public final class RunnerMain {
       URL teamCodeUrl = Path.of(jar).toUri().toURL();
       URLClassLoader loader = new URLClassLoader(new URL[] {teamCodeUrl}, RunnerMain.class.getClassLoader());
       Sandbox.install(teamCodeUrl, workdir);
-      new RunnerMain(socket.getInputStream(), socket.getOutputStream(), loader, jar, token).serve();
+      new RunnerMain(socket.getInputStream(), socket.getOutputStream(), loader, jar, token, workdir).serve();
     } catch (IOException e) {
       System.err.println("runner: " + e);
       status = 1;
@@ -170,6 +174,11 @@ public final class RunnerMain {
     }
     runtime = new SimRuntime(costs);
     SimRuntime.install(runtime);
+    SimVision.get().shutdown();
+    SimVision.install(new SimVision(workDir, token.substring(0, Math.min(8, token.length()))));
+    if (workDir != null) {
+      System.setProperty("ftcsim.workdir", workDir.toString());
+    }
     robot = new SimRobot(runtime, devices, hubCount);
     telemetry = new SimTelemetry(runtime);
     driver = null;
@@ -257,8 +266,38 @@ public final class RunnerMain {
         bus.setSensorInput(name, values);
       }
     }
+    List<SimFrame> frames = new ArrayList<>();
+    int frameCount = msg.i32();
+    for (int i = 0; i < frameCount; i++) {
+      String camera = msg.str();
+      long capture = msg.i64();
+      int slot = msg.i32();
+      int width = msg.i32();
+      int height = msg.i32();
+      int detectionCount = msg.i32();
+      List<SimFrame.NativeDetection> detections = new ArrayList<>(detectionCount);
+      for (int d = 0; d < detectionCount; d++) {
+        int id = msg.i32();
+        int hamming = msg.i32();
+        float margin = msg.f32();
+        double cx = msg.f64();
+        double cy = msg.f64();
+        double[] corners = new double[8];
+        for (int c = 0; c < 8; c++) {
+          corners[c] = msg.f64();
+        }
+        detections.add(new SimFrame.NativeDetection(id, hamming, margin, cx, cy, corners));
+      }
+      frames.add(new SimFrame(camera, capture, slot, width, height, detections));
+    }
     if (bus != null) {
       bus.countTick();
+      for (SimFrame frame : frames) {
+        String error = SimVision.get().deliver(frame); // processors run before the OpMode's time in this tick
+        if (error != null) {
+          bus.log("E " + error);
+        }
+      }
     }
     int state = 5; // IDLE
     String error = null;

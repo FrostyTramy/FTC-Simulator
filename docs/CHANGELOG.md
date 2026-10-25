@@ -1,5 +1,14 @@
 # Changelog
 
+## Phase 9 (in progress) — 2026-10-25
+- Sensor models in `sim/Sim.Sensors` (config/sensors.yaml): Pinpoint firmware odometry from physical pods, OTOS optical
+  tracking, REV colour/2m distance/touch; robot variants (`base:`), `gobilda_starter_sensors`.
+- SDK shim: GoBildaPinpointDriver, SparkFunOTOS, RevColorSensorV3, Rev2mDistanceSensor, touch/digital, WebcamName,
+  Android stubs; matrices (OpenGLMatrix, MatrixF), Euler angles for all conventions, Position, Pose3D.
+- Vision: OpenCV 4.9 in the runner, VisionPortal, AprilTagProcessor (SDK 12 logic, clusters), AprilTag 3 detection in
+  the simulator, camera frames over shared memory (protocol v3), Godot webcam rendering, tag decals on the hives.
+- Tests: 23 sensor model tests, Java shim + AprilTag pipeline tests, SDK sensor and vision samples end to end.
+
 ## Phases 4-8 (in progress) — 2026-10-25
 - Godot robot: rigid chassis on raycast wheel suspension driven by the shared RobotPowertrain; robot scenarios
   (settle, drive, intake pickup, launch); field surface = tile top.

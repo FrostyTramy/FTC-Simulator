@@ -115,6 +115,13 @@ public sealed record MotorInput(string Key, int Position, double Velocity, doubl
 /// <summary>What the robot code can read from one sensor (layout per device type, see Sim.Sensors).</summary>
 public sealed record SensorInput(string Name, double[] Values);
 
+/// <summary>
+/// A camera frame handed to the robot code in this TICK: pixels in the camera's shared-memory slot
+/// (<see cref="CameraFrameStore"/>), capture time, and the AprilTag 3 detections when the robot code asked for them.
+/// </summary>
+public sealed record CameraFrameInput(string Camera, long CaptureNanos, int Slot, int Width, int Height,
+    IReadOnlyList<Sim.Sensors.TagDetection>? Detections);
+
 /// <summary>A write of the robot code to a sensor (e.g. a Pinpoint register), applied in the next step.</summary>
 public sealed record SensorCommand(string Name, string Command, double[] Args);
 
@@ -130,7 +137,8 @@ public sealed record TickInput(
     Quat ImuOrientation,
     Vec3d ImuAngularVelocity,
     IReadOnlyList<MotorInput> Motors,
-    IReadOnlyList<SensorInput>? Sensors = null);
+    IReadOnlyList<SensorInput>? Sensors = null,
+    IReadOnlyList<CameraFrameInput>? Frames = null);
 
 /// <summary>Raw command of one motor port after the SDK applied directions (DeviceBus.MotorCommand).</summary>
 /// <param name="VelocityPidf">Null = firmware default.</param>

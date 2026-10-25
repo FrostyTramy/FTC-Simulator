@@ -18,6 +18,7 @@ public sealed class RunnerBridge
 
     private readonly RobotHardware _hardware;
     private readonly SensorSuite? _sensors;
+    private CameraFrameStore? _frames;
     private readonly HubControllerSpec _hub;
     private readonly HubDef _imuHub;
     private readonly Quat _imuMount;
@@ -57,23 +58,10 @@ public sealed class RunnerBridge
         foreach (var s in _hardware.Robot.Sensors)
         {
             var type = s.Type == "touch" && s.SdkClass == "DigitalChannel" ? "digital" : s.Type;
-            var parameters = _sensors?.Device(s.Name)?.Parameters ?? WebcamParameters(s);
+            var parameters = _sensors?.Device(s.Name)?.Parameters;
             devices.Add(new RunnerDevice(s.Name, type, _hardware.Robot.HubIndex(s.Hub), s.Port, Params: parameters));
         }
         return devices;
-    }
-
-    /// <summary>A webcam's model as the shim needs it: resolution and the built-in calibration (config/sensors.yaml).</summary>
-    private IReadOnlyDictionary<string, double>? WebcamParameters(SensorDef s)
-    {
-        if (s.Type != "webcam" || _sensors is null || !_sensors.Models.Webcams.TryGetValue(s.Model, out var w))
-        {
-            return null;
-        }
-        return new Dictionary<string, double>
-        {
-            ["width"] = w.Width, ["height"] = w.Height, ["fx"] = w.Fx, ["fy"] = w.Fy, ["cx"] = w.Cx, ["cy"] = w.Cy, ["fps"] = w.Fps,
-        };
     }
 
     /// <summary>Every sensor's readable values for TICK.</summary>
@@ -82,6 +70,42 @@ public sealed class RunnerBridge
 
     /// <summary>A new runner session (fresh JVM, counters start over). Hub state such as encoder counts persists, as on a real robot.</summary>
     public void BeginSession() => _resetCounts.Clear();
+
+    /// <summary>Camera frames go to this runner session's files; call once per runner JVM.</summary>
+    public void AttachFrames(RunnerSession session)
+    {
+        _frames?.Dispose();
+        _frames = new CameraFrameStore(session.WorkDir, session.FrameTag);
+    }
+
+    /// <summary>The runner session ended: release and delete its frame files.</summary>
+    public void DetachFrames()
+    {
+        _frames?.Dispose();
+        _frames = null;
+    }
+
+    /// <summary>
+    /// Camera frames that reach the robot code by <paramref name="inputNanos"/> (the time the TICK's inputs describe),
+    /// copied to shared memory for the runner.
+    /// </summary>
+    public IReadOnlyList<CameraFrameInput> FrameInputs(long inputNanos)
+    {
+        if (_sensors is null || _frames is null)
+        {
+            return [];
+        }
+        var inputs = new List<CameraFrameInput>();
+        foreach (var camera in _sensors.Webcams)
+        {
+            foreach (var f in camera.TakeDue(inputNanos))
+            {
+                var slot = _frames.Write(camera.Index, f.Rgba, f.Width, f.Height);
+                inputs.Add(new CameraFrameInput(f.Camera, f.CaptureNanos, slot, f.Width, f.Height, f.Detections));
+            }
+        }
+        return inputs;
+    }
 
     /// <summary>
     /// Motor inputs as a bulk read reports them: int32 encoder counts, velocity as int16 counts/s (SDK 12.0.0

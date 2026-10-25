@@ -15,12 +15,13 @@ and questions go to `docs/open_questions.md`.
 | 6 Java runner + SDK shim + DS | ✅ runner, IPC, sandbox, determinism, Driver Station logic + panel; example TeleOp = direct drive within 7 mm; Auto runs |
 | 7 Code editor | 🔧 editor panel (F4): tree, tabs, highlighting, JDT LS completion + diagnostics (tested), templates, F5 build (2 s) + runner restart. Needs: the 1-minute hands-on acceptance |
 | 8 GitHub sync | 🔧 git CLI client (status, diff, stage, commit, push, pull, branches, conflicts; safety warnings), git panel (F6), clone/init, device-flow sign-in + Credential Manager. Sign-in needs your OAuth client ID (Q-010) |
-| 9 Sensors & vision | not started |
+| 9 Sensors & vision | 🔧 Pinpoint, OTOS, colour, distance, touch models + SDK drivers (samples SensorGoBildaPinpoint, SensorSparkFunOTOS, SensorREV2mDistance, SensorColor run unchanged); webcams rendered in Godot (C920 intrinsics, auto exposure), AprilTag 3 detection, SDK 12 VisionPortal/AprilTagProcessor on OpenCV; tags on the CELL stickers. Acceptance: unchanged ConceptAprilTag reports cluster poses within 0.10-0.71 in of ground truth at 4 poses (`tools/checks/vision_acceptance.py`; BIOBUZZ clusters do not give field poses, Q-011). Open: Limelight, fault injection, DS camera preview, lens distortion |
 | 10–17 | not started |
 
 ## How to run
 - App: `Godot_v4.7.2-stable_mono_win64\Godot_v4.7.2-stable_mono_win64.exe --path godot` (`-- --project DIR` for a
   team repository, default `workspace/starter` = copy of the example TeamCode).
+- Sensor robot + OpMode check: `-- --robot gobilda_starter_sensors --robot-pose X,Z,YAW --opmode "Concept: AprilTag"`.
 - Keys: F4 code editor, F5 build + run on the robot, F6 git, 1-4 camera views, RMB look, WASD/QE camera, LMB drag
   element, P/N spawn pollen/nectar; gamepad Start+A = gamepad1 (keyboard gamepad if none: arrows, Z/X, C/V, Space).
 - Tests: `scripts/test_unit.ps1` (Python, Java, C#), `scripts/godot_test.ps1` (Godot scenarios).

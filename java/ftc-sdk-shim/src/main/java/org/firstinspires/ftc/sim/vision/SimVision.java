@@ -21,14 +21,15 @@ import java.util.concurrent.TimeoutException;
  * The cameras of the running session (spec 09 "Robot cameras"). The runner hands every frame of a TICK to
  * {@link #deliver} before the OpMode runs that tick; the portal of that camera runs its processors on the vision thread
  * while the OpMode thread is parked, so results appear at the same tick in every run (determinism). Pixels come from
- * the camera's shared-memory file {@code <workdir>/camera-<index>.bin}, written by the simulator.
+ * the camera's shared-memory file {@code <workdir>/camera-<index>-<tag>.bin}, written by the simulator.
  */
 public final class SimVision {
   public static final long PROCESSOR_TIMEOUT_MS = 5_000;
-  private static volatile SimVision current = new SimVision(null);
+  private static volatile SimVision current = new SimVision(null, "");
   private static final ThreadLocal<SimFrame> PROCESSING = new ThreadLocal<>();
 
   private final Path workDir;
+  private final String tag;
   private final Map<String, SimVisionPortal> portals = new HashMap<>();
   private final Map<Integer, MappedByteBuffer> buffers = new HashMap<>();
   private final ExecutorService worker = Executors.newSingleThreadExecutor(r -> {
@@ -37,8 +38,10 @@ public final class SimVision {
     return t;
   });
 
-  public SimVision(Path workDir) {
+  /** {@code tag} names the session's frame files: {@code camera-<index>-<tag>.bin}. */
+  public SimVision(Path workDir, String tag) {
     this.workDir = workDir;
+    this.tag = tag;
   }
 
   public static SimVision get() {
@@ -127,7 +130,7 @@ public final class SimVision {
     if (workDir == null) {
       throw new IllegalStateException("no camera frames outside a runner session");
     }
-    Path file = workDir.resolve("camera-" + index + ".bin");
+    Path file = workDir.resolve("camera-" + index + "-" + tag + ".bin");
     try (FileChannel channel = FileChannel.open(file, StandardOpenOption.READ)) {
       return channel.map(FileChannel.MapMode.READ_ONLY, 0, Files.size(file));
     } catch (IOException e) {

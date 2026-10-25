@@ -8,6 +8,7 @@ namespace Sim.App;
 /// godot --path godot -- [--layout field|synthetic|res://...] [--quality low|medium]
 ///                       [--screenshot DIR] [--run-scenarios [FILTER]] [--seconds N]
 ///                       [--no-robot] [--teamcode JAR] [--project DIR]
+///                       [--robot NAME] [--robot-pose X,Z,YAW_DEG] [--opmode NAME]
 ///                       [--capture PNG [--capture-seconds N] [--capture-panels]]
 /// </code></summary>
 public sealed class CommandLine
@@ -23,6 +24,15 @@ public sealed class CommandLine
 
     /// <summary>Compiled TeamCode for the runner (default: the example built by java/build-adapter).</summary>
     public string? TeamCodeJar { get; private set; }
+
+    /// <summary>Robot to spawn (config/robots/NAME.yaml).</summary>
+    public string Robot { get; private set; } = "gobilda_starter";
+
+    /// <summary>Robot start on the field: x, z (m) and heading (deg, counter-clockwise seen from above); null = default.</summary>
+    public (float X, float Z, float YawDeg)? RobotPose { get; private set; }
+
+    /// <summary>OpMode the scripted Driver Station INITs and starts (checks, see VisionCheck).</summary>
+    public string? OpMode { get; private set; }
 
     /// <summary>Team project folder (contains TeamCode/src/main/java), e.g. a cloned FtcRobotController repository.</summary>
     public string? Project { get; private set; }
@@ -64,6 +74,20 @@ public sealed class CommandLine
                     break;
                 case "--teamcode" when next != null:
                     cl.TeamCodeJar = next;
+                    i++;
+                    break;
+                case "--robot" when next != null:
+                    cl.Robot = next;
+                    i++;
+                    break;
+                case "--robot-pose" when next != null:
+                    var p = next.Split(',');
+                    cl.RobotPose = (float.Parse(p[0], CultureInfo.InvariantCulture), float.Parse(p[1], CultureInfo.InvariantCulture),
+                        float.Parse(p[2], CultureInfo.InvariantCulture));
+                    i++;
+                    break;
+                case "--opmode" when next != null:
+                    cl.OpMode = next;
                     i++;
                     break;
                 case "--project" when next != null:

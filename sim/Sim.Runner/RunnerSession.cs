@@ -36,7 +36,7 @@ public sealed record RunnerLaunch(string JavaExe, string ShimJar, string RunnerJ
 /// </summary>
 public sealed class RunnerSession : IDisposable
 {
-    public const int ProtocolVersion = 2;
+    public const int ProtocolVersion = 3;
     private const int ConsoleLimit = 1000;
 
     private readonly Process _process;
@@ -55,6 +55,12 @@ public sealed class RunnerSession : IDisposable
     }
 
     public string SdkVersion { get; }
+
+    /// <summary>The runner's work folder (camera frame files live here).</summary>
+    public required string WorkDir { get; init; }
+
+    /// <summary>Names this session's camera frame files (the first 8 characters of the one-time token).</summary>
+    public required string FrameTag { get; init; }
 
     /// <summary>The JVM has exited (crash, System.exit blocked or not, killed).</summary>
     public bool HasExited => _process.HasExited;
@@ -149,7 +155,7 @@ public sealed class RunnerSession : IDisposable
                 client.Dispose();
                 throw new RunnerException($"runner protocol {version}, simulator protocol {ProtocolVersion}");
             }
-            return new RunnerSession(process, client, sdk, console);
+            return new RunnerSession(process, client, sdk, console) { WorkDir = launch.WorkDir, FrameTag = token[..8] };
         }
         catch
         {
@@ -241,6 +247,22 @@ public sealed class RunnerSession : IDisposable
             foreach (var v in s.Values)
             {
                 w.F64(v);
+            }
+        }
+        var frames = input.Frames ?? [];
+        w.I32(frames.Count);
+        foreach (var f in frames)
+        {
+            w.Str(f.Camera).I64(f.CaptureNanos).I32(f.Slot).I32(f.Width).I32(f.Height);
+            var detections = f.Detections ?? [];
+            w.I32(detections.Count);
+            foreach (var d in detections)
+            {
+                w.I32(d.Id).I32(d.Hamming).F32(d.DecisionMargin).F64(d.Center.X).F64(d.Center.Y);
+                foreach (var (x, y) in d.Corners)
+                {
+                    w.F64(x).F64(y);
+                }
             }
         }
         Send(w);

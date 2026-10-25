@@ -80,6 +80,10 @@ public partial class RobotBody : RigidBody3D
     public SensorSuite Sensors { get; private set; } = null!;
 
     private GodotSensorWorld _sensorWorld = null!;
+    private readonly List<WebcamRig> _webcams = new();
+
+    /// <summary>The robot's rendered webcams.</summary>
+    public IReadOnlyList<WebcamRig> Webcams => _webcams;
     public RobotDefinition Definition { get; private set; } = null!;
     public HardwareConfig HardwareConfig { get; private set; } = null!;
     public IRobotDriver? Driver { get; set; }
@@ -148,6 +152,10 @@ public partial class RobotBody : RigidBody3D
         robot._ballPath = definition.BallPath is { } path ? new GuidedBallPath(path) : null;
         robot.Sensors = new SensorSuite(definition, SensorModels.Load(RepoPaths.Config("sensors.yaml")), sensorSeed);
         robot._sensorWorld = new GodotSensorWorld(robot);
+        foreach (var webcam in robot.Sensors.Webcams)
+        {
+            robot._webcams.Add(WebcamRig.Create(robot, webcam));
+        }
         return robot;
     }
 
@@ -341,6 +349,10 @@ public partial class RobotBody : RigidBody3D
     {
         var ts = TickProfiler.Start();
         Sensors.Step(_sensorWorld, _tick / (double)Engine.PhysicsTicksPerSecond, delta);   // state after the last step
+        foreach (var webcam in _webcams)
+        {
+            webcam.CaptureIfDue(_tick * 1_000_000_000L / Engine.PhysicsTicksPerSecond);
+        }
         TickProfiler.Stop("sensors", ts);
         var t0 = TickProfiler.Start();
         Driver?.BeforeStep(this, _tick);

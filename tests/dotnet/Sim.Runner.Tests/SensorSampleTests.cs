@@ -14,6 +14,9 @@ namespace RunnerTests;
 [Collection("runner")]
 public class SensorSampleTests
 {
+    /// <summary>The SDK samples (tests/compat/sdk_samples) compiled against the shim, built once per test run.</summary>
+    internal static string SamplesJarPath() => SamplesJar.Value;
+
     private static readonly Lazy<string> SamplesJar = new(() =>
     {
         var src = RepoPaths.Find(Path.Combine("tests", "compat", "sdk_samples", "TeamCode", "src", "main", "java"));
@@ -120,6 +123,9 @@ internal sealed class SensorRobot : IDisposable
     public RobotHardware Hardware { get; }
     public long Tick { get; private set; }
 
+    /// <summary>Draws a webcam's picture (RGBA, model size) when a capture is due; null = no camera images.</summary>
+    public Func<WebcamDevice, byte[]>? Renderer { get; set; }
+
     public static SensorRobot Start(string teamCodeJar)
     {
         var definition = RobotDefinition.Load(RobotDefinition.FindConfig("gobilda_starter_sensors"));
@@ -127,6 +133,7 @@ internal sealed class SensorRobot : IDisposable
         var sensors = new SensorSuite(definition, SensorModels.Load(), 2026);
         var bridge = new RunnerBridge(sim.Hardware, RobotUnderCode.Hardware.HubController, sensors);
         var session = RunnerSession.Start(RunnerLaunch.ForTeamCode(teamCodeJar));
+        bridge.AttachFrames(session);
         return new SensorRobot(session, bridge, sensors, new ScriptedWorld(), sim.Hardware);
     }
 
@@ -141,10 +148,18 @@ internal sealed class SensorRobot : IDisposable
     public TickResult Step()
     {
         var endNanos = RobotUnderCode.EndNanos(Tick);
+        var inputNanos = Tick * 1_000_000_000L / RobotUnderCode.TickRate;
         var input = new TickInput(Tick, endNanos, GamepadState.Neutral, GamepadState.Neutral, 12.5, Quat.Identity, new Vec3d(0, 0, 0),
-            Bridge.Inputs(), Bridge.SensorInputs());
+            Bridge.Inputs(), Bridge.SensorInputs(), Bridge.FrameInputs(inputNanos));
         var result = Session.Tick(input);
         Sensors.Step(World, endNanos / 1e9, 1.0 / RobotUnderCode.TickRate);
+        foreach (var camera in Sensors.Webcams.Where(c => c.CaptureDue))
+        {
+            if (Renderer?.Invoke(camera) is { } rgba)
+            {
+                camera.Deliver(rgba, camera.Model.Width, camera.Model.Height, endNanos);
+            }
+        }
         Bridge.Apply(result, endNanos);
         Tick++;
         return result;
@@ -177,7 +192,11 @@ internal sealed class SensorRobot : IDisposable
         return last!;
     }
 
-    public void Dispose() => Session.Dispose();
+    public void Dispose()
+    {
+        Session.Dispose();
+        Bridge.DetachFrames();
+    }
 }
 
 /// <summary>A scripted robot pose on an empty floor with optional planes (walls, targets).</summary>

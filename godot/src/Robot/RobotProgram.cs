@@ -49,6 +49,7 @@ public sealed class RobotProgram : IRobotDriver, IRobotLink, IDisposable
         try
         {
             _session = RunnerSession.Start(RunnerLaunch.ForTeamCode(TeamCodeJar));
+            _bridge.AttachFrames(_session);
             Ds.SetOpModes(_session.ListOpModes());
             Status = $"connected (SDK {_session.SdkVersion}), {Ds.TeleOps.Count} TeleOp, {Ds.Autonomous.Count} Autonomous";
         }
@@ -108,7 +109,8 @@ public sealed class RobotProgram : IRobotDriver, IRobotLink, IDisposable
         }
         var (orientation, rate) = _bridge.Imu(RobotOrientation(robot), RobotAngularVelocity(robot));
         var input = new TickInput(tick, EndNanos(tick), _input.Gamepad1, _input.Gamepad2, robot.Powertrain.Battery.BusVolts,
-            orientation, rate, _bridge.Inputs(), _bridge.SensorInputs());
+            orientation, rate, _bridge.Inputs(), _bridge.SensorInputs(),
+            _bridge.FrameInputs(tick * 1_000_000_000L / Engine.PhysicsTicksPerSecond));
         try
         {
             _pending = _session.Tick(input);
@@ -144,6 +146,7 @@ public sealed class RobotProgram : IRobotDriver, IRobotLink, IDisposable
     {
         _session?.Dispose();
         _session = null;
+        _bridge.DetachFrames();
     }
 
     private void Guard(Action<RunnerSession> action)

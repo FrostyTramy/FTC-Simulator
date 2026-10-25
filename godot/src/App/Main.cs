@@ -13,6 +13,7 @@ public partial class Main : Node3D
     private static readonly Vector3 PracticeStart = new(-1.3f, 0f, 1.05f);
 
     private RobotProgram? _program;
+    private VisionCheck? _visionCheck;
 
     public override void _Ready()
     {
@@ -43,6 +44,7 @@ public partial class Main : Node3D
             FieldMechanisms.Apply(field, RepoPaths.Config("field_mechanisms.yaml"), physics,
                 System.IO.Path.Combine(RepoPaths.RepoRoot, "generated", "field", "manifest.json"));
         }
+        AprilTagDecals.Build(field, RepoPaths.Config("field_mechanisms.yaml"));
         if (physics.AssumedValues.Count > 0)
         {
             GD.Print("ASSUMED physics values: " + string.Join(", ", physics.AssumedValues));
@@ -64,8 +66,10 @@ public partial class Main : Node3D
         {
             var input = new GamepadInput { Name = "GamepadInput" };
             AddChild(input);
-            var pose = new Transform3D(new Basis(Vector3.Up, -Mathf.Pi / 2), PracticeStart + new Vector3(0, field.TileTopY, 0));
-            var robot = RobotBody.Spawn(this, "gobilda_starter", pose, physics);
+            var pose = args.RobotPose is { } rp
+                ? new Transform3D(new Basis(Vector3.Up, Mathf.DegToRad(rp.YawDeg)), new Vector3(rp.X, field.TileTopY, rp.Z))
+                : new Transform3D(new Basis(Vector3.Up, -Mathf.Pi / 2), PracticeStart + new Vector3(0, field.TileTopY, 0));
+            var robot = RobotBody.Spawn(this, args.Robot, pose, physics);
             robot.Elements = field.Elements;
             var jar = args.TeamCodeJar ?? System.IO.Path.Combine(RepoPaths.RepoRoot, "java", "build-adapter", "build", "libs", "teamcode.jar");
             _program = new RobotProgram(robot, input, jar);
@@ -105,11 +109,22 @@ public partial class Main : Node3D
             var tools = System.IO.Path.Combine(RepoPaths.RepoRoot, "workspace", ".ftcsim", System.IO.Path.GetFileName(project));
             layer.AddChild(new Sim.EditorUi.CodePanel(program, project, tools) { Name = "CodeEditor" });
             layer.AddChild(new Sim.EditorUi.GitPanel(project) { Name = "Git" });
+            if (args.OpMode != null)
+            {
+                _visionCheck = new VisionCheck { Name = "VisionCheck", Program = program, Robot = robot, OpMode = args.OpMode };
+                AddChild(_visionCheck);
+            }
         }
 
         if (args.CapturePath != null)
         {
-            AddChild(new CaptureRunner { Path = args.CapturePath, Seconds = args.CaptureSeconds, ShowPanels = args.CapturePanels });
+            var check = _visionCheck;
+            var capturePath = args.CapturePath;
+            AddChild(new CaptureRunner
+            {
+                Path = args.CapturePath, Seconds = args.CaptureSeconds, ShowPanels = args.CapturePanels,
+                BeforeQuit = () => check?.Report(capturePath),
+            });
         }
 
         if (args.ScreenshotDir != null)
