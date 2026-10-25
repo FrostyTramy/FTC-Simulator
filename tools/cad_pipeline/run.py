@@ -87,8 +87,9 @@ def rule_value(rules: dict, dotted: str) -> Any:
 
 
 class MaterialMatcher:
-    def __init__(self, cfg: dict):
+    def __init__(self, cfg: dict, default: str = "unknown"):
         self.materials = cfg["materials"]
+        self.default = default if default in self.materials else "unknown"
         self.rules = [
             (
                 re.compile(r["match"]["name_regex"]) if "name_regex" in r["match"] else None,
@@ -104,7 +105,7 @@ class MaterialMatcher:
                 return material
             if rgb is not None and color is not None and np.all(np.abs(np.array(color) - rgb) < 0.02):
                 return material
-        return "unknown"
+        return self.default
 
 
 def extract_source(cfg: dict, cache: Path, source_root: Path = REPO_ROOT) -> Path:
@@ -162,7 +163,8 @@ class Pipeline:
             d.mkdir(parents=True, exist_ok=True)
         self.rules = load_yaml(REPO_ROOT / "config" / "rules_biobuzz.yaml")
         self.materials_cfg = load_yaml(REPO_ROOT / "config" / "materials.yaml")
-        self.matcher = MaterialMatcher(self.materials_cfg)
+        # default_material (per CAD file): what unmatched parts get; "unknown" (magenta) makes them stand out.
+        self.matcher = MaterialMatcher(self.materials_cfg, self.cfg.get("default_material", "unknown"))
         coll_cfg = dict(self.cfg.get("colliders", {}))
         self.collider_rules = [(re.compile(r["regex"]), r) for r in coll_cfg.pop("rules", [])]
         coll_cfg.pop("default", None)

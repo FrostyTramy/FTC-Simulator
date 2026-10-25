@@ -62,10 +62,11 @@ public partial class CodePanel : PanelContainer
     {
         Visible = false;
         AnchorBottom = 1;
-        AnchorRight = 0.55f;
+        AnchorRight = 0.66f;
         OffsetLeft = 8;
         OffsetTop = 120;
         OffsetBottom = -8;
+        AddThemeStyleboxOverride("panel", new StyleBoxFlat { BgColor = new Color(0.11f, 0.12f, 0.14f, 0.98f) });
         var root = new VBoxContainer();
         AddChild(root);
 
@@ -81,12 +82,12 @@ public partial class CodePanel : PanelContainer
         bar.AddChild(Button("Create", CreateFromTemplate));
         bar.AddChild(Button("Save (Ctrl+S)", () => Save(_current)));
         bar.AddChild(Button("▶ Run on robot (F5)", Run));
-        _status = new Label { SizeFlagsHorizontal = SizeFlags.ExpandFill, ClipText = true };
-        bar.AddChild(_status);
         root.AddChild(bar);
+        _status = new Label { ClipText = true };
+        root.AddChild(_status);
 
         var split = new HSplitContainer { SizeFlagsVertical = SizeFlags.ExpandFill, SplitOffset = 200 };
-        _tree = new Tree { HideRoot = true, CustomMinimumSize = new Vector2(180, 0) };
+        _tree = new Tree { HideRoot = true, CustomMinimumSize = new Vector2(190, 0) };
         _tree.ItemActivated += () =>
         {
             if (_tree.GetSelected()?.GetMetadata(0).AsString() is { Length: > 0 } path)
@@ -140,6 +141,11 @@ public partial class CodePanel : PanelContainer
             if (Visible)
             {
                 StartServer();
+                if (_open.Count == 0 && Directory.Exists(_javaDir)
+                    && Directory.GetFiles(_javaDir, "*.java", SearchOption.AllDirectories).OrderBy(f => f, StringComparer.OrdinalIgnoreCase).FirstOrDefault() is { } first)
+                {
+                    OpenPath(first);
+                }
                 _code.GrabFocus();
             }
             else

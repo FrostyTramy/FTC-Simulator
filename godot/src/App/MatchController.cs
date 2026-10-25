@@ -33,6 +33,8 @@ public partial class MatchController : Node
     private readonly GameRules _rules;
     private readonly FieldGeometry _geometry;
     private readonly double _controlSeconds;
+    private readonly PhysicsConfig _physics;
+    private readonly Dictionary<string, double> _radii = new();
     private int _seenEvents;
     private long _tick;
 
@@ -43,6 +45,7 @@ public partial class MatchController : Node
         _rules = GameRules.Load(RepoPaths.Config("rules_biobuzz.yaml"));
         _geometry = FieldGeometry.Load(RepoPaths.Config("field_mechanisms.yaml"));
         _controlSeconds = physics.ControlSupportSeconds();
+        _physics = physics;
         Director = NewDirector();
     }
 
@@ -74,9 +77,18 @@ public partial class MatchController : Node
 
     public override void _PhysicsProcess(double delta)
     {
+        var t0 = TickProfiler.Start();
         Snapshot = Build(_tick);
+        TickProfiler.Stop("snapshot", t0);
+        var t1 = TickProfiler.Start();
         Director.Step(Snapshot);
-        Live = Director.LiveScore(Snapshot);
+        TickProfiler.Stop("rules", t1);
+        if (_tick % 24 == 0 || Director.FinalScore != null)   // the display needs 10 Hz, not 240 Hz
+        {
+            var t2 = TickProfiler.Start();
+            Live = Director.LiveScore(Snapshot);
+            TickProfiler.Stop("score", t2);
+        }
         var events = Director.Log.Events;
         for (; _seenEvents < events.Count; _seenEvents++)
         {
@@ -117,7 +129,10 @@ public partial class MatchController : Node
                 _ids[body] = id;
             }
             var p = body.GlobalPosition;
-            var radius = body.GetChildren().OfType<CollisionShape3D>().Select(s => s.Shape).OfType<SphereShape3D>().FirstOrDefault()?.Radius ?? 0.036f;
+            if (!_radii.TryGetValue(e.Group, out var radius))
+            {
+                radius = _radii[e.Group] = _physics.Element(e.Group).RadiusM;   // physics.yaml elements.*.radius
+            }
             int? controller = null;
             var lifted = p.Y - ground - radius > 0.005f;
             var holder = lifted ? _robots.FirstOrDefault(r => footprints[r.Id].Contains(new Vec2(p.X, p.Z))) : null;

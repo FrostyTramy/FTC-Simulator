@@ -331,7 +331,10 @@ public partial class RobotBody : RigidBody3D
 
     public override void _PhysicsProcess(double delta)
     {
+        var t0 = TickProfiler.Start();
         Driver?.BeforeStep(this, _tick);
+        TickProfiler.Stop("driver", t0);
+        var t1 = TickProfiler.Start();
         if (FieldDisabled)
         {
             foreach (var m in Powertrain.Hardware.Motors)
@@ -356,7 +359,10 @@ public partial class RobotBody : RigidBody3D
             ApplyForce(force, basis * new Vector3((float)f.Point.X, 0, (float)f.Point.Z));
         }
         MovePaddles(delta);
+        TickProfiler.Stop("robot", t1);
+        var t2 = TickProfiler.Start();
         Driver?.AfterStep(this, _tick);
+        TickProfiler.Stop("driver-after", t2);
         _tick++;
     }
 

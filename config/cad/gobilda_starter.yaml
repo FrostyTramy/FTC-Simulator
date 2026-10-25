@@ -13,6 +13,9 @@ drop:
 # Moving parts become separate bodies (joints and drives: config/robots/gobilda_starter.yaml).
 # Wheel ↔ CAD assembly mapping from the robot YAML (drivetrain.wheels[].cad_assembly).
 default_group: {name: chassis, kind: rigid}
+# goBILDA parts carry their real colours in the STEP: unmatched robot parts use them (config/materials.yaml rules
+# still give metals their metallic look).
+default_material: plastic_cad_color
 groups:
   - {name: wheel_fl, kind: rigid, path_regex: "/3625-0100-0104#0(/|$)"}
   - {name: wheel_fr, kind: rigid, path_regex: "/3625-0001-0104#0(/|$)"}

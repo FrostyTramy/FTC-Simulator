@@ -1,5 +1,17 @@
 # Changelog
 
+## Phases 4-8 (in progress) — 2026-10-25
+- Godot robot: rigid chassis on raycast wheel suspension driven by the shared RobotPowertrain; robot scenarios
+  (settle, drive, intake pickup, launch); field surface = tile top.
+- Guided element path (D-027) for intake, hopper, feeder and flywheel launch with physical RPM drop; compliant
+  contacts for sweepers; kinematic windmill paddles; CAD config fixes (hood collider, front bar group).
+- Hive hinges active in the app (hive tips with pollen); MatchController (WorldSnapshot → rules engine, field
+  control), scoreboard, practice tools, Driver Station panel, gamepads (Start+A/B, keyboard fallback).
+- Code editor (F4): JDT LS 1.62 integration (completion, diagnostics), templates, F5 build in ~2 s + runner
+  restart; per-project build folder.
+- Git (F6): git CLI client with safety confirmations, clone/init, device-flow sign-in, Credential Manager.
+
+
 ## Phase 6 (in progress) — 2026-10-25
 - OpMode runner JVM (`java/runner`): protocol v1 (`docs/ipc_protocol.md`), OpMode discovery like the
   DS, one-time connection token, security-policy sandbox (9 JUnit tests with a probe jar).

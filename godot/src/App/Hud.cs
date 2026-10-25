@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using Godot;
 
 namespace Sim.App;
@@ -62,8 +63,23 @@ public partial class Hud : CanvasLayer
         var cam = _camera?.GlobalPosition ?? Vector3.Zero;
         _label.Text = string.Format(
             CultureInfo.InvariantCulture,
-            "{0:F0} fps   draw calls {1}   primitives {2:N0}   objects {3}\nphysics {4:F2} ms/frame   camera ({5:F2}, {6:F2}, {7:F2})\n1-4 views, RMB look, WASD/QE move, Shift fast, wheel speed · LMB drag element, P/N spawn pollen/nectar\nkeyboard gamepad: arrows drive, Z/X turn, C/V intake, Space launch · F4 code editor, F5 run code, F6 git{8}",
+            "{0:F0} fps · {1} draw calls · {2:N0} prims\nphysics {4:F2} ms/frame · objects {3}\ncamera ({5:F2}, {6:F2}, {7:F2})\n" +
+            "1-4 views · RMB look · WASD/QE · Shift\nLMB drag element · P/N spawn\n" +
+            "gamepad Start+A · keyboard: arrows,\nZ/X turn, C/V intake, Space launch\nF4 code · F5 run · F6 git{8}",
             s.Fps, s.DrawCalls, s.Primitives, s.Objects, s.PhysicsMs, cam.X, cam.Y, cam.Z,
-            Message.Length > 0 ? "\n" + Message : "");
+            (Message.Length > 0 ? "\n" + Message : "") + "\nms/tick: " + _profile);
+        _profileAccum += 0.25;
+        if (_profileAccum >= 1)
+        {
+            _profileAccum = 0;
+            _profile = TickProfiler.TakeSummary();
+            if (OS.GetCmdlineUserArgs().Contains("--capture"))
+            {
+                GD.Print("profile ms/tick: " + _profile + $" | fps {s.Fps:F0} physics {s.PhysicsMs:F2} ms/frame prims {s.Primitives}");
+            }
+        }
     }
+
+    private string _profile = "";
+    private double _profileAccum;
 }

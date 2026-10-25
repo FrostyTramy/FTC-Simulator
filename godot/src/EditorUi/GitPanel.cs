@@ -42,10 +42,11 @@ public partial class GitPanel : PanelContainer
     {
         Visible = false;
         AnchorBottom = 1;
-        AnchorRight = 0.55f;
+        AnchorRight = 0.66f;
         OffsetLeft = 8;
         OffsetTop = 120;
         OffsetBottom = -8;
+        AddThemeStyleboxOverride("panel", new StyleBoxFlat { BgColor = new Color(0.11f, 0.12f, 0.14f, 0.98f) });
         var token = CredentialStore.Load(CredentialStore.GitHubTarget)?.Secret;
         _git = new GitClient(_repository, token);
 
