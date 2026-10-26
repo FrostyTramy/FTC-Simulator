@@ -58,6 +58,9 @@ public partial class ScenarioRunner : Node3D
         StartNext();
     }
 
+    /// <summary>The current scenario runs on stand-in assets (no CAD pipeline output).</summary>
+    private bool _standIn;
+
     private void StartNext()
     {
         while (_queue.Count > 0)
@@ -70,6 +73,14 @@ public partial class ScenarioRunner : Node3D
                 Record(name, "SKIP", new List<string> { $"layout {layoutPath} not generated" }, 0);
                 continue;
             }
+            // Scenarios that measure the CAD's shapes (hive tipping, intake geometry) need the pipeline output; the
+            // stand-in assets (tools/standin) only stand in for match flow, rules and code.
+            _standIn = RepoPaths.IsStandIn(layoutPath);
+            if (_standIn && Str(def, "requires_cad", "false") == "true")
+            {
+                Record(name, "SKIP", new List<string> { "needs the CAD pipeline output (stand-in assets loaded)" }, 0);
+                continue;
+            }
             _current = def;
             _currentFile = file;
             _field = FieldLoader.Load(this, layoutPath, _physics);
@@ -77,7 +88,7 @@ public partial class ScenarioRunner : Node3D
             {
                 // Hive hinges, dampers and tip detection (config/field_mechanisms.yaml joints, Phase 4).
                 FieldMechanisms.Apply(_field, RepoPaths.Config("field_mechanisms.yaml"), _physics,
-                    System.IO.Path.Combine(RepoPaths.RepoRoot, "generated", "field", "manifest.json"));
+                    RepoPaths.FieldManifest(layoutPath));
             }
             AprilTagDecals.Build(_field, RepoPaths.Config("field_mechanisms.yaml"));
             _step = 0;
@@ -393,6 +404,23 @@ public partial class ScenarioRunner : Node3D
                 var max = Vec(c, "max");
                 return (Inside(p, min, max), $"robot at {p} inside [{min} .. {max}]");
             }
+            case "arm_lowest_point":
+            {
+                // Lowest collider point of a robot CAD group (an arm), height above the tile top, m.
+                if (_robot == null)
+                {
+                    return (false, "no robot in this scenario");
+                }
+                var group = Str(c, "group", "");
+                if (_robot.LowestPoint(group) is not { } low)
+                {
+                    return (false, $"robot has no collider group '{group}'");
+                }
+                var y = low.Y - field.TileTopY;
+                var lo = Num(c, "min_m", -1e9);
+                var hi = Num(c, "max_m", 1e9);
+                return (y >= lo && y <= hi, $"{group} lowest point {y:F4} m above the tiles (expected {lo}..{hi})");
+            }
             case "robot_upright":
             {
                 if (_robot == null)
@@ -473,12 +501,16 @@ public partial class ScenarioRunner : Node3D
         {
             _failures++;
         }
-        GD.Print($"[{status}] {name} ({wallMs:F0} ms wall)");
+        var assets = _standIn && status != "SKIP" ? ", stand-in assets" : "";
+        GD.Print($"[{status}] {name} ({wallMs:F0} ms wall{assets})");
         foreach (var m in messages)
         {
             GD.Print($"    {m}");
         }
-        _results.Add(new Dictionary<string, object> { ["name"] = name, ["status"] = status, ["wall_ms"] = Math.Round(wallMs), ["messages"] = messages });
+        _results.Add(new Dictionary<string, object>
+        {
+            ["name"] = name, ["status"] = status, ["wall_ms"] = Math.Round(wallMs), ["stand_in"] = _standIn && status != "SKIP", ["messages"] = messages,
+        });
     }
 
     private void Finish()

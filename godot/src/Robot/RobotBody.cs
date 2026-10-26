@@ -58,6 +58,9 @@ public partial class RobotBody : RigidBody3D
     /// <summary>Floor stops of servo arms (mechanism <c>floor_stop</c>), radians from the CAD pose, by CAD group name.</summary>
     private readonly Dictionary<string, (double? Min, double? Max)> _floorStops = new();
 
+    /// <summary>Collider outline points of each CAD group (mesh frame), for <see cref="LowestPoint"/>.</summary>
+    private readonly Dictionary<string, List<Vector3>> _groupPoints = new();
+
     /// <summary>Chassis collision shapes of groups that move with a mechanism (a turret): CAD-frame shape transform.</summary>
     private readonly List<(CollisionShape3D Shape, Transform3D Cad, string Group)> _movingShapes = new();
 
@@ -254,7 +257,7 @@ public partial class RobotBody : RigidBody3D
 
     private void Build(string name, Node parent)
     {
-        var dir = $"res://{Definition.CadPath}/";   // a robot variant uses the CAD of its base robot
+        var dir = RepoPaths.CadDir(Definition.CadPath);   // a robot variant uses the CAD of its base robot (or its stand-in)
         var layout = JsonSerializer.Deserialize<FieldLayout>(Godot.FileAccess.GetFileAsString(dir + "layout.json"), FieldLayout.Json)
             ?? throw new InvalidDataException($"{dir}layout.json is empty");
         _meshToRobot = CadToRobot(Definition.CadToRobot) * MeshToCad(layout.UpAxis);
@@ -263,12 +266,20 @@ public partial class RobotBody : RigidBody3D
         var toCad = _meshToRobot.AffineInverse();
         foreach (var group in layout.Groups)
         {
-            if (MechanismFor(group.Name) is { FloorStopPenetration: { } depth, AxisPoint: { } stopPivot, Axis: { } stopAxis } && group.Colliders != null)
+            if (group.Colliders == null)
             {
-                var specs = JsonSerializer.Deserialize<List<ColliderSpec>>(Godot.FileAccess.GetFileAsString(dir + group.Colliders), FieldLayout.Json) ?? new();
-                var points = specs.SelectMany(ShapeFactory.Points).Select(p => _meshToRobot * p)
-                    .Select(p => new System.Numerics.Vector3(p.X, p.Y, p.Z)).ToList();
-                _floorStops[group.Name] = FloorStop.Limits(points, stopPivot, stopAxis, depth);
+                continue;
+            }
+            var outline = (JsonSerializer.Deserialize<List<ColliderSpec>>(Godot.FileAccess.GetFileAsString(dir + group.Colliders), FieldLayout.Json) ?? new())
+                .SelectMany(ShapeFactory.Points).ToList();
+            _groupPoints[group.Name] = outline;
+            if (MechanismFor(group.Name) is { FloorStopPenetration: { } depth, AxisPoint: { } stopPivot, Axis: { } stopAxis })
+            {
+                // The robot rides its static suspension sag below y = 0 of its frame, so the tiles are that much higher
+                // in the robot frame.
+                var sag = Definition.MassKg / Definition.Wheels.Count * 9.81 / _stiffness;
+                var points = outline.Select(p => _meshToRobot * p).Select(p => new System.Numerics.Vector3(p.X, p.Y - (float)sag, p.Z)).ToList();
+                _floorStops[group.Name] = FloorStop.Limits(points, stopPivot - new System.Numerics.Vector3(0, (float)sag, 0), stopAxis, depth);
             }
         }
         foreach (var group in layout.Groups)
@@ -384,6 +395,17 @@ public partial class RobotBody : RigidBody3D
             mounted = carrier.MountedOn;
         }
         return t;
+    }
+
+    /// <summary>Lowest world point of a CAD group's colliders in its current pose (null if it has none).</summary>
+    public Vector3? LowestPoint(string group)
+    {
+        if (!_groupPoints.TryGetValue(group, out var points) || points.Count == 0)
+        {
+            return null;
+        }
+        var toWorld = GlobalTransform * _meshToRobot * GroupTransformCad(group);
+        return points.Select(p => toWorld * p).MinBy(p => p.Y);
     }
 
     /// <summary>Pose of a robot-frame point carried by a mechanism group (e.g. the launch point on a turret).</summary>

@@ -43,7 +43,7 @@ public partial class Main : Node3D
         {
             // Hive hinges, dampers and tip detection (Phase 4); screenshots keep the static CAD pose.
             FieldMechanisms.Apply(field, RepoPaths.Config("field_mechanisms.yaml"), physics,
-                System.IO.Path.Combine(RepoPaths.RepoRoot, "generated", "field", "manifest.json"));
+                RepoPaths.FieldManifest(layoutPath));
         }
         AprilTagDecals.Build(field, RepoPaths.Config("field_mechanisms.yaml"));
         if (physics.AssumedValues.Count > 0)

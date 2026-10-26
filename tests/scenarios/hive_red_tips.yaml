@@ -4,6 +4,7 @@
 name: hive_red_tips
 layout: field
 mechanisms: true
+requires_cad: true   # tipping depends on the hive's real masses and shape (D-011); the stand-in hive only stands in
 duration_s: 12.0
 actions:
   - {action: spawn, at_s: 0.5, group: pollen, count: 2, center: [-0.3236, 1.75, 0.27], spacing_m: 0.08, per_row: 2}
