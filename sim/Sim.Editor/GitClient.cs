@@ -49,10 +49,49 @@ public sealed partial class GitClient
     /// </summary>
     public string? AccessToken { get; set; }
 
-    public static GitClient Clone(string url, string targetDir, string? accessToken = null, TimeSpan? timeout = null)
+    /// <param name="branch">Branch to check out (null: the remote's default branch).</param>
+    public static GitClient Clone(string url, string targetDir, string? accessToken = null, TimeSpan? timeout = null, string? branch = null)
     {
-        Run(Path.GetDirectoryName(Path.GetFullPath(targetDir))!, timeout ?? TimeSpan.FromMinutes(10), accessToken, "clone", "--", url, targetDir);
+        var args = branch != null ? new[] { "clone", "--branch", branch, "--", url, targetDir } : ["clone", "--", url, targetDir];
+        Run(Path.GetDirectoryName(Path.GetFullPath(targetDir))!, timeout ?? TimeSpan.FromMinutes(10), accessToken, args);
         return new GitClient(targetDir, accessToken);
+    }
+
+    /// <summary>
+    /// What to clone for an address pasted from the browser: a GitHub page (https://github.com/OWNER/REPO, …/tree/BRANCH,
+    /// …/tree/BRANCH/folder, …/blob/BRANCH/file) gives the repository's clone URL and the text after tree/ or blob/ (the
+    /// branch, maybe followed by a path: <see cref="ResolveBranch"/>). Any other address (a .git URL, a local folder)
+    /// is cloned as it is. Name: the repository name for the workspace folder.
+    /// </summary>
+    public static (string Url, string? BranchAndPath, string Name) CloneAddress(string address)
+    {
+        address = address.Trim();
+        var m = GitHubPage().Match(address);
+        if (!m.Success)
+        {
+            return (address, null, Path.GetFileNameWithoutExtension(address.TrimEnd('/', '\\')));
+        }
+        var repo = m.Groups["repo"].Value;
+        var rest = m.Groups["rest"].Success ? Uri.UnescapeDataString(m.Groups["rest"].Value.TrimEnd('/')) : null;
+        return ($"https://github.com/{m.Groups["owner"].Value}/{repo}.git", string.IsNullOrEmpty(rest) ? null : rest, repo);
+    }
+
+    [GeneratedRegex(@"^https?://(www\.)?github\.com/(?<owner>[^/\s]+)/(?<repo>[^/\s]+?)(\.git)?(/(tree|blob|commits)/(?<rest>[^?#\s]+))?/?([?#].*)?$")]
+    private static partial Regex GitHubPage();
+
+    /// <summary>
+    /// The branch named at the start of <paramref name="branchAndPath"/> (branch names may contain '/'): the longest
+    /// branch of the remote that it equals or starts with followed by '/'.
+    /// </summary>
+    public static string ResolveBranch(string url, string branchAndPath, string? accessToken = null)
+    {
+        var heads = Run(Path.GetTempPath(), TimeSpan.FromMinutes(2), accessToken, "ls-remote", "--heads", "--", url)
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries)
+            .Select(line => line.Split('\t').Last().Trim())
+            .Where(r => r.StartsWith("refs/heads/", StringComparison.Ordinal))
+            .Select(r => r["refs/heads/".Length..]);
+        return heads.Where(b => branchAndPath == b || branchAndPath.StartsWith(b + "/", StringComparison.Ordinal)).MaxBy(b => b.Length)
+               ?? throw new GitException($"the repository has no branch '{branchAndPath.Split('/')[0]}'");
     }
 
     public static GitClient Init(string dir)
@@ -183,8 +222,19 @@ public sealed partial class GitClient
     /// <summary>Fetch + merge (or rebase) from the upstream. Conflicts are left for the conflict view.</summary>
     public void Pull(bool rebase = false) => Git("pull", rebase ? "--rebase" : "--no-rebase");
 
-    public IReadOnlyList<string> Branches() =>
-        Git("branch", "--format=%(refname:short)").Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+    /// <summary>Local branches, then the remote's branches without a local one (switching to one creates it, tracking
+    /// the remote branch), each once and by its plain name.</summary>
+    public IReadOnlyList<string> Branches()
+    {
+        var local = Git("for-each-ref", "--format=%(refname:short)", "refs/heads")
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+        var remote = Git("for-each-ref", "--format=%(refname)", "refs/remotes")
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(r => r.Split('/', 4))                     // refs, remotes, REMOTE, BRANCH
+            .Where(p => p.Length == 4 && p[3] != "HEAD")
+            .Select(p => p[3]);
+        return local.Concat(remote.Where(b => !local.Contains(b)).Distinct().OrderBy(b => b, StringComparer.Ordinal)).ToList();
+    }
 
     public void CreateBranch(string name, bool switchTo = true) => Git(switchTo ? ["switch", "-c", name] : ["branch", name]);
 

@@ -93,19 +93,28 @@ public partial class GitPanel : PanelContainer
         root.AddChild(top);
 
         var repoRow = new HBoxContainer();
-        var url = new LineEdit { PlaceholderText = "https://github.com/team/FtcRobotController.git", SizeFlagsHorizontal = SizeFlags.ExpandFill };
+        var url = new LineEdit
+        {
+            PlaceholderText = "https://github.com/team/FtcRobotController (or a branch: .../tree/BRANCH)",
+            TooltipText = "A repository address, or a GitHub page of a branch copied from the browser (…/tree/BRANCH): that branch is cloned",
+            SizeFlagsHorizontal = SizeFlags.ExpandFill,
+        };
         repoRow.AddChild(url);
         repoRow.AddChild(Button("Clone into workspace", () =>
         {
-            var address = url.Text.Trim();
-            var name = System.IO.Path.GetFileNameWithoutExtension(address.TrimEnd('/'));
+            var (address, branchAndPath, name) = GitClient.CloneAddress(url.Text);
             if (address.Length == 0 || name.Length == 0)
             {
                 return;
             }
             var target = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(_repository)!, name);
-            Work($"Cloning {address}...", () => GitClient.Clone(address, target, _git.AccessToken),
-                $"Cloned into {target}. Open it with: --project {target}");
+            Run(() =>
+            {
+                var branch = branchAndPath != null ? GitClient.ResolveBranch(address, branchAndPath, _git.AccessToken) : null;
+                GitClient.Clone(address, target, _git.AccessToken, branch: branch);
+                return branch;
+            }, branch => _status.Text = $"Cloned {(branch != null ? $"branch {branch} of " : "")}{address} into {target}. Open it with: --project {target}",
+                $"Cloning {address}{(branchAndPath != null ? $" ({branchAndPath})" : "")}...");
         }));
         repoRow.AddChild(Button("Init repository here", () => Work("Initializing...", () => GitClient.Init(_repository), "Initialized an empty repository")));
         root.AddChild(repoRow);

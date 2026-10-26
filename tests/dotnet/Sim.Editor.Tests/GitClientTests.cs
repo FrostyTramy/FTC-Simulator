@@ -118,3 +118,63 @@ public class GitClientTests : IDisposable
         }
     }
 }
+
+/// <summary>Clone addresses pasted from the browser (USER 2026-10-26: a …/tree/BRANCH link was "not found").</summary>
+public class CloneAddressTests : IDisposable
+{
+    private readonly string _root = Path.Combine(Path.GetTempPath(), "ftcsim-clone-" + Guid.NewGuid().ToString("N")[..8]);
+
+    public void Dispose()
+    {
+        if (Directory.Exists(_root))
+        {
+            foreach (var f in Directory.GetFiles(_root, "*", SearchOption.AllDirectories))
+            {
+                File.SetAttributes(f, FileAttributes.Normal);   // git object files are read-only on Windows
+            }
+            Directory.Delete(_root, recursive: true);
+        }
+    }
+
+    [Theory]
+    [InlineData("https://github.com/Robo-Dojo/RD4/tree/Tweaks-agarthaauto", "https://github.com/Robo-Dojo/RD4.git", "Tweaks-agarthaauto", "RD4")]
+    [InlineData("https://github.com/Robo-Dojo/RD4", "https://github.com/Robo-Dojo/RD4.git", null, "RD4")]
+    [InlineData("https://github.com/Robo-Dojo/RD4.git", "https://github.com/Robo-Dojo/RD4.git", null, "RD4")]
+    [InlineData("https://github.com/team/Bot/tree/feature/auto/TeamCode/src", "https://github.com/team/Bot.git", "feature/auto/TeamCode/src", "Bot")]
+    [InlineData("https://github.com/team/Bot/blob/main/README.md?plain=1", "https://github.com/team/Bot.git", "main/README.md", "Bot")]
+    [InlineData("git@github.com:team/Bot.git", "git@github.com:team/Bot.git", null, "Bot")]
+    public void Browser_pages_become_a_clone_url_and_a_branch(string address, string url, string? branch, string name) =>
+        Assert.Equal((url, branch, name), GitClient.CloneAddress(address));
+
+    [Fact]
+    public void The_branch_is_found_on_the_remote_and_cloned_and_its_siblings_listed()
+    {
+        var origin = GitClient.Init(Path.Combine(_root, "origin"));
+        origin.SetConfig("user.name", "Sim Test");
+        origin.SetConfig("user.email", "sim@example.invalid");
+        origin.SetConfig("commit.gpgsign", "false");
+        File.WriteAllText(Path.Combine(origin.Repository, "A.java"), "class A {}\n");
+        origin.Stage("A.java");
+        origin.Commit("A");
+        origin.CreateBranch("dev");
+        origin.CreateBranch("feature/auto");
+        File.WriteAllText(Path.Combine(origin.Repository, "Auto.java"), "class Auto {}\n");
+        origin.Stage("Auto.java");
+        origin.Commit("auto");
+
+        // A link into a folder of a branch whose name contains '/': the branch is the part the remote knows.
+        Assert.Equal("feature/auto", GitClient.ResolveBranch(origin.Repository, "feature/auto/TeamCode"));
+        Assert.Equal("dev", GitClient.ResolveBranch(origin.Repository, "dev"));
+        Assert.Equal("dev", GitClient.ResolveBranch(origin.Repository, "dev/TeamCode/src"));
+        Assert.Throws<GitException>(() => GitClient.ResolveBranch(origin.Repository, "nope"));
+
+        var clone = GitClient.Clone(origin.Repository, Path.Combine(_root, "clone"), branch: "feature/auto");
+        Assert.True(File.Exists(Path.Combine(clone.Repository, "Auto.java")));
+        Assert.Equal("feature/auto", clone.Status().Branch.Branch);
+        var branches = clone.Branches();
+        Assert.Equal("feature/auto", branches[0]);                       // the local one first
+        Assert.Contains("dev", branches);                                 // the remote's other branches too
+        clone.Switch("dev");                                              // creates the tracking branch
+        Assert.Equal("dev", clone.Status().Branch.Branch);
+    }
+}

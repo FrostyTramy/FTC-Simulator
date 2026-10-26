@@ -1,5 +1,12 @@
 # Changelog
 
+## Clone a branch from a GitHub link — 2026-10-26
+- USER: cloning https://github.com/Robo-Dojo/RD4/tree/Tweaks-agarthaauto said "not found" (a browser page, not a git
+  URL). "Clone into workspace" now accepts GitHub pages (…/tree/BRANCH, …/tree/BRANCH/folder, …/blob/…): it clones
+  https://github.com/OWNER/REPO.git and checks out that branch (found on the remote, so names with '/' work). The branch
+  list also shows the remote's other branches; picking one switches to it (tracking branch).
+- Tests: `CloneAddressTests`.
+
 ## GitHub sign-in in the browser — 2026-10-26
 - USER: sign in to GitHub by opening a browser. The git panel's "Sign in to GitHub" now opens GitHub's sign-in page
   through Git Credential Manager (no OAuth App or client ID needed, D-038); the token stays in Windows Credential
