@@ -1,5 +1,11 @@
 # Changelog
 
+## Code editor keeps changes made outside it — 2026-10-26
+- USER: edits made to a TeamCode file outside the editor kept coming back. "Run on robot" saved the open tab even when it
+  was not edited, writing the editor's old copy over the file. It now saves only files edited in the editor and reloads
+  open files that changed on disk (a script, a git pull, another editor) before building and when switching tabs; a
+  file edited in both places keeps the editor's edits and is named in the status line.
+
 ## Team code compatibility for RD4 — 2026-10-26
 - USER: the team's RD4 code failed to build (118 errors). The SDK shim now has Panels (`@Configurable`,
   `@IgnoreConfigurable`, `PanelsTelemetry`/`TelemetryManager`), FTC Dashboard `@Config`, `Limelight3A`/`LLResult`/

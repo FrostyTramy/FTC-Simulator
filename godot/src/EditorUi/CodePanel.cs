@@ -46,6 +46,9 @@ public partial class CodePanel : PanelContainer
         public string Path { get; } = path;
         public string Text { get; set; } = text;
         public bool Dirty { get; set; }
+
+        /// <summary>The file's write time when the editor last read or wrote it (to notice changes made outside).</summary>
+        public DateTime Stamp { get; set; } = File.GetLastWriteTimeUtc(path);
     }
 
     /// <param name="projectDir">Team project root (contains TeamCode/src/main/java).</param>
@@ -248,12 +251,47 @@ public partial class CodePanel : PanelContainer
         }
     }
 
+    /// <summary>
+    /// Open files changed on disk since the editor read them (a script, git pull, another editor): unedited ones are
+    /// read again; one edited here keeps the editor's text (it is saved over the outside change, and named).
+    /// </summary>
+    private List<string> ReloadChangedFiles()
+    {
+        var names = new List<string>();
+        for (var i = 0; i < _open.Count; i++)
+        {
+            var file = _open[i];
+            if (!File.Exists(file.Path) || File.GetLastWriteTimeUtc(file.Path) == file.Stamp)
+            {
+                continue;
+            }
+            var name = System.IO.Path.GetFileName(file.Path);
+            if (file.Dirty)
+            {
+                names.Add(name + " (kept your unsaved edits)");
+                continue;
+            }
+            file.Text = File.ReadAllText(file.Path);
+            file.Stamp = File.GetLastWriteTimeUtc(file.Path);
+            _server?.Change(file.Path, file.Text);
+            if (i == _current)
+            {
+                _code.TextChanged -= OnTextChanged;
+                _code.Text = file.Text;
+                _code.TextChanged += OnTextChanged;
+            }
+            names.Add(name);
+        }
+        return names;
+    }
+
     private void Show(int index)
     {
         if (index < 0 || index >= _open.Count)
         {
             return;
         }
+        ReloadChangedFiles();
         if (_current >= 0 && _current < _open.Count)
         {
             _open[_current].Text = _code.Text;
@@ -315,6 +353,7 @@ public partial class CodePanel : PanelContainer
         }
         File.WriteAllText(file.Path, file.Text);
         file.Dirty = false;
+        file.Stamp = File.GetLastWriteTimeUtc(file.Path);
         _tabs.SetTabTitle(index, System.IO.Path.GetFileName(file.Path));
         _server?.Save(file.Path);
     }
@@ -349,12 +388,21 @@ public partial class CodePanel : PanelContainer
         {
             return;
         }
+        if (_current >= 0 && _current < _open.Count && _open[_current].Dirty)
+        {
+            _open[_current].Text = _code.Text;
+        }
+        var outside = ReloadChangedFiles();
         for (var i = 0; i < _open.Count; i++)
         {
-            if (_open[i].Dirty || i == _current)
+            if (_open[i].Dirty)
             {
-                Save(i);
+                Save(i);   // only what was edited here: a file changed outside the editor is never written back over
             }
+        }
+        if (outside.Count > 0)
+        {
+            _status.Text = "Reloaded (changed outside the editor): " + string.Join(", ", outside);
         }
         _building = true;
         _status.Text = "Building...";
