@@ -12,7 +12,7 @@ public sealed class RunnerException(string message) : Exception(message);
 public sealed record RunnerLaunch(string JavaExe, string ShimJar, string RunnerJar, string TeamCodeJar, string WorkDir)
 {
     /// <summary>OpenCV Java bindings and native library (vision); null = vision unavailable.</summary>
-    public (string Jar, string Dll)? OpenCv { get; init; } = JavaLocator.FindOpenCv();
+    public (string Jar, string Native)? OpenCv { get; init; } = JavaLocator.FindOpenCv();
 
     /// <summary>JVM start-up plus connection (generous: antivirus scanners can hold a new process for a while).</summary>
     public TimeSpan ConnectTimeout { get; init; } = TimeSpan.FromSeconds(60);
@@ -108,7 +108,7 @@ public sealed class RunnerSession : IDisposable
             if (launch.OpenCv is { } cv)
             {
                 classPath += Path.PathSeparator + cv.Jar;
-                openCv.Add("-Dftcsim.opencv.dll=" + cv.Dll);
+                openCv.Add("-Dftcsim.opencv.native=" + cv.Native);
             }
             foreach (var arg in new[]
             {

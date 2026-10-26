@@ -143,7 +143,7 @@ Why we chose X over Y. Newest last. Format: ID, date, decision, why, alternative
   Windmill paddles are kinematic bodies. These parts have no colliders.
 
 ## D-023 — Code editor = Godot CodeEdit + Eclipse JDT LS 1.62 (2026-10-25)
-- **Decision:** the editor uses Godot's CodeEdit with an LSP client for JDT LS (runs on Java 21+, here JDK 26; team
+- **Decision:** the editor uses Godot's CodeEdit with an LSP client for JDT LS (runs on Java 25+ — its bundles require JavaSE-25 — here JDK 26; team
   code still compiles for Java 17). The server sees a generated Eclipse project outside the team repository that links
   TeamCode/src/main/java and the shim jar + sources jar. JDT LS was downloaded from download.eclipse.org (1.62.0,
   SHA-256 f587dafd…09342 verified) into generated/tools.

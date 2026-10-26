@@ -91,13 +91,13 @@ public final class RunnerMain {
   }
 
   /**
-   * Loads the OpenCV native library named by {@code -Dftcsim.opencv.dll}, as the Robot Controller app does at start-up,
+   * Loads the OpenCV native library named by {@code -Dftcsim.opencv.native}, as the Robot Controller app does at start-up,
    * so team code and the vision processors can use OpenCV Mats right away. Without it, vision is unavailable.
    */
   static void loadOpenCv() {
-    String dll = System.getProperty("ftcsim.opencv.dll");
-    if (dll != null && Files.exists(Path.of(dll))) {
-      System.load(Path.of(dll).toAbsolutePath().toString());
+    String library = System.getProperty("ftcsim.opencv.native");
+    if (library != null && Files.exists(Path.of(library))) {
+      System.load(Path.of(library).toAbsolutePath().toString());
     }
   }
 

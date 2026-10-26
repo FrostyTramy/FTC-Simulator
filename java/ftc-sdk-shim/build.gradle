@@ -15,8 +15,10 @@ dependencies {
     api files("${opencvDir}/opencv-4.9.0-0.jar")
 }
 
+// Native library name per platform, as scripts/setup_tools.ps1 extracts it from the jar.
+def opencvNative = System.getProperty('os.name').toLowerCase().contains('windows') ? 'opencv_java490.dll' : 'libopencv_java490.so'
 tasks.named('test') {
-    systemProperty 'ftcsim.opencv.dll', "${opencvDir}/opencv_java490.dll"
+    systemProperty 'ftcsim.opencv.native', "${opencvDir}/${opencvNative}"
 }
 
 jar {

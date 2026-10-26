@@ -172,8 +172,8 @@ public sealed unsafe class AprilTagDetector : IDisposable
         {
             return IntPtr.Zero;
         }
-        var dll = RepoPaths.Find(Path.Combine("generated", "tools", "apriltag", "apriltag.dll"));
-        return NativeLibrary.Load(dll);   // absolute path: its runtime DLLs load from the same folder
+        var library = RepoPaths.Find(Path.Combine("generated", "tools", "apriltag", Toolchain.NativeLibrary("apriltag")));
+        return NativeLibrary.Load(library);   // absolute path: on Windows its runtime DLLs load from the same folder
     }
 
     // Layouts from pupil-apriltags 1.0.4.post11 bindings.py (AprilTag 3).

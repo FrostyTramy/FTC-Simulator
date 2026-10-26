@@ -6,9 +6,7 @@ $jdk = Find-Jdk17
 if (-not $jdk) { Write-Host 'JDK 17 not found - run ./scripts/check_tools.ps1'; exit 1 }
 $env:JAVA_HOME = $jdk
 
-# Prefer the verified local Gradle distribution (no download); fall back to the wrapper.
-$gradle = Join-Path $RepoRoot 'generated\tools\gradle-8.14.3\bin\gradle.bat'
-if (-not (Test-Path $gradle)) { $gradle = Join-Path $RepoRoot 'java\gradlew.bat' }
+$gradle = Find-Gradle
 
 Push-Location (Join-Path $RepoRoot 'java')
 try {

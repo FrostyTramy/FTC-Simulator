@@ -16,11 +16,14 @@ public sealed record CompletionItem(string Label, string? Detail, string InsertT
 /// <summary>
 /// Eclipse JDT Language Server (spec 07 "Language server") as a child process: started lazily on the generated
 /// <see cref="EclipseProject"/>, compiled against Java 17 (the FTC language level) although the server itself needs
-/// Java 21+. Diagnostics arrive asynchronously (<see cref="DiagnosticsChanged"/>); completion, hover and definition
+/// Java 25+ (its bundles require JavaSE-25). Diagnostics arrive asynchronously (<see cref="DiagnosticsChanged"/>); completion, hover and definition
 /// are requests. Restart it with a new instance after a crash (<see cref="Exited"/>).
 /// </summary>
 public sealed class JavaLanguageServer : IDisposable
 {
+    /// <summary>Oldest Java the server starts on: JDT LS 1.62 bundles declare Require-Capability osgi.ee JavaSE-25.</summary>
+    public const int ServerJavaMajor = 25;
+
     private readonly Process _process;
     private readonly Dictionary<string, int> _versions = new();
     private readonly Dictionary<string, IReadOnlyList<EditorDiagnostic>> _diagnostics = new();
@@ -57,7 +60,7 @@ public sealed class JavaLanguageServer : IDisposable
     public static async Task<JavaLanguageServer> Start(EclipseProject project, string dataDir, TimeSpan? timeout = null)
     {
         var home = FindServer();
-        var java = FindJava(21) ?? throw new LspException("the Java language server needs Java 21 or newer (JDK 26 recommended)");
+        var java = FindJava(ServerJavaMajor) ?? throw new LspException($"the Java language server needs Java {ServerJavaMajor} or newer");
         var info = new ProcessStartInfo(java)
         {
             UseShellExecute = false,
@@ -268,30 +271,9 @@ public sealed class JavaLanguageServer : IDisposable
             .FirstOrDefault() ?? throw new LspException($"no Java language server in {tools} (see docs/SETUP.md)");
     }
 
-    /// <summary>java.exe of an installed JDK with at least <paramref name="minMajor"/>, newest first.</summary>
-    public static string? FindJava(int minMajor)
-    {
-        foreach (var root in new[] { @"C:\Program Files\Java", @"C:\Program Files\Eclipse Adoptium", @"C:\Program Files\Microsoft" }.Where(Directory.Exists))
-        {
-            foreach (var home in Directory.GetDirectories(root).OrderByDescending(d => d, StringComparer.Ordinal))
-            {
-                var release = Path.Combine(home, "release");
-                var java = Path.Combine(home, "bin", "java.exe");
-                if (!File.Exists(release) || !File.Exists(java))
-                {
-                    continue;
-                }
-                var line = File.ReadLines(release).FirstOrDefault(l => l.StartsWith("JAVA_VERSION=\"", StringComparison.Ordinal));
-                var version = line?["JAVA_VERSION=\"".Length..].TrimEnd('"');
-                var major = version?.Split('.')[0];
-                if (int.TryParse(major, out var m) && m >= minMajor)
-                {
-                    return java;
-                }
-            }
-        }
-        return null;
-    }
+    /// <summary>The java launcher of an installed JDK with at least <paramref name="minMajor"/>, newest folder first.</summary>
+    public static string? FindJava(int minMajor) =>
+        Toolchain.JdkHomes("JAVA_HOME").Where(h => Toolchain.JdkMajor(h) >= minMajor).Select(Toolchain.JavaIn).FirstOrDefault();
 
     private static string JavaHome(string javaExe) => Path.GetDirectoryName(Path.GetDirectoryName(javaExe))!;
 }

@@ -38,7 +38,7 @@ class AprilTagPipelineTest {
 
   @BeforeAll
   static void loadOpenCv() {
-    System.load(System.getProperty("ftcsim.opencv.dll"));
+    System.load(System.getProperty("ftcsim.opencv.native"));
     ShimTestSupport.freshRuntime();
   }
 
