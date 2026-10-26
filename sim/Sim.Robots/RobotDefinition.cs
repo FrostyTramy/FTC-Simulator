@@ -130,6 +130,9 @@ public sealed class RobotDefinition
     /// <summary>Folder of the CAD pipeline output, relative to the repository (cad value, e.g. generated/gobilda_starter).</summary>
     public string CadPath { get; init; } = "";
 
+    /// <summary>Overall bounding box (width x, height y, depth z) from the YAML <c>dimensions.bbox_size</c>, m.</summary>
+    public Vector3 BboxSize { get; init; }
+
     public DeviceDef Device(string name) =>
         Devices.FirstOrDefault(d => d.Name == name) ?? throw new RobotConfigException($"{Name}: no device '{name}'");
 
@@ -237,6 +240,7 @@ public sealed class RobotDefinition
             BallPath = ReadBallPath(root),
             Sensors = ReadSensors(root),
             CadPath = QRaw(root, "cad").ToString()!,
+            BboxSize = root.TryGetValue("dimensions", out var dims) ? Vec(QRaw((Dictionary<object, object>)dims, "bbox_size")) : Vector3.Zero,
         };
     }
 

@@ -1,13 +1,15 @@
 using System.Linq;
 using Godot;
 using Sim.Field;
+using Sim.Match;
 
 namespace Sim.App;
 
 /// <summary>
 /// Practice-mode tools (spec 08 "Practice tools", Phase 4): left-drag picks up a game element and carries it under the
 /// mouse (release to drop or throw it); P spawns a POLLEN and N a NECTAR (red on the red half, blue on the blue half)
-/// 0.4 m above the point under the mouse. Clicks on the Driver Station or scoreboard never reach these tools.
+/// 0.4 m above the point under the mouse. Clicks on the Driver Station or scoreboard never reach these tools. The
+/// actions go through the match session (recorded in the replay) and are off while a MATCH runs.
 /// </summary>
 public partial class PracticeTools : Node
 {
@@ -15,17 +17,26 @@ public partial class PracticeTools : Node
     private const float MaxCarrySpeed = 6f;   // m/s
     private readonly LoadedField _field;
     private readonly Camera3D _camera;
+    private readonly System.Func<MatchSession?> _session;
     private RigidBody3D? _held;
     private float _heldDistance;
 
-    public PracticeTools(LoadedField field, Camera3D camera)
+    public PracticeTools(LoadedField field, Camera3D camera, System.Func<MatchSession?> session)
     {
         _field = field;
         _camera = camera;
+        _session = session;
     }
+
+    private bool Allowed => _session() is { } s && !s.Director.Match.IsRunning;
 
     public override void _UnhandledInput(InputEvent e)
     {
+        if (!Allowed)
+        {
+            _held = null;
+            return;
+        }
         switch (e)
         {
             case InputEventMouseButton { ButtonIndex: MouseButton.Left, Pressed: true } press:
@@ -44,7 +55,7 @@ public partial class PracticeTools : Node
                 if (Pick(GetViewport().GetMousePosition()) is { } at)
                 {
                     var group = key.Keycode == Key.P ? "pollen" : at.Point.X < 0 ? "nectar_red" : "nectar_blue";
-                    FieldLoader.SpawnElement(_field, group, new Transform3D(Basis.Identity, at.Point + new Vector3(0, 0.4f, 0)));
+                    _session()?.SpawnElement(group, at.Point + new Vector3(0, 0.4f, 0));
                 }
                 break;
         }
@@ -52,7 +63,7 @@ public partial class PracticeTools : Node
 
     public override void _PhysicsProcess(double delta)
     {
-        if (_held == null || !IsInstanceValid(_held))
+        if (_held == null || !IsInstanceValid(_held) || !Allowed)
         {
             _held = null;
             return;
@@ -60,8 +71,8 @@ public partial class PracticeTools : Node
         var mouse = GetViewport().GetMousePosition();
         var target = _camera.ProjectRayOrigin(mouse) + _camera.ProjectRayNormal(mouse) * _heldDistance;
         var velocity = (target - _held.GlobalPosition) * CarryGain;
-        _held.LinearVelocity = velocity.Length() > MaxCarrySpeed ? velocity.Normalized() * MaxCarrySpeed : velocity;
-        _held.AngularVelocity *= 0.9f;
+        var index = _field.Elements.FindIndex(x => x.Body == _held);
+        _session()?.MoveElement(index, velocity.Length() > MaxCarrySpeed ? velocity.Normalized() * MaxCarrySpeed : velocity);
     }
 
     private (GodotObject Collider, Vector3 Point)? Pick(Vector2 screen)

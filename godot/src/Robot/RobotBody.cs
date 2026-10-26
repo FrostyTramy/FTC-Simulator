@@ -134,14 +134,14 @@ public partial class RobotBody : RigidBody3D
     public Vector3 VelocityAt(Vector3 point) => LinearVelocity + AngularVelocity.Cross(point - GlobalTransform * CenterOfMass);
 
     /// <summary>Loads robot NAME (config/robots/NAME.yaml + generated/NAME) and adds it to <paramref name="parent"/> at <paramref name="pose"/>.</summary>
-    public static RobotBody Spawn(Node parent, string name, Transform3D pose, PhysicsConfig physics, ulong sensorSeed = 1)
+    public static RobotBody Spawn(Node parent, string name, Transform3D pose, PhysicsConfig physics, ulong sensorSeed = 1, string? nodeName = null)
     {
         var definition = RobotDefinition.Load(RepoPaths.Config(Path.Combine("robots", name + ".yaml")));
         var hardware = HardwareConfig.Load(Path.Combine(RepoPaths.RepoRoot, "config"));
         var contact = DriveContact.Load(RepoPaths.Config("physics.yaml"));
         var robot = new RobotBody
         {
-            Name = name,
+            Name = nodeName ?? name,
             Definition = definition,
             HardwareConfig = hardware,
             Powertrain = new RobotPowertrain(definition, hardware, contact, Engine.PhysicsTicksPerSecond),
@@ -174,6 +174,12 @@ public partial class RobotBody : RigidBody3D
         }
         return robot;
     }
+
+    /// <summary>The intake captured an element from the field (not pre-loads).</summary>
+    public event Action<FieldElement>? ElementCaptured;
+
+    /// <summary>The launcher released an element.</summary>
+    public event Action<FieldElement>? ElementLaunched;
 
     /// <summary>The last launch: element group, rolling (ideal) exit speed and actual exit speed, m/s (diagnostics).</summary>
     public (string Group, double IdealSpeed, double ExitSpeed)? LastLaunch { get; private set; }
@@ -636,6 +642,7 @@ public partial class RobotBody : RigidBody3D
                 if (path.TryCapture(IdOf(body), new System.Numerics.Vector3(local.X, local.Y, local.Z), inward))
                 {
                     Store(element);
+                    ElementCaptured?.Invoke(element);
                 }
             }
         }
@@ -748,6 +755,7 @@ public partial class RobotBody : RigidBody3D
             exitSpeed = nip.ExitSpeed(2 * _physics.Element(element.Group).RadiusM, stiffness, mass, idealSpeed, friction);
         }
         LastLaunch = (element.Group, idealSpeed, exitSpeed);
+        ElementLaunched?.Invoke(element);
         var (localPoint, localDirection) = LaunchGeometry();
         var point = t * localPoint;
         var direction = t.Basis * localDirection;

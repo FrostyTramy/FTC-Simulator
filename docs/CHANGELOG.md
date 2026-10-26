@@ -1,5 +1,18 @@
 # Changelog
 
+## Phase 10 — Full match — 2026-10-26
+- `sim/Sim.Match`: match setup (4 stations: robot code, gamepad, placeholder, empty; foul mode; automatic human player),
+  start positions (`config/match.yaml`, G304-checked for every robot), match records with the official-style breakdown,
+  fouls, scoring events and robot statistics, match history (JSON + CSV), replay files (D-034).
+- Godot: `MatchSession` (spawns and places the robots, pre-loads, Driver Station flow, human player, Assist referee
+  decisions, recording, results), per-station gamepads (`GamepadSeats`, Start+A/B to the focused station), Driver Station
+  panel with a station picker, scoreboard with match control and G304 problems, results, history, match setup and foul
+  review panels, basic replay viewer (`--replay`), user data in `%APPDATA%/BiobuzzSim`.
+- Acceptance: `scripts/test_match.ps1` plays a full 2v2 MATCH headless (`--match-test`, 13 checks) and re-simulates its
+  replay in a fresh process (`--verify-replay`): every checkpoint and the final hash match.
+- Fixes: direct drive works again after the field re-enables the robot; G427 landing from contact reports.
+- Tests: Sim.Match.Tests (17), GamepadSeatTests (1).
+
 ## RoboDojo fixes and tooling — 2026-10-26
 - CAD pipeline: faces that do not mesh are counted, healed (ShapeFix) and reported; a part that still does not mesh is
   drawn from its mirrored twin, or as the hull of its B-rep edges; mirror-aware geometry signatures (products of

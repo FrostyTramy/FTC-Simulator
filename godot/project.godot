@@ -9,6 +9,8 @@ config/name="BIOBUZZ FTC Simulator"
 config/description="FIRST Tech Challenge 2026-27 BIOBUZZ simulator"
 run/main_scene="res://scenes/Main.tscn"
 config/features=PackedStringArray("4.7", "C#", "Forward Plus")
+config/use_custom_user_dir=true
+config/custom_user_dir_name="BiobuzzSim"
 
 [display]
 

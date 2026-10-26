@@ -32,24 +32,28 @@ public partial class MatchController : Node
     private readonly Dictionary<RigidBody3D, int> _lastControl = new();
     private readonly GameRules _rules;
     private readonly FieldGeometry _geometry;
+    private readonly GameOptions _options;
     private readonly double _controlSeconds;
     private readonly PhysicsConfig _physics;
     private readonly Dictionary<string, double> _radii = new();
     private int _seenEvents;
     private long _tick;
 
-    public MatchController(LoadedField field, IEnumerable<MatchRobot> robots, PhysicsConfig physics)
+    public MatchController(LoadedField field, IEnumerable<MatchRobot> robots, PhysicsConfig physics, GameOptions? options = null)
     {
         _field = field;
         _robots = robots.ToList();
         _rules = GameRules.Load(RepoPaths.Config("rules_biobuzz.yaml"));
         _geometry = FieldGeometry.Load(RepoPaths.Config("field_mechanisms.yaml"));
+        _options = (options ?? new GameOptions()) with { TickRate = Engine.PhysicsTicksPerSecond };
         _controlSeconds = physics.ControlSupportSeconds();
         _physics = physics;
         Director = NewDirector();
     }
 
     public GameDirector Director { get; private set; }
+    public GameRules Rules => _rules;
+    public FieldGeometry Geometry => _geometry;
     public WorldSnapshot? Snapshot { get; private set; }
     public ScoreSheet? Live { get; private set; }
     public long Tick => _tick;
@@ -107,8 +111,7 @@ public partial class MatchController : Node
         _tick++;
     }
 
-    private GameDirector NewDirector() =>
-        new(_rules, _geometry, new GameOptions(TickRate: Engine.PhysicsTicksPerSecond));
+    private GameDirector NewDirector() => new(_rules, _geometry, _options);
 
     private WorldSnapshot Build(long tick)
     {
@@ -182,6 +185,9 @@ public partial class MatchController : Node
         }
         return new WorldSnapshot(tick, elements, robots, hives, Array.Empty<PinContact>());
     }
+
+    /// <summary>A robot's outline on the floor, world x/z.</summary>
+    public Polygon2 FootprintOf(RobotBody robot) => Footprint(robot);
 
     private static Polygon2 Footprint(RobotBody robot)
     {

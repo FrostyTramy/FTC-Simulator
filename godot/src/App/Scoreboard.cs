@@ -1,81 +1,115 @@
 using System;
+using System.Linq;
 using Godot;
+using Sim.Game;
 using Sim.Game.Match;
+using Sim.Match;
 
 namespace Sim.App;
 
 /// <summary>
 /// Audience-style scoreboard (spec 08 "Scoreboard"): phase, field timer (transition countdown), alliance totals and the
-/// key game counters (tips), plus match control buttons. Shows the live score of the field outside a match (practice).
+/// key game counters (tips, NECTAR left with the human players), match control (start, abort, practice, reset), the
+/// human players' NECTAR entry (H red, J blue) and the reasons a MATCH cannot start (G304). Shows the live score of the
+/// field outside a MATCH (practice). Colour-blind safe: alliances are also labelled in text.
 /// </summary>
 public partial class Scoreboard : PanelContainer
 {
-    private readonly MatchController _match;
+    private readonly MatchSession _session;
     private Label _red = null!;
     private Label _blue = null!;
     private Label _timer = null!;
     private Label _detail = null!;
+    private Label _problems = null!;
     private Button _start = null!;
     private Button _abort = null!;
+    private Button _redNectar = null!;
+    private Button _blueNectar = null!;
 
-    public Scoreboard(MatchController match)
+    public Scoreboard(MatchSession session)
     {
-        _match = match;
+        _session = session;
     }
 
-    /// <summary>Called when a match starts (the drive team presses PLAY on an initialized OpMode).</summary>
-    public event Action? MatchStarted;
+    /// <summary>"Setup…": the match setup dialog.</summary>
+    public event Action? SetupRequested;
 
-    /// <summary>The "Reset field" button: elements, hives and robot back to their start (key R does the same).</summary>
-    public event Action? ResetRequested;
+    /// <summary>"History…": saved matches.</summary>
+    public event Action? HistoryRequested;
+
+    /// <summary>"New match": a fresh session with the same setup (one session plays one MATCH).</summary>
+    public event Action? RematchRequested;
 
     public override void _Ready()
     {
-        AnchorLeft = 0.5f;
-        AnchorRight = 0.5f;
-        OffsetLeft = -250;
-        OffsetRight = 250;
+        // Between the HUD text (left) and the Driver Station panel (right, 380 px).
+        AnchorLeft = 0;
+        AnchorRight = 1;
+        OffsetLeft = 300;
+        OffsetRight = -396;
         OffsetTop = 8;
         var box = new VBoxContainer();
         AddChild(box);
         var row = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.Center };
-        _red = new Label { CustomMinimumSize = new Vector2(120, 0), HorizontalAlignment = HorizontalAlignment.Center, Modulate = new Color(1f, 0.35f, 0.3f) };
-        _timer = new Label { CustomMinimumSize = new Vector2(180, 0), HorizontalAlignment = HorizontalAlignment.Center };
-        _blue = new Label { CustomMinimumSize = new Vector2(120, 0), HorizontalAlignment = HorizontalAlignment.Center, Modulate = new Color(0.4f, 0.6f, 1f) };
+        _red = new Label { CustomMinimumSize = new Vector2(150, 0), HorizontalAlignment = HorizontalAlignment.Center, Modulate = new Color(1f, 0.35f, 0.3f) };
+        _timer = new Label { CustomMinimumSize = new Vector2(200, 0), HorizontalAlignment = HorizontalAlignment.Center };
+        _blue = new Label { CustomMinimumSize = new Vector2(150, 0), HorizontalAlignment = HorizontalAlignment.Center, Modulate = new Color(0.4f, 0.6f, 1f) };
         foreach (var l in new[] { _red, _timer, _blue })
         {
             l.AddThemeFontSizeOverride("font_size", 22);
             row.AddChild(l);
         }
         box.AddChild(row);
-        _detail = new Label { HorizontalAlignment = HorizontalAlignment.Center };
+        _detail = new Label { HorizontalAlignment = HorizontalAlignment.Center, AutowrapMode = TextServer.AutowrapMode.WordSmart };
         box.AddChild(_detail);
-        var buttons = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.Center };
-        _start = new Button { Text = "Start match", FocusMode = FocusModeEnum.None };
-        _start.Pressed += () =>
-        {
-            _match.StartMatch();
-            MatchStarted?.Invoke();
-        };
-        _abort = new Button { Text = "Abort", FocusMode = FocusModeEnum.None };
-        _abort.Pressed += () => _match.Abort();
-        var practice = new Button { Text = "Practice", FocusMode = FocusModeEnum.None };
-        practice.Pressed += () => _match.Practice();
-        buttons.AddChild(_start);
-        buttons.AddChild(_abort);
-        buttons.AddChild(practice);
-        var reset = new Button { Text = "Reset field (R)", FocusMode = FocusModeEnum.None };
-        reset.Pressed += () => ResetRequested?.Invoke();
-        buttons.AddChild(reset);
+        _problems = new Label { HorizontalAlignment = HorizontalAlignment.Center, AutowrapMode = TextServer.AutowrapMode.WordSmart, Modulate = new Color(1f, 0.75f, 0.3f) };
+        box.AddChild(_problems);
+
+        var buttons = new HFlowContainer { Alignment = FlowContainer.AlignmentMode.Center };
+        _start = Make(buttons, "Start match", "Starts the MATCH: AUTO, transition, TELEOP (G304 setup checked)", () => _session.StartMatch());
+        _abort = Make(buttons, "Abort", "Stops the MATCH (foghorn); robots are disabled", () => _session.Abort());
+        Make(buttons, "Practice", "Back to practice: no timer, robots enabled", () => _session.Practice());
+        Make(buttons, "Reset (R)", "Elements, hives and robots back to the start layout", () => _session.ResetField());
+        Make(buttons, "New match", "A fresh field and robots with the same setup", () => RematchRequested?.Invoke());
+        Make(buttons, "Setup…", "Robots, drivers, code and rules for the next MATCH", () => SetupRequested?.Invoke());
+        Make(buttons, "History…", "Saved matches: results, CSV, replays", () => HistoryRequested?.Invoke());
         box.AddChild(buttons);
+
+        var hp = new HFlowContainer { Alignment = FlowContainer.AlignmentMode.Center };
+        _redNectar = Make(hp, "Red NECTAR (H)", "The red human player enters a NECTAR into the LOADING ZONE (G426/G427)", () => _session.EnterNectar(Alliance.Red));
+        _blueNectar = Make(hp, "Blue NECTAR (J)", "The blue human player enters a NECTAR into the LOADING ZONE (G426/G427)", () => _session.EnterNectar(Alliance.Blue));
+        box.AddChild(hp);
+    }
+
+    public override void _UnhandledKeyInput(InputEvent e)
+    {
+        if (e is not InputEventKey { Pressed: true, Echo: false } key || UiFocus.Typing(this))
+        {
+            return;
+        }
+        switch (key.Keycode)
+        {
+            case Key.H:
+                _session.EnterNectar(Alliance.Red);
+                break;
+            case Key.J:
+                _session.EnterNectar(Alliance.Blue);
+                break;
+            case Key.R:
+                _session.ResetField();
+                break;
+            default:
+                return;
+        }
+        GetViewport().SetInputAsHandled();
     }
 
     public override void _Process(double delta)
     {
-        var director = _match.Director;
+        var director = _session.Director;
         var m = director.Match;
-        var tick = _match.Tick;
-        var live = _match.Live;
+        var tick = _session.Controller.Tick;
+        var live = _session.Controller.Live;
         _red.Text = live is null ? "RED –" : $"RED {live.Red.Total}";
         _blue.Text = live is null ? "– BLUE" : $"{live.Blue.Total} BLUE";
         _timer.Text = m.Phase switch
@@ -88,8 +122,26 @@ public partial class Scoreboard : PanelContainer
             MatchPhase.Results => "FINAL",
             _ => m.Phase.ToString().ToUpperInvariant(),
         };
-        _detail.Text = live is null ? "" : $"tips  red {live.Red.Tips} · blue {live.Blue.Tips}    penalty points  red {live.Red.PenaltyPoints} · blue {live.Blue.PenaltyPoints}";
-        _start.Disabled = m.IsRunning || m.Phase is MatchPhase.MatchEnd or MatchPhase.PostMatchSettle;
+        var hp = director.HumanPlayer;
+        _detail.Text = live is null ? "" :
+            $"tips  red {live.Red.Tips} · blue {live.Blue.Tips}    penalty points  red {live.Red.PenaltyPoints} · blue {live.Blue.PenaltyPoints}" +
+            $"    NECTAR with the human players  red {hp.Reserve(Alliance.Red) + hp.Returned(Alliance.Red)} · blue {hp.Reserve(Alliance.Blue) + hp.Returned(Alliance.Blue)}";
+        var problems = _session.SetupProblems;
+        _problems.Text = m.Phase == MatchPhase.PreMatch && problems.Count > 0
+            ? "Cannot start: " + string.Join("; ", problems.Take(3).Select(p => $"{p.Rule} {p.Message}")) + (problems.Count > 3 ? " …" : "")
+            : "";
+        _start.Disabled = m.Phase != MatchPhase.PreMatch || problems.Count > 0 || _session.LastRecord != null;
         _abort.Disabled = !m.IsRunning;
+        var open = m.NectarAllEntryOpen(tick);
+        _redNectar.Disabled = !m.IsRunning || hp.AllowedNow(Alliance.Red, open) == 0;
+        _blueNectar.Disabled = !m.IsRunning || hp.AllowedNow(Alliance.Blue, open) == 0;
+    }
+
+    private static Button Make(Container parent, string text, string tooltip, Action action)
+    {
+        var b = new Button { Text = text, TooltipText = tooltip, FocusMode = FocusModeEnum.None };
+        b.Pressed += action;
+        parent.AddChild(b);
+        return b;
     }
 }

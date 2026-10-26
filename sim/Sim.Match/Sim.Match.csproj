@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Match orchestration data (spec 08 "Match setup", "Scoreboard and results"; spec 10 "Replays"): station setup and
+       start positions, match records and history, replay files. No Godot dependency. -->
+  <ItemGroup>
+    <ProjectReference Include="..\Sim.Game\Sim.Game.csproj" />
+    <ProjectReference Include="..\Sim.Runner\Sim.Runner.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="YamlDotNet" Version="18.1.0" />
+  </ItemGroup>
+</Project>

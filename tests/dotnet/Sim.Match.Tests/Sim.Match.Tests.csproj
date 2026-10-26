@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Match setup, start positions, records/history and replay files (spec 08, spec 10, spec 12 layer 1). -->
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" Version="6.0.4" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\sim\Sim.Match\Sim.Match.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Using Include="Xunit" />
+    <Using Include="Sim.Core.Numerics" />
+    <Using Include="Sim.Game" />
+    <Using Include="Sim.Match" />
+    <Using Include="Sim.Match.Replay" />
+  </ItemGroup>
+</Project>

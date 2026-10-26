@@ -1,20 +1,29 @@
+using System.IO;
+using System.Linq;
 using Godot;
 using Sim.Field;
+using Sim.Match;
 using Sim.Robot;
 using Sim.Testing;
 
 namespace Sim.App;
 
-/// <summary>Entry scene. Interactive by default; <c>--screenshot DIR</c> renders the preset views
-/// and quits; <c>--run-scenarios [FILTER]</c> runs tests/scenarios headless (see CommandLine).</summary>
+/// <summary>Entry scene. Interactive by default; <c>--screenshot DIR</c> renders the preset views and quits;
+/// <c>--run-scenarios [FILTER]</c> runs tests/scenarios headless; <c>--match-test</c> plays a scripted 2v2 MATCH and
+/// <c>--verify-replay FILE</c> re-simulates a replay (see CommandLine). A new match setup, a rematch or a replay reloads
+/// the scene so every MATCH starts from a fresh physics world.</summary>
 public partial class Main : Node3D
 {
-    /// <summary>ASSUMED practice start pose: on the audience-side lane facing blue (+X), clear of the hive structure.</summary>
-    private static readonly Vector3 PracticeStart = new(-1.3f, 0f, 1.05f);
+    /// <summary>Setup for the next scene load (match setup dialog, rematch); null = from the command line.</summary>
+    private static MatchSetup? _nextSetup;
 
-    private RobotProgram? _program;
-    private FieldReset? _reset;
-    private VisionCheck? _visionCheck;
+    /// <summary>Replay to show at the next scene load.</summary>
+    private static string? _nextReplay;
+
+    private MatchSession? _session;
+
+    /// <summary>Where match records and replays are kept (user://matches = %APPDATA%/BiobuzzSim/matches).</summary>
+    public static string HistoryDir => ProjectSettings.GlobalizePath("user://matches");
 
     public override void _Ready()
     {
@@ -22,6 +31,16 @@ public partial class Main : Node3D
         if (args.RunScenarios)
         {
             AddChild(new ScenarioRunner { Filter = args.ScenarioFilter });
+            return;
+        }
+        if (args.VerifyReplay is { } verify)
+        {
+            AddChild(new VerifyReplay(verify, args.Layout));
+            return;
+        }
+        if (args.MatchTest)
+        {
+            AddChild(new ScriptedMatch(args.Layout, args.MatchTestOut));
             return;
         }
 
@@ -34,22 +53,17 @@ public partial class Main : Node3D
         var layoutPath = RepoPaths.Layout(args.Layout);
         if (!FieldLoader.LayoutExists(layoutPath))
         {
-            hud.Message = $"{layoutPath} not found (run tools/cad_pipeline/run.py); showing the synthetic test layout";
+            hud.Message = $"{layoutPath} not found (run tools/cad_pipeline/run.py or tools/standin/make_standin.py); showing the synthetic test layout";
             GD.PushWarning(hud.Message);
             layoutPath = RepoPaths.Layout("synthetic");
         }
-        var field = FieldLoader.Load(this, layoutPath, physics);
-        if (args.ScreenshotDir == null)
+        else if (RepoPaths.IsStandIn(layoutPath))
         {
-            // Hive hinges, dampers and tip detection (Phase 4); screenshots keep the static CAD pose.
-            FieldMechanisms.Apply(field, RepoPaths.Config("field_mechanisms.yaml"), physics,
-                RepoPaths.FieldManifest(layoutPath));
+            hud.Message = "STAND-IN field and robots (simple shapes, no CAD): run tools/cad_pipeline/run.py --all for the real ones";
         }
-        AprilTagDecals.Build(field, RepoPaths.Config("field_mechanisms.yaml"));
-        if (physics.AssumedValues.Count > 0)
-        {
-            GD.Print("ASSUMED physics values: " + string.Join(", ", physics.AssumedValues));
-        }
+        var replay = _nextReplay ?? args.Replay;
+        _nextReplay = null;
+        var field = LoadField(this, layoutPath, physics, mechanisms: args.ScreenshotDir == null && replay == null);
         GD.Print($"loaded {layoutPath}: {field.StaticBodies.Count} static bodies, {field.RigidGroups.Count} rigid groups, " +
                  $"{field.Elements.Count} elements, {field.ColliderCount} collider shapes, ground at y={field.GroundY:F4}");
 
@@ -58,93 +72,10 @@ public partial class Main : Node3D
         camera.MakeCurrent();
         hud.Track(camera);
 
-        if (args.ScreenshotDir == null)
+        if (replay != null)
         {
-            AddChild(new PracticeTools(field, camera) { Name = "PracticeTools" });
-        }
-
-        if (!args.NoRobot && args.ScreenshotDir == null)
-        {
-            var input = new GamepadInput { Name = "GamepadInput" };
-            AddChild(input);
-            var pose = args.RobotPose is { } rp
-                ? new Transform3D(new Basis(Vector3.Up, Mathf.DegToRad(rp.YawDeg)), new Vector3(rp.X, field.TileTopY, rp.Z))
-                : new Transform3D(new Basis(Vector3.Up, -Mathf.Pi / 2), PracticeStart + new Vector3(0, field.TileTopY, 0));
-            var robot = RobotBody.Spawn(this, args.Robot, pose, physics);
-            robot.Elements = field.Elements;
-            _reset = new FieldReset(field, robot);
-            // A robot with its own TeamCode (tests/compat/<robot>) runs that code (built by tools/build_teamcode.ps1).
-            var codeRobot = robot.Definition.CadPath.Replace("generated/", "");
-            var hasOwnCode = codeRobot != "gobilda_starter"
-                && System.IO.Directory.Exists(System.IO.Path.Combine(RepoPaths.RepoRoot, "tests", "compat", codeRobot, "TeamCode"));
-            var jar = args.TeamCodeJar ?? (hasOwnCode
-                ? System.IO.Path.Combine(RepoPaths.RepoRoot, "generated", "build", codeRobot, "libs", "teamcode.jar")
-                : System.IO.Path.Combine(RepoPaths.RepoRoot, "java", "build-adapter", "build", "libs", "teamcode.jar"));
-            var ownSources = System.IO.Path.Combine(RepoPaths.RepoRoot, "tests", "compat", codeRobot, "TeamCode", "src", "main", "java");
-            if (args.TeamCodeJar == null && hasOwnCode && !Sim.Runner.TeamCodeBuilder.IsUpToDate(ownSources, jar))
-            {
-                var built = Sim.Runner.TeamCodeBuilder.Build(ownSources, System.IO.Path.Combine(RepoPaths.RepoRoot, "generated", "build", codeRobot));
-                GD.Print(built.Success ? $"built {jar}" : $"TeamCode build failed: {built.Output}");
-            }
-            _program = new RobotProgram(robot, input, jar);
-            _program.Connect();
-            var layer = new CanvasLayer { Name = "DriverStationLayer" };
-            AddChild(layer);
-            layer.AddChild(new DriverStationPanel(_program, robot, input) { Name = "DriverStation" });
-
-            var match = new MatchController(field, new[] { new MatchRobot(1, Sim.Game.Alliance.Red, "SIM 1", robot) }, physics) { Name = "Match" };
-            AddChild(match);
-            var program = _program;
-            match.AutoEnded += () =>
-            {
-                if (program.Ds.Selected is { Autonomous: true } && program.Ds.CanStop)
-                {
-                    program.Ds.Stop();
-                }
-            };
-            var scoreboard = new Scoreboard(match) { Name = "Scoreboard" };
-            scoreboard.MatchStarted += () =>
-            {
-                if (program.Ds.CanPlay)
-                {
-                    program.Ds.Play(robot.NowNanos);   // the drive team starts its INIT-ed OpMode with the match
-                }
-            };
-            scoreboard.ResetRequested += () => _reset?.Apply();
-            layer.AddChild(scoreboard);
-
-            // Code editor (F4): the team project lives in workspace/ (git-ignored); the first run copies the robot's
-            // TeamCode (tests/compat/<robot>, or the goBILDA example) there so the original resources are never edited.
-            var project = args.Project != null ? System.IO.Path.GetFullPath(args.Project)
-                : System.IO.Path.Combine(RepoPaths.RepoRoot, "workspace", hasOwnCode ? codeRobot : "starter");
-            var tools = System.IO.Path.Combine(RepoPaths.RepoRoot, "workspace", ".ftcsim", System.IO.Path.GetFileName(project));
-            if (args.Project == null)
-            {
-                SyncStarterProject(project, hasOwnCode ? codeRobot : "gobilda_starter", tools);
-            }
-            layer.AddChild(new Sim.EditorUi.CodePanel(program, project, tools) { Name = "CodeEditor" });
-            layer.AddChild(new Sim.EditorUi.GitPanel(project) { Name = "Git" });
-            if (args.OpMode != null)
-            {
-                _visionCheck = new VisionCheck { Name = "VisionCheck", Program = program, Robot = robot, OpMode = args.OpMode };
-                AddChild(_visionCheck);
-            }
-        }
-
-        if (args.ScreenshotDir == null)
-        {
-            _reset ??= new FieldReset(field, null);
-        }
-
-        if (args.CapturePath != null)
-        {
-            var check = _visionCheck;
-            var capturePath = args.CapturePath;
-            AddChild(new CaptureRunner
-            {
-                Path = args.CapturePath, Seconds = args.CaptureSeconds, ShowPanels = args.CapturePanels,
-                BeforeQuit = () => check?.Report(capturePath),
-            });
+            AddChild(new ReplayViewer(field, replay, physics) { Name = "ReplayViewer" });
+            return;
         }
 
         if (args.ScreenshotDir != null)
@@ -158,17 +89,132 @@ public partial class Main : Node3D
                 Field = field,
                 LayoutPath = layoutPath,
             });
+            return;
+        }
+
+        AddChild(new PracticeTools(field, camera, () => _session) { Name = "PracticeTools" });
+        if (args.NoRobot)
+        {
+            return;
+        }
+        var input = new GamepadInput { Name = "GamepadInput" };
+        AddChild(input);
+        var setup = _nextSetup ?? (args.SetupFile is { } file ? MatchSetup.FromJson(File.ReadAllText(file)) : PracticeSetup(args));
+        _nextSetup = null;
+        _session = new MatchSession(field, setup, physics, input, HistoryDir);
+        AddChild(_session);
+        if (args.RobotPose is { } rp && _session.Stations.Count > 0)
+        {
+            _session.Stations[0].Robot.ResetTo(new Transform3D(new Basis(Vector3.Up, Mathf.DegToRad(rp.YawDeg)), new Vector3(rp.X, field.TileTopY, rp.Z)));
+        }
+        input.Focused = _session.Stations.FirstOrDefault()?.Station.Key();
+        BuildUi(setup, args);
+    }
+
+    /// <summary>Loads the field with its hive hinges and AprilTag decals (the same way for live play and replays).</summary>
+    public static LoadedField LoadField(Node parent, string layoutPath, PhysicsConfig physics, bool mechanisms = true)
+    {
+        var field = FieldLoader.Load(parent, layoutPath, physics);
+        if (mechanisms)
+        {
+            // Hive hinges, dampers and tip detection (Phase 4); screenshots keep the static CAD pose.
+            FieldMechanisms.Apply(field, RepoPaths.Config("field_mechanisms.yaml"), physics, RepoPaths.FieldManifest(layoutPath));
+        }
+        AprilTagDecals.Build(field, RepoPaths.Config("field_mechanisms.yaml"));
+        if (physics.AssumedValues.Count > 0)
+        {
+            GD.Print("ASSUMED physics values: " + string.Join(", ", physics.AssumedValues));
+        }
+        return field;
+    }
+
+    /// <summary>Practice: one robot at Red 1 running its code (or driven by gamepad when the code is not available).</summary>
+    private static MatchSetup PracticeSetup(CommandLine args)
+    {
+        var jar = args.TeamCodeJar ?? TeamCodeJars.DefaultFor(args.Robot);
+        var kind = jar != null && File.Exists(jar) ? StationKind.Code : StationKind.Gamepad;
+        return new MatchSetup([new StationSetup(Station.Red1, kind, args.Robot, "SIM 1", kind == StationKind.Code ? jar : null)],
+            Label: "Practice");
+    }
+
+    private void BuildUi(MatchSetup setup, CommandLine args)
+    {
+        var session = _session!;
+        var layer = new CanvasLayer { Name = "UiLayer" };
+        AddChild(layer);
+        var input = GetNode<GamepadInput>("GamepadInput");
+        layer.AddChild(new DriverStationPanel(session, input) { Name = "DriverStation" });
+        var scoreboard = new Scoreboard(session) { Name = "Scoreboard" };
+        layer.AddChild(scoreboard);
+        layer.AddChild(new FoulReviewPanel(session) { Name = "FoulReview" });
+        var history = new MatchHistory(HistoryDir);
+        scoreboard.RematchRequested += () => Reload(setup, null);
+        scoreboard.HistoryRequested += () =>
+        {
+            var panel = new HistoryPanel(history, session.Controller.Rules);
+            panel.ReplayRequested += path => Reload(null, path);
+            layer.AddChild(panel);
+        };
+        scoreboard.SetupRequested += () =>
+        {
+            var robots = Directory.GetFiles(RepoPaths.Config("robots"), "*.yaml").Select(Path.GetFileNameWithoutExtension).OfType<string>().OrderBy(n => n).ToList();
+            var panel = new MatchSetupPanel(setup, robots, TeamCodeJars.DefaultFor);
+            panel.Applied += next => Reload(next, null);
+            layer.AddChild(panel);
+        };
+        session.MatchFinished += record =>
+        {
+            var panel = new ResultsPanel(record, history, session.Controller.Rules);
+            panel.ReplayRequested += path => Reload(null, path);
+            layer.AddChild(panel);
+        };
+
+        // Code editor (F4) and git (F6) for the first station with robot code. The team project lives in workspace/
+        // (git-ignored); the first run copies the robot's TeamCode there so the original resources are never edited.
+        if (session.Stations.FirstOrDefault(s => s.Program != null) is { Program: { } program } coded)
+        {
+            var robot = coded.Setup.Robot;
+            var ownCode = TeamCodeJars.HasOwnCode(robot);
+            var codeName = ownCode ? TeamCodeJars.CodeName(robot) : "starter";
+            var project = args.Project != null ? Path.GetFullPath(args.Project) : Path.Combine(RepoPaths.RepoRoot, "workspace", codeName);
+            var tools = Path.Combine(RepoPaths.RepoRoot, "workspace", ".ftcsim", Path.GetFileName(project));
+            if (args.Project == null)
+            {
+                SyncStarterProject(project, ownCode ? codeName : "gobilda_starter", tools);
+            }
+            layer.AddChild(new Sim.EditorUi.CodePanel(program, project, tools) { Name = "CodeEditor" });
+            layer.AddChild(new Sim.EditorUi.GitPanel(project) { Name = "Git" });
+            if (args.OpMode != null)
+            {
+                var check = new VisionCheck { Name = "VisionCheck", Program = program, Robot = coded.Robot, OpMode = args.OpMode };
+                AddChild(check);
+                if (args.CapturePath is { } capture)
+                {
+                    AddChild(new CaptureRunner { Path = capture, Seconds = args.CaptureSeconds, ShowPanels = args.CapturePanels, BeforeQuit = () => check.Report(capture) });
+                    return;
+                }
+            }
+        }
+        if (args.CapturePath != null)
+        {
+            AddChild(new CaptureRunner { Path = args.CapturePath, Seconds = args.CaptureSeconds, ShowPanels = args.CapturePanels });
         }
     }
 
-    /// <summary>Copies tests/compat/&lt;source&gt;/TeamCode into a new workspace project (once).</summary>
+    /// <summary>Reloads the scene with a new setup or a replay to watch.</summary>
+    private void Reload(MatchSetup? setup, string? replay)
+    {
+        _nextSetup = setup;
+        _nextReplay = replay;
+        GetTree().CallDeferred(SceneTree.MethodName.ReloadCurrentScene);
+    }
+
     /// <summary>Copies the robot's TeamCode into the workspace project on first use and later brings in template
     /// updates for files the team has not edited (edited files are kept and listed).</summary>
     private static void SyncStarterProject(string project, string sourceName, string toolsDir)
     {
-        var source = System.IO.Path.Combine(RepoPaths.RepoRoot, "tests", "compat", sourceName, "TeamCode");
-        var result = Sim.Editor.ProjectTemplate.Sync(source, System.IO.Path.Combine(project, "TeamCode"),
-            System.IO.Path.Combine(toolsDir, "template.json"));
+        var source = Path.Combine(RepoPaths.RepoRoot, "tests", "compat", sourceName, "TeamCode");
+        var result = Sim.Editor.ProjectTemplate.Sync(source, Path.Combine(project, "TeamCode"), Path.Combine(toolsDir, "template.json"));
         if (result.Updated.Count > 0)
         {
             GD.Print($"{project}: updated from the template: {string.Join(", ", result.Updated)}");
@@ -177,20 +223,5 @@ public partial class Main : Node3D
         {
             GD.Print($"{project}: kept your edited files (the template has a newer version): {string.Join(", ", result.KeptEdited)}");
         }
-    }
-
-    /// <summary>R: reset the field and the robot (practice), unless a text field has the keyboard.</summary>
-    public override void _UnhandledKeyInput(InputEvent @event)
-    {
-        if (@event is InputEventKey { Pressed: true, Echo: false, Keycode: Key.R })
-        {
-            _reset?.Apply();
-            GetViewport().SetInputAsHandled();
-        }
-    }
-
-    public override void _ExitTree()
-    {
-        _program?.Dispose();   // QUIT to the runner JVM
     }
 }

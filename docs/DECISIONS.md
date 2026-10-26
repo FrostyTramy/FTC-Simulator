@@ -234,3 +234,39 @@ Why we chose X over Y. Newest last. Format: ID, date, decision, why, alternative
   - Both left mecanum wheels have the same roller direction. The sim uses the standard X layout (open point for
     the team).
 
+
+## D-033 — CAD-free stand-in assets for tests and CI (2026-10-26)
+- **Decision:** `tools/standin/make_standin.py` builds the field (walls, tiles, hive frame and CELLS, FLOWERS, tape, trays,
+  all 56 elements at the start layout) and every robot (chassis plates, wheels, mechanisms) from the reviewed configs into
+  `godot/generated/standin/`. `RepoPaths.AssetDir` prefers the CAD pipeline output and falls back to the stand-ins, and the
+  app shows a banner; scenarios that measure CAD shapes declare `requires_cad: true`.
+- **Why:** the original STEP files are never committed (D-001), so CI and fresh checkouts had no field at all and 8 of 10
+  scenarios were skipped. Spec 12 asks for "small sample fixtures" in CI. With the stand-ins 9 of 11 scenarios and full
+  matches run anywhere.
+- **Limits:** shapes the configs do not give (wall height 12 in, frame tubes, FLOWER pipes, plates) are ASSUMED; the
+  stand-in hive does not tip like the real one (`hive_red_tips` needs the CAD).
+
+## D-034 — Replays record what drove each robot, from the start of the session (2026-10-26)
+- **Decision:** a replay holds the match setup, every tick's events (match control, human player, referee decisions,
+  practice actions, runner session starts) and every station's drive input: the runner STATE that was applied (code
+  robots) or the gamepads a C# driver read (direct drive). Re-simulation applies them through a `RunnerBridge` / the same
+  C# driver, so no JVM runs; a 60 Hz pose track serves the viewer; per-second state hashes check determinism. Recording
+  starts with the session, because the pre-match (robots settling, INIT code moving servos) shapes the MATCH; a session
+  without a MATCH deletes its replay; one session plays one MATCH and a new match reloads the scene.
+- **Evidence:** Phase 10 acceptance (`scripts/test_match.ps1`): a 159 s 2v2 MATCH with two runner JVMs, a gamepad driver
+  and a placeholder re-simulates in a fresh process with 159/159 checkpoints and the final hash identical. Jolt is
+  deterministic run to run with the same body creation order.
+- **Alternatives:** re-running the JVMs from recorded gamepads (slower, breaks when the team code changes); recording
+  body states only (no proof of reproduction, spec 01 wants inputs).
+
+## D-035 — Field control of gamepads and enables (2026-10-26)
+- **Decision:** the field hands neutral gamepads to every robot during AUTO (G401, rules sim handling "gamepad input
+  ignored during AUTO"); the drive teams' Driver Station steps are automated like D-026 (INIT AUTO before the start, PLAY
+  at the start, TeleOp INIT in the transition, PLAY at TELEOP). Direct-drive C# drivers keep their hub motor ports enabled
+  like the SDK does (the shim re-sends `enabled` every tick), so a robot moves again after the field re-enables it.
+
+## D-036 — Human player NECTAR entry (2026-10-26)
+- **Decision:** H / J (or the automatic human player, `config/match.yaml`) take a NECTAR from the tray (or one that left
+  the FIELD) and release it 15 cm above the free spot of the LOADING ZONE nearest its centre. G427 is judged from the
+  physics engine's first contact report: other SCORING ELEMENTS are ignored (the rule names ROBOTS and field elements), a
+  ROBOT or field element first is a MINOR FOUL. Q-007 answered as planned (both modes).

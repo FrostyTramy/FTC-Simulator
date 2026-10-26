@@ -16,6 +16,7 @@
     <ProjectReference Include="..\sim\Sim.DriverStation\Sim.DriverStation.csproj" />
     <ProjectReference Include="..\sim\Sim.Game\Sim.Game.csproj" />
     <ProjectReference Include="..\sim\Sim.Editor\Sim.Editor.csproj" />
+    <ProjectReference Include="..\sim\Sim.Match\Sim.Match.csproj" />
   </ItemGroup>
   <ItemGroup>
     <!-- Python helper for the synthetic test assets is not part of the build. -->

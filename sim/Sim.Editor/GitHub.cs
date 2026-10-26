@@ -77,14 +77,21 @@ public sealed class GitHubDeviceFlow(HttpClient http, string clientId)
 
 /// <summary>
 /// Windows Credential Manager (spec 07: "Token stored only in Windows Credential Manager"). Generic credentials of the
-/// current user; never logged, never written to files.
+/// current user; never logged, never written to files. On other systems (CI, development containers) there is no store:
+/// nothing is saved and git uses the system's own credentials.
 /// </summary>
 public static class CredentialStore
 {
     public const string GitHubTarget = "FtcSimulator:github";
 
+    public static bool Available => OperatingSystem.IsWindows();
+
     public static void Save(string target, string user, string secret)
     {
+        if (!Available)
+        {
+            throw new GitException("signing in to GitHub needs the Windows Credential Manager");
+        }
         var blob = Encoding.Unicode.GetBytes(secret);
         var handle = GCHandle.Alloc(blob, GCHandleType.Pinned);
         try
@@ -112,7 +119,7 @@ public static class CredentialStore
 
     public static (string User, string Secret)? Load(string target)
     {
-        if (!CredRead(target, 1, 0, out var pointer))
+        if (!Available || !CredRead(target, 1, 0, out var pointer))
         {
             return null;
         }
@@ -128,7 +135,13 @@ public static class CredentialStore
         }
     }
 
-    public static void Delete(string target) => CredDelete(target, 1, 0);
+    public static void Delete(string target)
+    {
+        if (Available)
+        {
+            CredDelete(target, 1, 0);
+        }
+    }
 
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
     private struct Credential

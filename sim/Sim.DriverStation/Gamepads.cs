@@ -126,3 +126,73 @@ public sealed class GamepadAssignment
         return changed;
     }
 }
+
+/// <summary>
+/// Controllers shared by several Driver Stations on one PC (spec 08 "Multiple robots: up to 4 DS instances, each with
+/// its own gamepads"): Start+A / Start+B assigns the pressing controller to gamepad1 / gamepad2 of the focused station
+/// and takes it away from any other station, so a controller always belongs to one station at most.
+/// </summary>
+public sealed class GamepadSeats
+{
+    private readonly Dictionary<string, GamepadAssignment> _seats = new(StringComparer.Ordinal);
+
+    /// <summary>The station that Start+A / Start+B assigns to (the Driver Station on screen).</summary>
+    public string? Focused { get; set; }
+
+    public IReadOnlyCollection<string> Seats => _seats.Keys;
+
+    public void Add(string seat)
+    {
+        _seats.TryAdd(seat, new GamepadAssignment());
+        Focused ??= seat;
+    }
+
+    public void Remove(string seat)
+    {
+        _seats.Remove(seat);
+        if (Focused == seat)
+        {
+            Focused = _seats.Keys.FirstOrDefault();
+        }
+    }
+
+    public int? Gamepad1(string seat) => _seats.TryGetValue(seat, out var a) ? a.Gamepad1 : null;
+
+    public int? Gamepad2(string seat) => _seats.TryGetValue(seat, out var a) ? a.Gamepad2 : null;
+
+    /// <summary>Feeds one controller's buttons (every frame); returns true if any assignment changed.</summary>
+    public bool Update(int deviceId, GamepadButtons buttons)
+    {
+        var changed = false;
+        foreach (var (seat, assignment) in _seats)
+        {
+            if (seat == Focused)
+            {
+                changed |= assignment.Update(deviceId, buttons);
+            }
+            else
+            {
+                assignment.Update(deviceId, GamepadButtons.None);   // keeps edge detection in step without assigning
+            }
+        }
+        if (changed && Focused != null)
+        {
+            foreach (var (seat, assignment) in _seats.Where(s => s.Key != Focused))
+            {
+                if (assignment.Gamepad1 == deviceId || assignment.Gamepad2 == deviceId)
+                {
+                    assignment.Disconnected(deviceId);   // the controller moved to the focused station
+                }
+            }
+        }
+        return changed;
+    }
+
+    public void Disconnected(int deviceId)
+    {
+        foreach (var assignment in _seats.Values)
+        {
+            assignment.Disconnected(deviceId);
+        }
+    }
+}

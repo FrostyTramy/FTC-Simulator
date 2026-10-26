@@ -1,0 +1,22 @@
+# Match setup defaults (spec 08 "Match control"): the four driver stations, where their robots start, and the human
+# player. Start positions satisfy G304 (p104): fully on the own side, touching the perimeter wall, not in the LOADING
+# ZONE or a FLOWER scoring volume (checked by tests/dotnet/Sim.Match.Tests for every robot in the library). The manual
+# leaves the exact spot to the teams, so the spots are ASSUMED; each robot is placed with its back against `wall`,
+# facing into the FIELD, its origin `along` metres along the wall (z for the x walls, x for the z walls).
+version: 1
+
+stations:
+  red_1: {alliance: red, wall: x_min, along: {value: 0.0, unit: m, source: "ASSUMED: centre of the red alliance wall, between the LOADING ZONE (z -1.18..-0.61) and the FLOWER at z +0.59"}}
+  red_2: {alliance: red, wall: z_max, along: {value: -0.75, unit: m, source: "ASSUMED: audience wall, red side (x < 0), clear of the red GARDEN (x < -1.20)"}}
+  blue_1: {alliance: blue, wall: x_max, along: {value: 0.0, unit: m, source: "ASSUMED: centre of the blue alliance wall, between the FLOWER at z -0.59 and the LOADING ZONE (z 0.61..1.18)"}}
+  blue_2: {alliance: blue, wall: z_min, along: {value: 0.75, unit: m, source: "ASSUMED: rear wall, blue side (x > 0), clear of the blue GARDEN (x > 1.20)"}}
+
+wall_gap: {value: 0.001, unit: m, source: "ASSUMED: robot placed 1 mm from the wall face (counts as touching, G304.C; MatchController contact tolerance 5 mm)"}
+
+human_player:
+  auto_delay: {value: 3.0, unit: s, source: "ASSUMED: an automatic human player enters an allowed NECTAR 3 s after it becomes available (Q-007: both manual and automatic)"}
+  drop_height: {value: 0.15, unit: m, source: "ASSUMED: NECTAR released 15 cm above the LOADING ZONE tiles (G427: it must touch the tiles there first)"}
+
+replay:
+  pose_every_ticks: {value: 4, unit: ticks, source: "60 Hz pose track at the 240 Hz physics rate (spec 10 replays; enough for 0.1x slow motion)"}
+  checkpoint_every_ticks: {value: 240, unit: ticks, source: "one determinism checkpoint per simulated second (spec 01: compare state hashes every second)"}

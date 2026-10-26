@@ -34,6 +34,14 @@ public sealed class Battery
 
     public double OpenCircuitVolts => Interpolate(Spec.OcvCurve, StateOfCharge);
 
+    /// <summary>A freshly charged (1.0) or partly used battery before a MATCH (spec 08 "battery state"); at rest.</summary>
+    public void SetStateOfCharge(double stateOfCharge)
+    {
+        StateOfCharge = Math.Clamp(stateOfCharge, 0, 1);
+        BusVolts = OpenCircuitVolts;
+        CurrentA = 0;
+    }
+
     /// <summary>Records the solved bus state of one step and drains the charge (Ah = A·s / 3600).</summary>
     public void Update(double busVolts, double currentA, double dt)
     {

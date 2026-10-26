@@ -44,7 +44,9 @@ public sealed class RobotPowertrain
     {
         var device = Robot.Device(motorName);
         var raw = device.Direction == "REVERSE" ? -power : power;
-        Controller(motorName).SetPower(raw);
+        var controller = Controller(motorName);
+        controller.Enabled = true;   // the SDK's motor command stays enabled and is sent again after a field disable
+        controller.SetPower(raw);
     }
 
     /// <summary>CRServo.setPower(power) with the configured direction (REVERSE negates); turns the PWM output on.</summary>
@@ -77,6 +79,7 @@ public sealed class RobotPowertrain
             port.Controller.SetMode(RunMode.RunUsingEncoder, port.OutputAngle);
         }
         port.Controller.VelocityPidf = pidf;
+        port.Controller.Enabled = true;
         port.Controller.SetVelocity(port.Device.Direction == "REVERSE" ? -ticksPerSecond : ticksPerSecond);
     }
 

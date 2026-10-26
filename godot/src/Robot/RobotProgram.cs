@@ -15,14 +15,14 @@ namespace Sim.Robot;
 public sealed class RobotProgram : IRobotDriver, IRobotLink, IDisposable
 {
     private readonly RobotBody _robot;
-    private readonly GamepadInput _input;
+    private readonly IGamepadSource _input;
     private readonly RunnerBridge _bridge;
     private readonly HardwareCosts _costs;
     private RunnerSession? _session;
     private TickResult? _pending;
     private string? _failure;   // INIT refused or runner lost: reported to the DS as a crash on the next tick
 
-    public RobotProgram(RobotBody robot, GamepadInput input, string teamCodeJar)
+    public RobotProgram(RobotBody robot, IGamepadSource input, string teamCodeJar)
     {
         _robot = robot;
         _input = input;
@@ -35,6 +35,12 @@ public sealed class RobotProgram : IRobotDriver, IRobotLink, IDisposable
     public string TeamCodeJar { get; private set; }
     public DriverStationApp Ds { get; }
     public TickResult? Last { get; private set; }
+
+    /// <summary>The runner STATE applied in the last step, or null when the SDK's Stop Robot ran (recorded for replays).</summary>
+    public TickResult? AppliedThisTick { get; private set; }
+
+    /// <summary>A new runner session began for this robot (RunnerBridge.BeginSession, recorded for replays).</summary>
+    public event Action? SessionBegan;
 
     /// <summary>"connected …" or the reason the runner is not available.</summary>
     public string Status { get; private set; } = "not started";
@@ -88,6 +94,7 @@ public sealed class RobotProgram : IRobotDriver, IRobotLink, IDisposable
         try
         {
             _bridge.BeginSession();
+            SessionBegan?.Invoke();
             _session.Configure(_costs, _robot.Powertrain.Hardware.HubCount, _bridge.Devices());
             _session.Init(opMode.ClassName);
         }
@@ -134,11 +141,13 @@ public sealed class RobotProgram : IRobotDriver, IRobotLink, IDisposable
             _bridge.Apply(result, now);
             Ds.Update(result.State, result.Error, now);
             Last = result;
+            AppliedThisTick = result;
             _pending = null;
         }
         else
         {
             _bridge.StopRobot(now);
+            AppliedThisTick = null;
         }
     }
 

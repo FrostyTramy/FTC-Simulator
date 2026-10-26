@@ -10,6 +10,7 @@ namespace Sim.App;
 ///                       [--no-robot] [--teamcode JAR] [--project DIR]
 ///                       [--robot NAME] [--robot-pose X,Z,YAW_DEG] [--opmode NAME]
 ///                       [--capture PNG [--capture-seconds N] [--capture-panels]]
+///                       [--setup MATCH.json] [--replay FILE] [--match-test [OUT_DIR]] [--verify-replay FILE]
 /// </code></summary>
 public sealed class CommandLine
 {
@@ -44,6 +45,21 @@ public sealed class CommandLine
 
     /// <summary>Seconds of fps measurement per view in screenshot mode.</summary>
     public double MeasureSeconds { get; private set; } = 3.0;
+
+    /// <summary>Match setup to load (JSON, as saved in match records).</summary>
+    public string? SetupFile { get; private set; }
+
+    /// <summary>Replay file to watch.</summary>
+    public string? Replay { get; private set; }
+
+    /// <summary>Headless: play the scripted 2v2 acceptance MATCH (Phase 10) and save its record and replay.</summary>
+    public bool MatchTest { get; private set; }
+
+    /// <summary>Where the match test writes its record and replay (default reports/match).</summary>
+    public string? MatchTestOut { get; private set; }
+
+    /// <summary>Headless: re-simulate a replay and compare it with the recording.</summary>
+    public string? VerifyReplay { get; private set; }
 
     public static CommandLine Parse(string[] args)
     {
@@ -104,6 +120,26 @@ public sealed class CommandLine
                     break;
                 case "--capture-panels":
                     cl.CapturePanels = true;
+                    break;
+                case "--setup" when next != null:
+                    cl.SetupFile = next;
+                    i++;
+                    break;
+                case "--replay" when next != null:
+                    cl.Replay = next;
+                    i++;
+                    break;
+                case "--match-test":
+                    cl.MatchTest = true;
+                    if (next != null)
+                    {
+                        cl.MatchTestOut = next;
+                        i++;
+                    }
+                    break;
+                case "--verify-replay" when next != null:
+                    cl.VerifyReplay = next;
+                    i++;
                     break;
                 case "--run-scenarios":
                     cl.RunScenarios = true;

@@ -2,29 +2,30 @@ using System.Collections.Generic;
 using System.Linq;
 using Godot;
 using Sim.DriverStation;
+using Sim.Match;
 using Sim.Robot;
 using Sim.Runner;
 
 namespace Sim.App;
 
 /// <summary>
-/// Driver Station panel (spec 08): OpMode selector (TeleOp and Autonomous sections), INIT / ▶ / ■ with the real DS
-/// availability, autonomous 30 s timer toggle and countdown, telemetry, error banner, battery voltage, gamepad
-/// assignment, Restart Robot, and a switch to Phase 5 direct drive (no code). All logic is in
-/// <see cref="DriverStationApp"/>; this class only shows it. Buttons never take keyboard focus, so the keyboard
-/// gamepad cannot press them.
+/// Driver Station panel (spec 08) for the station picked at the top (it also gets Start+A / Start+B and the keyboard
+/// gamepad): OpMode selector (TeleOp and Autonomous sections), INIT / ▶ / ■ with the real DS availability, autonomous
+/// 30 s timer toggle and countdown, telemetry, error banner, battery voltage, gamepad assignment, Restart Robot, and in
+/// practice a switch to direct drive (no code). All logic is in <see cref="DriverStationApp"/>; this class only shows
+/// it. Buttons never take keyboard focus, so the keyboard gamepad cannot press them.
 /// </summary>
 public partial class DriverStationPanel : PanelContainer
 {
-    private readonly RobotProgram _program;
-    private readonly RobotBody _robot;
+    private readonly MatchSession _session;
     private readonly GamepadInput _input;
-    private readonly DirectDrive _directDrive;
     private readonly List<OpModeInfo?> _items = new();
+    private OptionButton _station = null!;
     private OptionButton _opModes = null!;
     private Button _init = null!;
     private Button _play = null!;
     private Button _stop = null!;
+    private Button _restart = null!;
     private CheckButton _timer = null!;
     private CheckButton _direct = null!;
     private Label _status = null!;
@@ -34,14 +35,16 @@ public partial class DriverStationPanel : PanelContainer
     private Label _error = null!;
     private RichTextLabel _telemetry = null!;
     private int _listVersion = -1;
+    private StationRuntime? _shown;
 
-    public DriverStationPanel(RobotProgram program, RobotBody robot, GamepadInput input)
+    public DriverStationPanel(MatchSession session, GamepadInput input)
     {
-        _program = program;
-        _robot = robot;
+        _session = session;
         _input = input;
-        _directDrive = new DirectDrive(input);
     }
+
+    /// <summary>The station whose Driver Station is shown.</summary>
+    public StationRuntime? Current => _session.Stations.FirstOrDefault(s => s.Station.Key() == _input.Focused) ?? _session.Stations.FirstOrDefault();
 
     public override void _Ready()
     {
@@ -54,7 +57,16 @@ public partial class DriverStationPanel : PanelContainer
         OffsetBottom = -8;
         var box = new VBoxContainer();
         AddChild(box);
-        box.AddChild(new Label { Text = "Driver Station", HorizontalAlignment = HorizontalAlignment.Center });
+        var head = new HBoxContainer();
+        head.AddChild(new Label { Text = "Driver Station", SizeFlagsHorizontal = SizeFlags.ExpandFill });
+        _station = new OptionButton { FocusMode = FocusModeEnum.None, TooltipText = "The station shown here gets Start+A / Start+B and the keyboard gamepad" };
+        foreach (var s in _session.Stations)
+        {
+            _station.AddItem($"{s.Station.Label()} · {s.Setup.TeamLabel}");
+        }
+        _station.ItemSelected += i => _input.Focused = _session.Stations[(int)i].Station.Key();
+        head.AddChild(_station);
+        box.AddChild(head);
         _status = new Label { AutowrapMode = TextServer.AutowrapMode.WordSmart };
         box.AddChild(_status);
 
@@ -63,9 +75,15 @@ public partial class DriverStationPanel : PanelContainer
         box.AddChild(_opModes);
 
         var buttons = new HBoxContainer();
-        _init = MakeButton("INIT", () => _program.Ds.Init());
-        _play = MakeButton("▶", () => _program.Ds.Play(_robot.NowNanos));
-        _stop = MakeButton("■", () => _program.Ds.Stop());
+        _init = MakeButton("INIT", () => Current?.Ds?.Init());
+        _play = MakeButton("▶", () =>
+        {
+            if (Current is { Ds: { } ds } s)
+            {
+                ds.Play(s.Robot.NowNanos);
+            }
+        });
+        _stop = MakeButton("■", () => Current?.Ds?.Stop());
         buttons.AddChild(_init);
         buttons.AddChild(_play);
         buttons.AddChild(_stop);
@@ -73,7 +91,13 @@ public partial class DriverStationPanel : PanelContainer
 
         var timerRow = new HBoxContainer();
         _timer = new CheckButton { Text = "30 s timer", FocusMode = FocusModeEnum.None };
-        _timer.Toggled += on => _program.Ds.AutonomousTimerEnabled = on;
+        _timer.Toggled += on =>
+        {
+            if (Current?.Ds is { } ds)
+            {
+                ds.AutonomousTimerEnabled = on;
+            }
+        };
         _timerLabel = new Label();
         timerRow.AddChild(_timer);
         timerRow.AddChild(_timerLabel);
@@ -90,51 +114,86 @@ public partial class DriverStationPanel : PanelContainer
         box.AddChild(_telemetry);
 
         var bottom = new HBoxContainer();
-        bottom.AddChild(MakeButton("Restart Robot", () => _program.RestartRobot()));
-        _direct = new CheckButton { Text = "Direct drive (no code)", FocusMode = FocusModeEnum.None, ButtonPressed = !_program.Connected };
-        _direct.Toggled += on => _robot.Driver = on ? _directDrive : _program;
+        _restart = MakeButton("Restart Robot", () => Current?.Program?.RestartRobot());
+        bottom.AddChild(_restart);
+        _direct = new CheckButton { Text = "Direct drive (no code)", FocusMode = FocusModeEnum.None, TooltipText = "Practice only: drive with the gamepad without the robot code" };
+        _direct.Toggled += on =>
+        {
+            if (Current is { } s)
+            {
+                _session.SetDirectDrive(s, on);
+            }
+        };
         bottom.AddChild(_direct);
         box.AddChild(bottom);
-        _robot.Driver = _direct.ButtonPressed ? _directDrive : _program;
     }
 
     public override void _Process(double delta)
     {
-        var ds = _program.Ds;
-        var listVersion = ds.TeleOps.Count * 1000 + ds.Autonomous.Count;
-        if (listVersion != _listVersion)
+        var s = Current;
+        if (s == null)
         {
-            RebuildList(ds);
-            _listVersion = listVersion;
+            _status.Text = "No robot on the field";
+            return;
         }
-        var selectedIndex = ds.Selected is null ? -1 : _items.IndexOf(ds.Selected);
-        if (_opModes.Selected != selectedIndex)
+        var index = _session.Stations.ToList().IndexOf(s);
+        if (_station.Selected != index)
         {
-            _opModes.Select(selectedIndex);
+            _station.Select(index);
         }
-        var codeMode = !_direct.ButtonPressed;
-        _opModes.Disabled = !codeMode || !ds.CanSelect;
-        _init.Disabled = !codeMode || !ds.CanInit;
-        _play.Disabled = !codeMode || !ds.CanPlay;
-        _stop.Disabled = !codeMode || !ds.CanStop;
-        _direct.Disabled = ds.Phase is DsPhase.Initialized or DsPhase.Running or DsPhase.Stopping;
-        _timer.Disabled = ds.Selected is not { Autonomous: true } || ds.Phase is DsPhase.Running or DsPhase.Stopping;
-        _timer.SetPressedNoSignal(ds.AutonomousTimerEnabled);
-        _timerLabel.Text = ds.TimerRemainingSeconds(_robot.NowNanos) is { } left ? $"{left:0.0} s" : "";
-        _status.Text = codeMode ? $"Robot: {_program.Status}" : "Direct drive: gamepad1 → mecanum mixing, no robot code";
-        _battery.Text = $"Battery {_robot.Powertrain.Battery.BusVolts:0.00} V";
-        _gamepads.Text = $"Gamepad 1: {(_input.KeyboardActive ? "keyboard (not realistic)" : _input.Describe(_input.Assignment.Gamepad1))}\n" +
-                         $"Gamepad 2: {_input.Describe(_input.Assignment.Gamepad2)}   (Start+A / Start+B to assign)";
-        _error.Text = ds.Error ?? "";
-        var last = _program.Last;
-        _telemetry.Text = codeMode && last != null ? string.Join("\n", last.Telemetry) : "";
+        var seat = _input.Seat(s.Station.Key());
+        _battery.Text = $"Battery {s.Robot.Powertrain.Battery.BusVolts:0.00} V";
+        var a = _input.Assignments;
+        _gamepads.Text = $"Gamepad 1: {(seat.KeyboardActive ? "keyboard (not realistic)" : _input.Describe(a.Gamepad1(seat.Id)))}\n" +
+                         $"Gamepad 2: {_input.Describe(a.Gamepad2(seat.Id))}   (Start+A / Start+B to assign)";
+        var ds = s.Ds;
+        var practice = !_session.Director.Match.IsRunning;
+        var codeMode = ds != null && s.Robot.Driver is RobotProgram;
+        if (ds != null && s != _shown)
+        {
+            _listVersion = -1;
+        }
+        _shown = s;
+        if (ds != null)
+        {
+            var listVersion = ds.TeleOps.Count * 1000 + ds.Autonomous.Count;
+            if (listVersion != _listVersion)
+            {
+                RebuildList(ds);
+                _listVersion = listVersion;
+            }
+            var selectedIndex = ds.Selected is null ? -1 : _items.IndexOf(ds.Selected);
+            if (_opModes.Selected != selectedIndex)
+            {
+                _opModes.Select(selectedIndex);
+            }
+        }
+        _opModes.Visible = _init.Visible = _play.Visible = _stop.Visible = _timer.Visible = _restart.Visible = _direct.Visible = ds != null;
+        _opModes.Disabled = !codeMode || !ds!.CanSelect;
+        _init.Disabled = !codeMode || !ds!.CanInit;
+        _play.Disabled = !codeMode || !ds!.CanPlay;
+        _stop.Disabled = !codeMode || !ds!.CanStop;
+        _direct.Disabled = !practice || ds?.Phase is DsPhase.Initialized or DsPhase.Running or DsPhase.Stopping;
+        _direct.SetPressedNoSignal(ds != null && !codeMode);
+        _timer.Disabled = ds?.Selected is not { Autonomous: true } || ds.Phase is DsPhase.Running or DsPhase.Stopping;
+        _timer.SetPressedNoSignal(ds?.AutonomousTimerEnabled ?? false);
+        _timerLabel.Text = ds?.TimerRemainingSeconds(s.Robot.NowNanos) is { } left ? $"{left:0.0} s" : "";
+        _status.Text = s.Setup.Kind switch
+        {
+            StationKind.Code when codeMode => $"Robot: {s.Program!.Status}",
+            StationKind.Code => "Direct drive: gamepad1 → mecanum mixing, no robot code",
+            StationKind.Gamepad => "Gamepad drive (no robot code): gamepad1 → mecanum mixing and the example TeleOp's buttons",
+            _ => "Placeholder robot: stays where it was placed",
+        };
+        _error.Text = ds?.Error ?? "";
+        _telemetry.Text = codeMode && s.Program!.Last is { } last ? string.Join("\n", last.Telemetry) : "";
     }
 
     private void Select(int index)
     {
-        if (index >= 0 && index < _items.Count && _items[index] is { } op && _program.Ds.CanSelect)
+        if (Current?.Ds is { } ds && index >= 0 && index < _items.Count && _items[index] is { } op && ds.CanSelect)
         {
-            _program.Ds.Select(op);
+            ds.Select(op);
         }
     }
 
