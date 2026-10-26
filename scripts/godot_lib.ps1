@@ -35,6 +35,7 @@ function Update-StandInAssets {
 function Build-GodotProject {
     # Compiles the C# project and imports new/changed assets (glb from the CAD pipeline and the stand-ins).
     Update-StandInAssets
+    Build-JavaJars   # robot code runs on these: never an old SDK shim after a pull
     & dotnet build (Join-Path $GodotProject 'FtcSim.csproj') -nologo -v q
     if ($LASTEXITCODE -ne 0) { throw 'C# build failed' }
     $code = Invoke-Godot @('--headless', '--path', $GodotProject, '--import') 600

@@ -50,6 +50,8 @@ public class ApiTeleOp extends LinearOpMode {
     FileLog log = new FileLog("api_check");
     manager.registerListener(log);
     TelemetryManager panels = PanelsTelemetry.INSTANCE.getTelemetry();
+    long previousInterval = panels.getUpdateInterval();
+    panels.setUpdateInterval(25);
     telemetry.addData("id", pinpoint.getDeviceID());
     telemetry.update();
     waitForStart();
@@ -69,5 +71,6 @@ public class ApiTeleOp extends LinearOpMode {
       }
       panels.update(telemetry);
     }
+    panels.setUpdateInterval(previousInterval);   // the interval is global to Panels
   }
 }

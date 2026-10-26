@@ -8,6 +8,9 @@
   (D-039). A team's own register-level Pinpoint driver works on the simulated Pinpoint (register emulation).
 - Robot YAML sensor types `limelight` and `analog` (sensors.yaml models, schema); the RoboDojo robot has its `limelight`.
 - Tests: `tests/compat/rd4_apis` (team-style code using every one of these APIs) built and run by `Rd4ApiTests`.
+- Panels `getUpdateInterval()`/`setUpdateInterval(long)` (second RD4 build log). `godot_run.ps1` and
+  `test_dotnet.ps1` rebuild the SDK shim and runner jars first (`Build-JavaJars`): robot code ran on a stale shim
+  after a pull (NoSuchMethodError) because only the TeamCode build saw the new shim classes.
 
 ## Clone a branch from a GitHub link — 2026-10-26
 - USER: cloning https://github.com/Robo-Dojo/RD4/tree/Tweaks-agarthaauto said "not found" (a browser page, not a git

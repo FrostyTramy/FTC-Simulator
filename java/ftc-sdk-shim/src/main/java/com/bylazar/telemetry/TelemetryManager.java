@@ -11,6 +11,16 @@ import org.firstinspires.ftc.robotcore.external.Telemetry;
  */
 public class TelemetryManager {
   private final List<String> lines = new ArrayList<>();
+  private long updateIntervalMs = 100;   // ASSUMED default; only throttles the Panels page, which the simulator has not
+
+  /** How often Panels sends data to its web page, ms (Kotlin property updateInterval; global to Panels). */
+  public long getUpdateInterval() {
+    return updateIntervalMs;
+  }
+
+  public void setUpdateInterval(long intervalMs) {
+    updateIntervalMs = intervalMs;
+  }
 
   /** Each argument on its own line (Panels' debug view). */
   public void debug(Object... data) {

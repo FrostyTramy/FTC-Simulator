@@ -96,3 +96,20 @@ function Get-VenvSitePackages {
     if ($lib) { return Join-Path $lib.FullName 'site-packages' }
     return $null
 }
+
+function Build-JavaJars {
+    # The SDK shim and OpMode runner jars the simulator starts robot code with. Gradle skips them when they are up to
+    # date; run before the simulator starts (a running robot JVM keeps the jars open on Windows).
+    $jdk = Find-Jdk17
+    if (-not $jdk) { throw 'JDK 17 not found - run ./scripts/check_tools.ps1' }
+    $previous = $env:JAVA_HOME
+    $env:JAVA_HOME = $jdk
+    Push-Location ([IO.Path]::Combine($RepoRoot, 'java'))
+    try {
+        & (Find-Gradle) --console=plain -q ':ftc-sdk-shim:jar' ':runner:jar'
+        if ($LASTEXITCODE -ne 0) { throw 'Java build (SDK shim, runner) failed' }
+    } finally {
+        Pop-Location
+        $env:JAVA_HOME = $previous
+    }
+}
