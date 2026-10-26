@@ -12,9 +12,10 @@ namespace Sim.EditorUi;
 
 /// <summary>
 /// Git panel (spec 07 "Git and GitHub", Phase 8), toggled with F6: branch with ahead/behind, changed files and their
-/// diff, stage/unstage, commit, pull, push, branches, and GitHub sign-in by device flow (token only in Windows
-/// Credential Manager). Commits that look like they contain secrets or huge files and pushes to main/master ask for
-/// confirmation first; there is no force push. git runs on worker threads; results come back on the main thread.
+/// diff, stage/unstage, commit, pull, push, branches, and GitHub sign-in in the browser (Git Credential Manager, D-038;
+/// the device flow when config/github.yaml has an OAuth App client ID). Tokens live only in Windows Credential Manager.
+/// Commits that look like they contain secrets or huge files and pushes to main/master ask for confirmation first;
+/// there is no force push. git runs on worker threads; results come back on the main thread.
 /// </summary>
 public partial class GitPanel : PanelContainer
 {
@@ -32,6 +33,10 @@ public partial class GitPanel : PanelContainer
     private List<GitFileStatus> _changes = new();
     private Action? _confirmed;
     private bool _busy;
+    private Button _signIn = null!;
+
+    /// <summary>The signed-in GitHub account ("" when signed in by device flow without a known login), or null.</summary>
+    private string? _gitHubUser;
 
     public GitPanel(string repository)
     {
@@ -58,7 +63,33 @@ public partial class GitPanel : PanelContainer
         top.AddChild(Button("Refresh", Refresh));
         top.AddChild(Button("Pull", () => Work("Pulling...", () => _git.Pull(), "Pulled")));
         top.AddChild(Button("Push", Push));
-        top.AddChild(Button(token != null ? "Signed in to GitHub ✓" : "Sign in to GitHub", SignIn));
+        _signIn = Button("Sign in to GitHub", SignIn);
+        top.AddChild(_signIn);
+        if (token != null)
+        {
+            ShowSignedIn("");
+        }
+        else
+        {
+            // Already signed in through Git Credential Manager? (stored token only, never a window)
+            Task.Run(() =>
+            {
+                try
+                {
+                    return GitCredentials.Fill(interactive: false);
+                }
+                catch (GitException)
+                {
+                    return null;
+                }
+            }).ContinueWith(t => _mainThread.Enqueue(() =>
+            {
+                if (t.Result is { } signedIn)
+                {
+                    ShowSignedIn(signedIn.User);
+                }
+            }));
+        }
         root.AddChild(top);
 
         var repoRow = new HBoxContainer();
@@ -223,26 +254,89 @@ public partial class GitPanel : PanelContainer
 
     private void SwitchBranch(string name) => Work($"Switching to {name}...", () => _git.Switch(name), $"On {name}");
 
+    private void ShowSignedIn(string? user)
+    {
+        _gitHubUser = user;
+        _signIn.Text = user == null ? "Sign in to GitHub" : user.Length > 0 ? $"GitHub: {user} ✓" : "Signed in to GitHub ✓";
+        _signIn.TooltipText = user == null ? "Opens GitHub's sign-in page in your browser" : "Sign out of GitHub";
+    }
+
+    /// <summary>
+    /// Browser sign-in (USER 2026-10-26): Git Credential Manager opens GitHub's sign-in page in the default browser and
+    /// keeps the token in Windows Credential Manager; the account is checked with GitHub before GCM keeps it. With an
+    /// OAuth App client ID in config/github.yaml the device flow is used instead. Signed in: asks to sign out.
+    /// </summary>
     private void SignIn()
     {
-        var clientId = ClientId();
-        if (clientId.Length == 0)
+        if (_gitHubUser != null)
         {
-            _status.Text = "GitHub sign-in needs an OAuth App client ID in config/github.yaml (Q-010); git uses your system credentials meanwhile";
+            Ask("Sign out of GitHub? This also signs git on this PC out of GitHub (Git Credential Manager): the next pull or push " +
+                "asks you to sign in again.", SignOut);
             return;
         }
+        var clientId = ClientId();
+        if (clientId.Length > 0)
+        {
+            DeviceFlowSignIn(clientId);
+            return;
+        }
+        Run(() =>
+        {
+            var credential = GitCredentials.Fill(interactive: true) ?? throw new GitException("GitHub sign-in was cancelled");
+            string login;
+            try
+            {
+                using var http = new System.Net.Http.HttpClient();
+                login = GitCredentials.GitHubLogin(http, credential.Secret).GetAwaiter().GetResult();
+            }
+            catch (GitException)
+            {
+                GitCredentials.Reject(credential);   // GitHub refused the token: do not keep it
+                throw;
+            }
+            GitCredentials.Approve(credential);
+            return login;
+        }, login =>
+        {
+            ShowSignedIn(login);
+            _status.Text = $"Signed in to GitHub as {login} (Git Credential Manager keeps the token in Windows Credential Manager)";
+        }, "Sign in to GitHub in the browser window that opens (Git Credential Manager)...");
+    }
+
+    private void DeviceFlowSignIn(string clientId)
+    {
         var flow = new GitHubDeviceFlow(new System.Net.Http.HttpClient(), clientId);
         Run(() => flow.Start().GetAwaiter().GetResult(), code =>
         {
-            _status.Text = $"Open {code.VerificationUri} and enter {code.UserCode}";
+            DisplayServer.ClipboardSet(code.UserCode);
+            _status.Text = $"Code {code.UserCode} copied: paste it on the GitHub page that opened ({code.VerificationUri})";
             OS.ShellOpen(code.VerificationUri);
             Run(() => flow.WaitForToken(code).GetAwaiter().GetResult(), token =>
             {
                 CredentialStore.Save(CredentialStore.GitHubTarget, "x-access-token", token);
                 _git.AccessToken = token;
+                ShowSignedIn("");
                 _status.Text = "Signed in to GitHub (token stored in Windows Credential Manager)";
             });
         });
+    }
+
+    private void SignOut()
+    {
+        Run(() =>
+        {
+            CredentialStore.Delete(CredentialStore.GitHubTarget);
+            if (GitCredentials.Fill(interactive: false) is { } stored)
+            {
+                GitCredentials.Reject(stored);
+            }
+            return true;
+        }, _ =>
+        {
+            _git.AccessToken = null;
+            ShowSignedIn(null);
+            _status.Text = "Signed out of GitHub";
+        }, "Signing out...");
     }
 
     private static string ClientId()

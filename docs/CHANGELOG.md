@@ -1,5 +1,12 @@
 # Changelog
 
+## GitHub sign-in in the browser — 2026-10-26
+- USER: sign in to GitHub by opening a browser. The git panel's "Sign in to GitHub" now opens GitHub's sign-in page
+  through Git Credential Manager (no OAuth App or client ID needed, D-038); the token stays in Windows Credential
+  Manager and pull/push use it. The panel shows the signed-in account and offers sign out. A client ID in
+  config/github.yaml still selects the device flow, which now opens the page and copies the code. Q-010 answered.
+- Tests: `GitCredentialsTests` (scripted credential helper, GitHub account check).
+
 ## Every robot part solid, physical ball path — 2026-10-26
 - USER: all robot parts must be solid to the balls and a stuck ball must be possible; the flower bar went through the
   FLOWER and the balls. D-037: elements collide with arms and paddles; servo arms stall on field bodies (the flower bar

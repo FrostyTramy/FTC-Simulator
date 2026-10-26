@@ -5,7 +5,7 @@ something required is missing.
 
 | Tool | Version | Status on the dev laptop (2026-10-24) |
 |---|---|---|
-| Git | any recent | 2.52.0 ✅ |
+| Git | any recent, with Git Credential Manager (Git for Windows installs it) for the browser GitHub sign-in | 2.52.0 ✅ |
 | Godot .NET | 4.7.2 stable (mono) | in `Godot_v4.7.2-stable_mono_win64/` ⚠️ see "Godot does not start" |
 | .NET SDK | 8 or newer (10 LTS installed) | 10.0.402 ✅ |
 | JDK | 17 (javac) | Oracle 17.0.12 in `C:\Program Files\Java\jdk-17` ✅ |

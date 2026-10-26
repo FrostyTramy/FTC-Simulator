@@ -300,3 +300,19 @@ Why we chose X over Y. Newest last. Format: ID, date, decision, why, alternative
 - **Alternatives:** arms as dynamic bodies on motorised hinges (heavier, needs arm masses and servo torques we do not
   have, and less stable at 240 Hz); arm shapes on the chassis body (Jolt's 2 cm penetration slop lets them sink into
   elements before pushing); keeping the guided path (cannot jam).
+
+## D-038 — GitHub sign-in in the browser through Git Credential Manager (2026-10-26)
+- **Context:** the device flow (spec 07) needs a GitHub OAuth App client ID that was never provided (Q-010), so the
+  button only explained that. USER 2026-10-26: "make github sign in work by opening a browser and login".
+- **Decision:** "Sign in to GitHub" runs `git credential fill` for github.com with GCM_GITHUB_AUTHMODES=browser. Git
+  Credential Manager (bundled with Git for Windows, git's helper there) opens GitHub's sign-in page in the default
+  browser and keeps the token in Windows Credential Manager. The app checks the token with GET /user, then `git
+  credential approve` (or `reject` if GitHub refuses it). It never stores the token: git asks GCM on pull/push. On
+  opening, the panel asks GCM silently (GCM_INTERACTIVE=never) whether an account is already signed in. Sign out:
+  `git credential reject` (signs git on the PC out of GitHub, the dialog says so) and removes a device-flow token.
+  With a client ID in config/github.yaml the device flow stays, now opening the page and copying the code.
+- **Why:** no OAuth App to create or maintain, the login page is GitHub's own (2FA, passkeys, SSO work), and the token
+  is where spec 07 wants it (Windows Credential Manager) — GCM is the helper git on Windows already uses for push.
+- **Limits:** needs GCM as git's credential helper (Git for Windows default); otherwise the panel says how to set it.
+  Tests use a scripted helper (GIT_CONFIG_* for the git process only), never the developer's credentials.
+

@@ -75,6 +75,119 @@ public sealed class GitHubDeviceFlow(HttpClient http, string clientId)
     }
 }
 
+/// <summary>A credential git's helper gave for one host: the account and its token (never printed: see ToString).</summary>
+public sealed record GitCredential(string Host, string User, string Secret)
+{
+    public override string ToString() => $"{User}@{Host}";
+}
+
+/// <summary>
+/// GitHub sign-in in the browser through Git Credential Manager (USER 2026-10-26, D-038). GCM ships with Git for Windows
+/// and is git's credential helper there: <c>git credential fill</c> for github.com makes it open the browser on GitHub's
+/// own sign-in page (GCM_GITHUB_AUTHMODES=browser) when it has no token yet, and it keeps the token in Windows Credential
+/// Manager (git:https://github.com). No OAuth App of ours, no client ID (Q-010), and the simulator never stores the
+/// token: git asks the helper for it on every pull and push, and the API check here only holds it in memory.
+/// </summary>
+public static class GitCredentials
+{
+    public const string GitHubHost = "github.com";
+
+    /// <summary>Extra environment for the git process (tests point git at a scripted helper with GIT_CONFIG_*).</summary>
+    public static Dictionary<string, string> Environment { get; } = new();
+
+    /// <summary>
+    /// The github.com credential from git's helper. Interactive: a helper without one asks (GCM: the browser sign-in),
+    /// for up to <paramref name="timeout"/>. Not interactive: only what is stored, no window (GCM_INTERACTIVE=never).
+    /// Null when there is none; throws <see cref="GitException"/> when git or the helper failed.
+    /// </summary>
+    public static GitCredential? Fill(bool interactive, TimeSpan? timeout = null)
+    {
+        var (ok, output, error) = Run("fill", $"protocol=https\nhost={GitHubHost}\n\n", interactive, timeout ?? TimeSpan.FromSeconds(interactive ? 300 : 20));
+        if (!ok)
+        {
+            if (interactive && error.Contains("terminal prompts disabled", StringComparison.Ordinal))
+            {
+                throw new GitException("no sign-in window: Git Credential Manager is not your git credential helper. Install Git for Windows " +
+                                       "(it includes it) or run: git config --global credential.helper manager");
+            }
+            return interactive ? throw new GitException("GitHub sign-in did not finish: " + FirstLine(error)) : null;
+        }
+        var values = Parse(output);
+        return values.TryGetValue("password", out var secret) && secret.Length > 0
+            ? new GitCredential(GitHubHost, values.GetValueOrDefault("username", ""), secret)
+            : null;
+    }
+
+    /// <summary>Tells the helper the credential works (GCM keeps it).</summary>
+    public static void Approve(GitCredential credential) => Run("approve", Describe(credential), false, TimeSpan.FromSeconds(20));
+
+    /// <summary>Tells the helper to forget the credential (sign out, or a token GitHub refused).</summary>
+    public static void Reject(GitCredential credential) => Run("reject", Describe(credential), false, TimeSpan.FromSeconds(20));
+
+    /// <summary>The GitHub login a token belongs to (GET /user); throws when GitHub refuses the token.</summary>
+    public static async Task<string> GitHubLogin(HttpClient http, string token, CancellationToken cancel = default)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, "https://api.github.com/user");
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        request.Headers.UserAgent.ParseAdd("BiobuzzSim");
+        request.Headers.Accept.ParseAdd("application/vnd.github+json");
+        using var response = await http.SendAsync(request, cancel);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new GitException($"GitHub refused the sign-in ({(int)response.StatusCode})");
+        }
+        var json = JsonNode.Parse(await response.Content.ReadAsStringAsync(cancel));
+        return json?["login"]?.GetValue<string>() ?? throw new GitException("GitHub did not name the account");
+    }
+
+    /// <summary>key=value lines of the git credential protocol.</summary>
+    public static Dictionary<string, string> Parse(string output) =>
+        output.Split('\n', StringSplitOptions.RemoveEmptyEntries)
+            .Select(line => line.TrimEnd('\r').Split('=', 2))
+            .Where(kv => kv.Length == 2)
+            .GroupBy(kv => kv[0])
+            .ToDictionary(g => g.Key, g => g.Last()[1]);
+
+    private static string Describe(GitCredential c) => $"protocol=https\nhost={c.Host}\nusername={c.User}\npassword={c.Secret}\n\n";
+
+    private static string FirstLine(string text) => text.Split('\n').Select(l => l.Trim()).FirstOrDefault(l => l.Length > 0) ?? "no answer";
+
+    private static (bool Ok, string Output, string Error) Run(string action, string input, bool interactive, TimeSpan timeout)
+    {
+        var info = new System.Diagnostics.ProcessStartInfo("git")
+        {
+            UseShellExecute = false,
+            RedirectStandardInput = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true,
+        };
+        info.ArgumentList.Add("credential");
+        info.ArgumentList.Add(action);
+        foreach (var (key, value) in Environment)
+        {
+            info.Environment[key] = value;
+        }
+        info.Environment["GIT_TERMINAL_PROMPT"] = "0";             // never a hidden console prompt
+        info.Environment["GCM_INTERACTIVE"] = interactive ? "auto" : "never";
+        if (interactive)
+        {
+            info.Environment["GCM_GITHUB_AUTHMODES"] = "browser";  // straight to the browser, no mode chooser
+        }
+        using var process = System.Diagnostics.Process.Start(info) ?? throw new GitException("git is not installed");
+        var output = process.StandardOutput.ReadToEndAsync();
+        var error = process.StandardError.ReadToEndAsync();
+        process.StandardInput.Write(input);
+        process.StandardInput.Close();
+        if (!process.WaitForExit((int)timeout.TotalMilliseconds))
+        {
+            process.Kill(entireProcessTree: true);
+            throw new GitException(interactive ? "GitHub sign-in timed out; start again" : $"git credential {action} did not answer");
+        }
+        return (process.ExitCode == 0, output.Result, error.Result);
+    }
+}
+
 /// <summary>
 /// Windows Credential Manager (spec 07: "Token stored only in Windows Credential Manager"). Generic credentials of the
 /// current user; never logged, never written to files. On other systems (CI, development containers) there is no store:

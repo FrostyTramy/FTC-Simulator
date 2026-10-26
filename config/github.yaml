@@ -1,6 +1,7 @@
-# GitHub sign-in for the built-in git panel (spec 07 "Sign in"). The device flow needs the client ID of a GitHub OAuth
-# App created by the user (Settings → Developer settings → OAuth Apps, "Enable Device Flow" ticked). A client ID is not
-# a secret; there is no client secret in the app. Until it is set, git uses the system's credentials (Git Credential
-# Manager).
+# GitHub sign-in for the built-in git panel (spec 07 "Sign in", D-038). By default "Sign in to GitHub" opens GitHub's
+# sign-in page in the browser through Git Credential Manager (part of Git for Windows), which keeps the token in Windows
+# Credential Manager: nothing to set up here. Optional: the client ID of your own GitHub OAuth App (Settings → Developer
+# settings → OAuth Apps, "Enable Device Flow" ticked) switches the button to the device flow (the code is copied for
+# you and the page opens). A client ID is not a secret; there is no client secret in the app.
 oauth_client_id: {value: "", unit: label, source: "to be provided by the user (docs/open_questions.md Q-010)"}
 scope: {value: repo, unit: label, source: "GitHub OAuth scopes: repo = push/pull private and public repositories"}
