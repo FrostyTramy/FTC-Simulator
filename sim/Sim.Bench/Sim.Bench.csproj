@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Benchmarks (spec 12 layer 7, Phase 11): runs the calibration OpModes (tools/calibration/TeamCode) on the flat-floor
+       robot in the runner JVM and collects their CSV logs for tools/calibration/fit.py. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Sim.Runner\Sim.Runner.csproj" />
+  </ItemGroup>
+</Project>
