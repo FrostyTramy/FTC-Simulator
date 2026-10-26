@@ -19,6 +19,7 @@ import org.firstinspires.ftc.sim.devices.SimDigitalChannel;
 import org.firstinspires.ftc.sim.devices.SimDigitalController;
 import org.firstinspires.ftc.sim.devices.SimI2cClient;
 import org.firstinspires.ftc.sim.devices.SimI2cDevice;
+import org.firstinspires.ftc.sim.devices.PinpointRegisters;
 import org.firstinspires.ftc.sim.devices.SimImu;
 import org.firstinspires.ftc.sim.devices.SimWebcamName;
 import org.firstinspires.ftc.sim.devices.SimMotorController;
@@ -101,7 +102,9 @@ public final class SimRobot {
           hardwareMap.put(d.name(), new SimImu(d.name()));
           break;
         case "pinpoint":
-          hardwareMap.put(d.name(), new GoBildaPinpointDriver(i2c(d, PINPOINT_VALUES, GoBildaPinpointDriver.DEFAULT_ADDRESS), true));
+          // The registers too: a team's own copy of the goBILDA driver reads them (HardwareMap builds it on this client).
+          hardwareMap.put(d.name(), new GoBildaPinpointDriver(new SimI2cClient(new SimI2cDevice(d.name(), d.hub(), d.port(), PINPOINT_VALUES),
+              I2cAddr.create7bit(GoBildaPinpointDriver.DEFAULT_ADDRESS), new PinpointRegisters()), true));
           break;
         case "otos":
           hardwareMap.put(d.name(), new SparkFunOTOS(i2c(d, OTOS_VALUES, SparkFunOTOS.DEFAULT_ADDRESS)));
@@ -122,6 +125,13 @@ public final class SimRobot {
           break;
         case "webcam":
           hardwareMap.put(d.name(), new SimWebcamName(d.name(), d.params()));
+          break;
+        case "limelight":
+          hardwareMap.put(d.name(), new com.qualcomm.hardware.limelightvision.Limelight3A(d.name()));
+          break;
+        case "analog":
+          hardwareMap.put(d.name(), new com.qualcomm.robotcore.hardware.AnalogInput(d.name(), hubs.get(d.hub()), d.port(),
+              d.params().getOrDefault("volts", 0.0)));
           break;
         default:
           throw new IllegalArgumentException("unsupported device type '" + d.type() + "' for " + d.name());

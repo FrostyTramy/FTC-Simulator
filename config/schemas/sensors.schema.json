@@ -34,6 +34,8 @@
     "distance": {"$ref": "#/$defs/models"},
     "touch": {"$ref": "#/$defs/models"},
     "webcam": {"$ref": "#/$defs/models"},
+    "limelight": {"$ref": "#/$defs/models"},
+    "analog": {"$ref": "#/$defs/models"},
     "odometry_pods": {
       "type": "object",
       "required": ["lift_tilt"],

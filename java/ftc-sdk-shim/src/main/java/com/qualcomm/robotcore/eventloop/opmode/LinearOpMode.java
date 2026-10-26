@@ -9,6 +9,7 @@ import org.firstinspires.ftc.sim.SimRuntime;
  */
 public abstract class LinearOpMode extends OpMode {
   private volatile boolean started;
+  private boolean preStartNotified;
 
   public LinearOpMode() {}
 
@@ -56,6 +57,10 @@ public abstract class LinearOpMode extends OpMode {
   }
 
   public final boolean isStarted() {
+    if (started && !preStartNotified) {
+      preStartNotified = true;   // the OpMode thread sees START: its lifecycle listeners hear it first
+      OpModeManagerImpl.simPreStart(this);
+    }
     return started;
   }
 

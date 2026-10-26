@@ -17,7 +17,7 @@
       "required": ["name", "type", "model", "sdk_class", "hub", "pose"],
       "properties": {
         "name": {"type": "string", "minLength": 1},
-        "type": {"enum": ["pinpoint", "otos", "color", "distance", "touch", "webcam"]},
+        "type": {"enum": ["pinpoint", "otos", "color", "distance", "touch", "webcam", "limelight", "analog"]},
         "model": {"type": "string", "pattern": "^[a-z0-9_]+$"},
         "sdk_class": {"type": "string"},
         "hub": {"enum": ["control_hub", "expansion_hub"]},

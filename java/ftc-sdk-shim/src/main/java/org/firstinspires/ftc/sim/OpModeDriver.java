@@ -1,7 +1,9 @@
 package org.firstinspires.ftc.sim;
 
+import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
+import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.Gamepad;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
@@ -172,6 +174,7 @@ public final class OpModeDriver {
       if (startRequested && op instanceof LinearOpMode linearOp) {
         linearOp.internalSimStart();
       }
+      com.qualcomm.robotcore.eventloop.opmode.OpModeManagerImpl.simPreInit(op, displayName());
       op.internalPreInit();
       if (op instanceof LinearOpMode linearOp) {
         linearOp.runOpMode();
@@ -206,6 +209,7 @@ public final class OpModeDriver {
     }
     if (startRequested && !isStopping(op)) {
       op.internalSimUpdateTime();
+      com.qualcomm.robotcore.eventloop.opmode.OpModeManagerImpl.simPreStart(op);
       op.start();
       op.internalPostLoop(); // SDK internalPostUserCode: telemetry after every user call
       runtime.consume(overhead);
@@ -230,7 +234,21 @@ public final class OpModeDriver {
     op.gamepad2.copy(latest2);
   }
 
+  /** The name the Driver Station lists (the @TeleOp / @Autonomous name, else the class name). */
+  private String displayName() {
+    TeleOp teleOp = opModeClass.getAnnotation(TeleOp.class);
+    if (teleOp != null && !teleOp.name().isEmpty()) {
+      return teleOp.name();
+    }
+    Autonomous auto = opModeClass.getAnnotation(Autonomous.class);
+    return auto != null && !auto.name().isEmpty() ? auto.name() : opModeClass.getSimpleName();
+  }
+
   private void finish(Throwable t) {
+    OpMode op = opMode;
+    if (op != null) {
+      com.qualcomm.robotcore.eventloop.opmode.OpModeManagerImpl.simPostStop(op);
+    }
     if (t != null && error == null) {
       String message = t.getMessage();
       error = "User code threw an uncaught exception: " + t.getClass().getSimpleName() + (message != null ? " - " + message : "");

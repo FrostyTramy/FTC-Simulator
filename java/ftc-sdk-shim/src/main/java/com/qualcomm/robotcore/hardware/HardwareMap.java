@@ -119,6 +119,44 @@ public class HardwareMap implements Iterable<HardwareDevice> {
         return classOrInterface.cast(device);
       }
     }
+    return teamI2cDriver(classOrInterface, deviceName.trim(), devices);
+  }
+
+  /**
+   * A team's own I2C driver class (an {@link I2cDeviceSynchDevice} subclass, e.g. a copy of a vendor driver) asked for
+   * by a configured I2C device's name: built on that device's I2C client, as the Robot Controller builds the driver
+   * class the configuration names (D-039), and kept for later lookups. Null if the class has no
+   * (client, boolean) or (client) constructor.
+   */
+  private <T> T teamI2cDriver(Class<? extends T> type, String name, List<HardwareDevice> devices) {
+    if (!I2cDeviceSynchDevice.class.isAssignableFrom(type) || java.lang.reflect.Modifier.isAbstract(type.getModifiers())) {
+      return null;
+    }
+    for (HardwareDevice device : devices) {
+      if (!(device instanceof I2cDeviceSynchDevice<?> configured)) {
+        continue;
+      }
+      I2cDeviceSynchSimple client = configured.getDeviceClient();
+      for (java.lang.reflect.Constructor<?> c : type.getConstructors()) {
+        Class<?>[] p = c.getParameterTypes();
+        try {
+          Object made = null;
+          if (p.length == 2 && p[0].isInstance(client) && p[1] == boolean.class) {
+            made = c.newInstance(client, true);
+          } else if (p.length == 1 && p[0].isInstance(client)) {
+            made = c.newInstance(client);
+          }
+          if (made != null) {
+            put(name, (HardwareDevice) made);
+            return type.cast(made);
+          }
+        } catch (java.lang.reflect.InvocationTargetException e) {
+          throw new IllegalStateException("creating " + type.getSimpleName() + " for \"" + name + "\" failed: " + e.getCause(), e.getCause());
+        } catch (ReflectiveOperationException e) {
+          throw new IllegalStateException("cannot create " + type.getSimpleName() + " for \"" + name + "\": " + e, e);
+        }
+      }
+    }
     return null;
   }
 

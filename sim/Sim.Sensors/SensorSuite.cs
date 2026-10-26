@@ -27,6 +27,9 @@ public sealed class SensorSuite
                 "distance" => new DistanceSensorDevice(s, models, deviceSeed),
                 "touch" => new TouchSensorDevice(s, models),
                 "webcam" => new WebcamDevice(s, models, webcams++),
+                // D-039: in the robot's hardware map with every SDK call, but nothing simulated feeds them yet (a Limelight
+                // reports no target, an analog input its idle voltage).
+                "limelight" or "analog" => null,
                 _ => throw new RobotConfigException($"sensor '{s.Name}': unknown type '{s.Type}'"),
             };
             if (device != null)

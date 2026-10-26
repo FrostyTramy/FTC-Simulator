@@ -55,3 +55,17 @@ sensors:
     hub: control_hub
     port: 1
     pose: {value: {position: [0.0, 0.06, 0.228], forward: [0, 0, 1], up: [0, 1, 0]}, unit: m, source: "ASSUMED: rear bumper, pressing backwards (e.g. against the wall)"}
+  - name: limelight
+    type: limelight
+    model: limelight_3a
+    sdk_class: Limelight3A
+    hub: control_hub
+    port: 0
+    pose: {value: {position: [0.0, 0.30, -0.15], forward: [0, 0, -1], up: [0, 1, 0]}, unit: m, source: "ASSUMED: front centre, 30 cm high, level (USB to the Control Hub; no image simulated yet, D-039)"}
+  - name: sensor_analog
+    type: analog
+    model: rev_analog_port
+    sdk_class: AnalogInput
+    hub: control_hub
+    port: 0
+    pose: {value: {position: [0.0, 0.10, 0.0]}, unit: m, source: "Control Hub analog port 0; nothing connected in the simulator (0 V, D-039)"}

@@ -92,6 +92,13 @@ Sources for `config/robots/robodojo_23205.yaml` and `config/cad/robodojo_23205.y
   geometry lets it. The scoreboard "Ball path" button switches back to the guided path. Re-run the CAD pipeline once
   (new colliders). Open points 9-10 below.
 
+- **RD4 code in the simulator (2026-10-26, D-039):** the libraries and SDK classes RD4 uses are now in the simulator's
+  SDK (Panels, FTC Dashboard `@Config`, Limelight 3A, AnalogInput, TypeConversion, the team's own Pinpoint driver on
+  raw registers, Android file paths, OpModeManagerImpl). Two errors are in the Tweaks-agarthaauto branch itself and
+  fail on the real robot too: `MainMecanumTuner.java` imports `com.sun.tools.javac.comp.Todo` (an IDE auto-import;
+  delete the line) and uses `DriveTuneLogger`, which is not in the repository (commit it or remove the use). The
+  Limelight reports no target yet; `analog3` is not in the robot config (tell us what is plugged into it).
+
 ## Open points for the team (ASSUMED until checked)
 1. **Mecanum wheels in the CAD:** both left wheels ("Stanga") have their top rollers along the same diagonal, and so
    do both right wheels. That is not the X pattern, so the robot could not strafe. The sim uses FL/BR left slant and

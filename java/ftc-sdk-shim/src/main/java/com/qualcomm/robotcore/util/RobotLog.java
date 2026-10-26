@@ -67,6 +67,30 @@ public class RobotLog {
     e(tag + ": " + message + " (" + throwable + ")");
   }
 
+  public static void ee(String tag, Throwable throwable, String format, Object... args) {
+    ee(tag, throwable, String.format(format, args));
+  }
+
+  public static void ww(String tag, Throwable throwable, String message) {
+    w(tag + ": " + message + " (" + throwable + ")");
+  }
+
+  public static void ww(String tag, Throwable throwable, String format, Object... args) {
+    ww(tag, throwable, String.format(format, args));
+  }
+
+  public static void ii(String tag, Throwable throwable, String message) {}
+
+  public static void ii(String tag, Throwable throwable, String format, Object... args) {}
+
+  public static void dd(String tag, Throwable throwable, String message) {}
+
+  public static void dd(String tag, Throwable throwable, String format, Object... args) {}
+
+  public static void vv(String tag, Throwable throwable, String message) {}
+
+  public static void vv(String tag, Throwable throwable, String format, Object... args) {}
+
   /** A warning the Driver Station shows until it is cleared (here: one log line). */
   public static void addGlobalWarningMessage(String message) {
     w(message);

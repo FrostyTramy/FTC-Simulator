@@ -316,3 +316,23 @@ Why we chose X over Y. Newest last. Format: ID, date, decision, why, alternative
 - **Limits:** needs GCM as git's credential helper (Git for Windows default); otherwise the panel says how to set it.
   Tests use a scripted helper (GIT_CONFIG_* for the git process only), never the developer's credentials.
 
+
+## D-039 — What the team's RD4 code needs from the SDK shim (2026-10-26)
+- **Context:** the RoboDojo #23205 RD4 code (branch Tweaks-agarthaauto, USER build log) failed with 118 errors: Panels
+  (`com.bylazar` configurables and telemetry), FTC Dashboard `@Config`, `Limelight3A`, `AnalogInput`, `TypeConversion`,
+  `LynxI2cDeviceSynch`, `RobotLog.ee(tag, exception, format, args)`, Android `TextUtils`/`Environment`, `AppUtil`,
+  `OpModeManagerImpl`, and a register-level copy of the goBILDA Pinpoint driver in TeamCode.
+- **Decision:**
+  - The shim gains those APIs with the SDK's names and signatures. Panels telemetry reaches the Driver Station through
+    `update(telemetry)` as on the robot; `@Configurable`/`@Config` fields keep their values (no web page yet).
+  - Limelight 3A and analog inputs are robot YAML sensor types (`limelight`, `analog`): in the hardware map with every
+    SDK call, but nothing feeds them yet — a Limelight reports no target (`isValid()` false), an analog port 0 V. Their
+    simulation is a separate step (rendering the Limelight's view or answering its pipelines from the field).
+  - A team's own I2C driver class asked for under a configured I2C device's name is built on that device's I2C client
+    (as the Robot Controller builds the class the configuration names). The Pinpoint's registers are emulated
+    (little-endian ints and floats, BULK_READ 40 bytes) from the same simulated values the shim's own driver reads, and
+    register writes become the same commands; other devices keep refusing raw register access (no made-up data).
+  - `/sdcard` is the folder "sdcard" in the robot's working directory (the sandbox's only writable place);
+    `OpModeManagerImpl` listeners run on the OpMode thread at INIT, START and after STOP.
+- **Not changed:** two errors are in the RD4 branch itself and fail on the real robot too (an unused import of
+  `com.sun.tools.javac.comp.Todo` in MainMecanumTuner, and the class `DriveTuneLogger` missing from the repository).

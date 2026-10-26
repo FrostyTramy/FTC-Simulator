@@ -23,6 +23,8 @@ SDK_CLASSES = {
     "distance": {"Rev2mDistanceSensor"},
     "touch": {"TouchSensor", "DigitalChannel"},
     "webcam": {"WebcamName"},
+    "limelight": {"Limelight3A"},
+    "analog": {"AnalogInput"},
 }
 
 

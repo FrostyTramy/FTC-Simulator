@@ -83,3 +83,14 @@ webcam:
     open_time: {value: 1.0, unit: s, source: "ASSUMED: USB webcam open + stream start before the first frame"}
     exposure_range: {value: [1, 204], unit: ms, source: "ASSUMED: UVC exposure_absolute 3..2047 in 100 µs steps"}
     gain_range: {value: [0, 255], unit: counts, source: "ASSUMED: UVC gain 0..255"}
+
+# D-039: in the hardware map with the SDK API; nothing simulated feeds them yet.
+limelight:
+  limelight_3a:
+    part: {value: "Limelight 3A (USB smart camera)", unit: label, source: "SDK 12.0 com.qualcomm.hardware.limelightvision.Limelight3A; no image simulated yet: results report no target"}
+
+analog:
+  rev_analog_port:
+    part: {value: "REV hub analog input port", unit: label, source: "SDK 12.0 com.qualcomm.robotcore.hardware.AnalogInput"}
+    max_voltage: {value: 3.3, unit: V, source: "REV hub analog ports read 0-3.3 V (AnalogInput.getMaxVoltage)"}
+

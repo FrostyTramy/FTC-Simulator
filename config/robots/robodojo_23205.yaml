@@ -222,6 +222,13 @@ sensors:
     pose: {value: {position: [0.004, 0.029, 0.068], forward: [0, 0, -1], up: [0, 1, 0]}, unit: m, source: "CAD Pinpoint 3110-0002-0001 at (8, -100.9, -17.1) mm, flat; X toward the front ASSUMED"}
     x_pod: {value: {model: goBILDA_SWINGARM_POD, position: [-0.084, 0.0, 0.145], axis: [0, 0, -1]}, unit: m, source: "CAD 32 mm omni (A-arm, spring = swingarm pod) at (96, -24.1) mm, wheel plane along Y → measures forward"}
     y_pod: {value: {model: goBILDA_SWINGARM_POD, position: [-0.082, 0.0, -0.084], axis: [-1, 0, 0]}, unit: m, source: "CAD 32 mm omni at (94.4, -252.5) mm, wheel plane along X → measures sideways (left positive)"}
+  - name: limelight
+    type: limelight
+    model: limelight_3a
+    sdk_class: Limelight3A
+    hub: control_hub
+    port: 0
+    pose: {value: {position: [0.0, 0.30, -0.10], forward: [0, 0, -1], up: [0, 1, 0]}, unit: m, source: "RD4 code: hardwareMap.get(Limelight3A.class, \"limelight\"); mounting ASSUMED (not in the CAD inventory); no Limelight image simulated yet, results report no target (D-039)"}
 bumpers: []
 
 checks:

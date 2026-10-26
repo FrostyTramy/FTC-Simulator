@@ -1,5 +1,14 @@
 # Changelog
 
+## Team code compatibility for RD4 — 2026-10-26
+- USER: the team's RD4 code failed to build (118 errors). The SDK shim now has Panels (`@Configurable`,
+  `@IgnoreConfigurable`, `PanelsTelemetry`/`TelemetryManager`), FTC Dashboard `@Config`, `Limelight3A`/`LLResult`/
+  `LLResultTypes`/`LLStatus` (no target yet), `AnalogInput`, `TypeConversion`, `LynxI2cDeviceSynch`, the missing
+  `RobotLog` overloads, Android `TextUtils` and `Environment`, `AppUtil` and `OpModeManagerImpl` with lifecycle listeners
+  (D-039). A team's own register-level Pinpoint driver works on the simulated Pinpoint (register emulation).
+- Robot YAML sensor types `limelight` and `analog` (sensors.yaml models, schema); the RoboDojo robot has its `limelight`.
+- Tests: `tests/compat/rd4_apis` (team-style code using every one of these APIs) built and run by `Rd4ApiTests`.
+
 ## Clone a branch from a GitHub link — 2026-10-26
 - USER: cloning https://github.com/Robo-Dojo/RD4/tree/Tweaks-agarthaauto said "not found" (a browser page, not a git
   URL). "Clone into workspace" now accepts GitHub pages (…/tree/BRANCH, …/tree/BRANCH/folder, …/blob/…): it clones
