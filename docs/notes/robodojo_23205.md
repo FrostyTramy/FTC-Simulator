@@ -76,6 +76,13 @@ Sources for `config/robots/robodojo_23205.yaml` and `config/cad/robodojo_23205.y
   up to 24 hulls) so elements roll on it.
 - **Hood:** servo position 0 is the starting pose (CAD) and higher positions raise the hood (open point 3 below). The
   TeleOp starts the hood at 0 (`HOOD_START`); dpad up raises it.
+- **Long bar sticking out of the turret (USER screenshot, 2026-10-26):** a part with a broken STEP face, meshed over
+  its untrimmed surface instead of inside its edges (like the Through Bore Encoder body already in `drop`). The mesher
+  now drops any face whose triangles spread more than 3 times its own edges' box (a full sphere spreads 1.55 times its
+  seam) and counts it under "Tessellation problems"; a part with such a face is drawn from its mirrored twin when it
+  has one. Meshes cached before the check are checked against the part's edges and meshed again if they run away, so
+  a re-run only redoes those parts. If a part still draws longer than `max_part_extent` (18 in + 1 in), the run prints
+  a WARNING with its name and `report.md` lists it: add the name to `drop`.
 
 ## Open points for the team (ASSUMED until checked)
 1. **Mecanum wheels in the CAD:** both left wheels ("Stanga") have their top rollers along the same diagonal, and so

@@ -40,7 +40,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import colliders as coll  # noqa: E402
 import detect  # noqa: E402
 import symmetry  # noqa: E402
-from mesh import MassProps, Mesh, edge_points, mass_props, signature, tessellate_checked  # noqa: E402
+from mesh import MassProps, Mesh, edge_box, edge_points, mass_props, runs_away, signature, tessellate_checked  # noqa: E402
 from step_reader import StepReader  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -331,14 +331,22 @@ class Pipeline:
             if key in meshes:
                 continue
             path = self.cache / "parts" / f"{key}.npz"
+            shape = self.reader.prototypes[inst.prototype].shape
             if path.exists():
                 data = np.load(path)
-                meshes[key] = Mesh(data["v"], data["n"], data["t"])
+                mesh = Mesh(data["v"], data["n"], data["t"])
                 info = data["info"] if "info" in data else np.array([0, 0, 0])
-                self.tess_info[key] = (int(info[0]), int(info[1]), bool(info[2]))
-                continue
+                # Meshes cached before the runaway-face check (3 info fields) are checked against the part's edges; a
+                # part with a broken face is meshed again (and its stale colliders removed), the others are kept.
+                if len(info) >= 4 or not runs_away(mesh.vertices, edge_box(shape)):
+                    meshes[key] = mesh
+                    self.tess_info[key] = (int(info[0]), int(info[1]), bool(info[2]))
+                    continue
+                self.progress.say(f"  {inst.name}: cached mesh runs far outside the part's edges, meshing it again")
+                todo += 1
+                for stale in (self.cache / "parts").glob(f"{key}_c*.colliders.json"):
+                    stale.unlink()
             lin, ang = self._deflection(inst)
-            shape = self.reader.prototypes[inst.prototype].shape
             tess = tessellate_checked(shape, lin, ang)
             mesh = tess.mesh
             if mesh.triangle_count == 0 and tess.faces > 0:
@@ -349,7 +357,7 @@ class Pipeline:
             self.tess_info[key] = (tess.faces, tess.missing_faces, tess.repaired)
             np.savez_compressed(
                 path, v=mesh.vertices, n=mesh.normals, t=mesh.triangles,
-                info=np.array([tess.faces, tess.missing_faces, int(tess.repaired)]),
+                info=np.array([tess.faces, tess.missing_faces, int(tess.repaired), 1]),   # 1: runaway faces checked
             )
             done += 1
             self.progress.step(done, todo, "meshed", start, inst.name)
@@ -545,6 +553,8 @@ class Pipeline:
         self.element_instances: dict[str, list[Instance]] = collections.defaultdict(list)
         self.part_triangles: dict[str, int] = {}
         self.proxied: dict[str, tuple[int, int]] = {}
+        self.oversized: list[tuple[str, float]] = []   # (part, longest drawn extent) above config max_part_extent
+        max_extent = self.cfg.get("max_part_extent")
         for inst in kept:
             source, world = inst, inst.world
             if inst.id in self.render_from:   # broken mesh: draw (and collide) as the mirrored healthy twin
@@ -554,6 +564,10 @@ class Pipeline:
             ckey = self.inst_collider_key[source.id]
             shapes = collider_shapes[ckey] if ckey else []
             self.part_triangles[inst.id] = mesh.triangle_count
+            if max_extent and mesh.triangle_count:
+                extent = float(np.ptp(mesh.vertices, axis=0).max())
+                if extent > max_extent:
+                    self.oversized.append((inst.name, extent))
             kind = self.group_cfg[inst.group].get("kind", "static")
             if kind == "element":
                 if inst.group not in self.element_meshes:
@@ -870,7 +884,8 @@ class Pipeline:
         if broken:
             lines += [
                 "",
-                "## Tessellation problems (faces OCP could not mesh: holes, or an edge-hull stand-in when none meshed)",
+                "## Tessellation problems (faces OCP could not mesh, or broken faces whose mesh ran far outside their edges "
+                "and was dropped: holes, or an edge-hull stand-in when none meshed)",
                 "| Part | Group | Faces | Not meshed | Repaired | Drawn from mirrored twin |",
                 "|---|---|---|---|---|---|",
             ]
@@ -881,6 +896,14 @@ class Pipeline:
                     f"| {i.name} | {i.group} | {faces} | {missing} | {'yes' if repaired else 'no'} | "
                     f"{twin[0].name if twin else 'no'} |"
                 )
+        if self.oversized:
+            lines += [
+                "",
+                f"## Parts longer than max_part_extent ({self.cfg['max_part_extent']} m): broken STEP faces? Add them to `drop`",
+                "| Part | Longest extent (m) |",
+                "|---|---|",
+            ]
+            lines += [f"| {n} | {e:.3f} |" for n, e in sorted(self.oversized, key=lambda x: -x[1])]
         if self.cfg.get("symmetry"):
             lines += [
                 "",
@@ -957,6 +980,9 @@ def main(argv: list[str] | None = None) -> int:
         )
         for v in bad:
             print(f"  FAIL {v['what']}: expected {v['expected_m']} m, measured {v['measured_m']} m")
+        for name, extent in sorted(pipeline.oversized, key=lambda x: -x[1]):
+            print(f"  WARNING part '{name}' is drawn {extent:.2f} m long (more than max_part_extent): "
+                  "a broken STEP face? Add its name to `drop` in the config if it looks wrong")
         print(f"  report: {pipeline.out / 'report.md'}")
     return 1 if failed else 0
 

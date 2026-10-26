@@ -52,6 +52,10 @@ colliders:
   coacd_max_hulls: 8
   coacd_threshold: 0.08
 
+# A drawn part longer than this is reported (report.md and the console): no part of a robot that starts in the 18 in
+# cube (R102 p121) is longer, so it is a broken STEP face meshed past its edges. Add its name to `drop` if it stays.
+max_part_extent: 0.4826   # m: 18 in + 1 in tolerance (§9.1)
+
 validate:
   - {what: "Robot fits the 18 in starting cube (x)", rule: robot_limits.start_cube, index: 0, measure: {path_regex: ".", axis: x, kind: extent_le}}
   - {what: "Robot fits the 18 in starting cube (z)", rule: robot_limits.start_cube, index: 1, measure: {path_regex: ".", axis: z, kind: extent_le}}

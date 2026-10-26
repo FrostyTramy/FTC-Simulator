@@ -84,6 +84,39 @@ def tessellate(shape: TopoDS_Shape, linear: float, angular: float) -> Mesh:
     return _tessellate(shape, linear, angular)[0]
 
 
+# A face's triangles may spread over at most RUNAWAY_RATIO times the diagonal of its edges' bounding box, plus
+# RUNAWAY_MARGIN. Faces always lie within their trimming edges, except doubly curved faces whose seam does not span
+# them (a full sphere spreads 1.55 times its seam). A broken STEP face is meshed over its untrimmed surface instead
+# and sticks out of the part as a long bar; such faces are dropped and counted as not meshed.
+RUNAWAY_RATIO = 3.0
+RUNAWAY_MARGIN = 0.005  # m
+RUNAWAY_MIN_SPAN = 0.01  # m: smaller faces are not checked (nothing visible can run away)
+
+
+def edge_box(shape: TopoDS_Shape) -> tuple[np.ndarray, np.ndarray] | None:
+    """Bounding box (shape frame) of a shape's non-degenerate B-rep edges, from their curves; None without edges."""
+    box = Bnd_Box()
+    exp = TopExp_Explorer(shape, TopAbs_EDGE)
+    while exp.More():
+        edge = TopoDS.Edge_s(exp.Current())
+        exp.Next()
+        if not BRep_Tool.Degenerated_s(edge):
+            BRepBndLib.Add_s(edge, box, False)
+    if box.IsVoid():
+        return None
+    xmin, ymin, zmin, xmax, ymax, zmax = box.Get()
+    return np.array([xmin, ymin, zmin]), np.array([xmax, ymax, zmax])
+
+
+def runs_away(points: np.ndarray, box: tuple[np.ndarray, np.ndarray] | None) -> bool:
+    """True when `points` (mesh vertices) spread far beyond `box` (their edges' bounding box): a broken face meshed past
+    its edges. False when there is nothing to compare."""
+    if box is None or len(points) == 0:
+        return False
+    span = float(np.linalg.norm(points.max(0) - points.min(0)))
+    return span > RUNAWAY_RATIO * float(np.linalg.norm(box[1] - box[0])) + RUNAWAY_MARGIN
+
+
 def edge_points(shape: TopoDS_Shape, per_edge: int = 16) -> np.ndarray:
     """Points sampled along every B-rep edge (shape frame): a fallback outline for parts whose faces do not mesh."""
     pts: list[tuple[float, float, float]] = []
@@ -102,7 +135,7 @@ def edge_points(shape: TopoDS_Shape, per_edge: int = 16) -> np.ndarray:
 
 
 def _tessellate(shape: TopoDS_Shape, linear: float, angular: float) -> tuple[Mesh, int, int]:
-    """(mesh, faces, faces without triangulation)."""
+    """(mesh, faces, faces without a usable triangulation: none at all, or one that runs away from its edges)."""
     BRepMesh_IncrementalMesh(shape, linear, False, angular, True)
     faces = 0
     missing = 0
@@ -134,6 +167,9 @@ def _tessellate(shape: TopoDS_Shape, linear: float, angular: float) -> tuple[Mes
                 n[i - 1] = (d.X(), d.Y(), d.Z())
             except Exception:  # degenerate surface point (zero-length normal): rebuilt from the triangles below
                 n[i - 1] = np.nan
+        if np.linalg.norm(v.max(0) - v.min(0)) > RUNAWAY_MIN_SPAN and runs_away(v, edge_box(face)):
+            missing += 1
+            continue
         t = np.empty((tri.NbTriangles(), 3), dtype=np.int32)
         for i in range(1, tri.NbTriangles() + 1):
             a, b, c = tri.Triangle(i).Get()

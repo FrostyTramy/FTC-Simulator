@@ -1,5 +1,13 @@
 # Changelog
 
+## CAD pipeline: progress output, broken faces — 2026-10-26
+- `tools/cad_pipeline/run.py` prints every stage (STEP read, mass properties, meshing, colliders, export) with counts,
+  time left and the current part; colliders are cached the moment they finish and mass properties every minute, so an
+  interrupted run resumes. (A 244 MB STEP printed nothing for many minutes and looked stuck.)
+- Broken STEP faces meshed past their edges (a long bar out of the RoboDojo turret) are dropped and reported; cached
+  meshes are checked once and only broken parts are meshed again. `max_part_extent` in the robot CAD configs reports
+  any part drawn longer than 18 in + 1 in. Tests: `tests/python/test_cad_runaway_faces.py`.
+
 ## Phase 10 — Full match — 2026-10-26
 - `sim/Sim.Match`: match setup (4 stations: robot code, gamepad, placeholder, empty; foul mode; automatic human player),
   start positions (`config/match.yaml`, G304-checked for every robot), match records with the official-style breakdown,
