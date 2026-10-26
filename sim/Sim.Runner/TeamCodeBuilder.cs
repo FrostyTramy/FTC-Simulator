@@ -60,10 +60,55 @@ public static partial class TeamCodeBuilder
         }
         process.WaitForExit();   // drains the output events
         var text = output.ToString();
+        Directory.CreateDirectory(buildDir);
+        File.WriteAllText(LogPath(buildDir), text);   // the whole output, to read or send when a build fails
         var jar = Path.Combine(buildDir, "libs", "teamcode.jar");
         var success = process.ExitCode == 0 && File.Exists(jar);
         return new BuildResult(success, success ? jar : null, ParseDiagnostics(text), text, started.Elapsed);
     }
+
+    /// <summary>The last build's full Gradle/javac output in <paramref name="buildDir"/>.</summary>
+    public static string LogPath(string buildDir) => Path.Combine(buildDir, "build.log");
+
+    /// <summary>Libraries teams add to TeamCode (build.dependencies.gradle), by the package prefix their code imports.</summary>
+    private static readonly (string Prefix, string Library)[] KnownLibraries =
+    [
+        ("com.pedropathing", "Pedro Pathing"),
+        ("com.acmerobotics.roadrunner", "Road Runner"),
+        ("com.acmerobotics.dashboard", "FTC Dashboard"),
+        ("com.bylazar", "Panels"),
+        ("com.arcrobotics.ftclib", "FTCLib"),
+        ("com.seattlesolvers.solverslib", "SolversLib"),
+        ("dev.frozenmilk", "Dairy / Mercurial"),
+        ("org.openftc.easyopencv", "EasyOpenCV"),
+        ("org.openftc.apriltag", "OpenFTC AprilTag"),
+        ("page.j5155", "Road Runner (j5155 quickstart)"),
+        ("android.", "Android API (not in the simulator)"),
+        ("androidx.", "AndroidX (not in the simulator)"),
+        ("org.firstinspires.ftc.robotcontroller", "FtcRobotController module"),
+    ];
+
+    /// <summary>
+    /// What a failed build is missing: the packages javac could not find ("package X does not exist", "cannot access
+    /// X"), as known library names (or the package itself), most errors first. Empty when the errors are ordinary code
+    /// errors.
+    /// </summary>
+    public static IReadOnlyList<string> MissingLibraries(IEnumerable<JavaDiagnostic> diagnostics) =>
+        diagnostics.Where(d => d.Severity == "error")
+            .Select(d => MissingPackage().Match(d.Message))
+            .Where(m => m.Success)
+            .Select(m => m.Groups["package"].Value)
+            .Select(package => KnownLibraries.FirstOrDefault(k => package.StartsWith(k.Prefix, StringComparison.Ordinal)) is { Library: { } name }
+                ? name
+                : string.Join('.', package.Split('.').Take(3)))
+            .GroupBy(name => name)
+            .OrderByDescending(g => g.Count())
+            .ThenBy(g => g.Key, StringComparer.Ordinal)
+            .Select(g => g.Key)
+            .ToList();
+
+    [GeneratedRegex(@"^(package (?<package>[\w.]+) does not exist|cannot access (?<package>[\w.]+))")]
+    private static partial Regex MissingPackage();
 
     /// <summary>True when <paramref name="jar"/> exists and is newer than every file under <paramref name="sourceDir"/>.</summary>
     public static bool IsUpToDate(string sourceDir, string jar)

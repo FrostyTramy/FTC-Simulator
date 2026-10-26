@@ -26,6 +26,8 @@ dependencies {
 tasks.withType(JavaCompile).configureEach {
     // Team code is compiled as-is; its warnings are the team's business, not build failures.
     options.compilerArgs.removeAll { it.startsWith('-Xlint') }
+    // Every error, not javac's first 100: the editor lists them all and names the missing libraries.
+    options.compilerArgs += ['-Xmaxerrs', '100000']
 }
 
 jar {

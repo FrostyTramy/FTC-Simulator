@@ -82,6 +82,19 @@ public partial class CodePanel : PanelContainer
         bar.AddChild(Button("Create", CreateFromTemplate));
         bar.AddChild(Button("Save (Ctrl+S)", () => Save(_current)));
         bar.AddChild(Button("▶ Run on robot (F5)", Run));
+        bar.AddChild(Button("Copy build log", () =>
+        {
+            var log = TeamCodeBuilder.LogPath(_buildDir);
+            if (System.IO.File.Exists(log))
+            {
+                DisplayServer.ClipboardSet(System.IO.File.ReadAllText(log));
+                _status.Text = $"Build log copied ({log})";
+            }
+            else
+            {
+                _status.Text = "No build yet: press Run on robot (F5)";
+            }
+        }));
         root.AddChild(bar);
         _status = new Label { ClipText = true };
         root.AddChild(_status);
@@ -361,7 +374,10 @@ public partial class CodePanel : PanelContainer
         ShowProblems();
         if (!result.Success)
         {
-            _status.Text = $"Build failed: {result.Errors.Count()} error(s) ({result.Duration.TotalSeconds:0.0} s)";
+            var missing = TeamCodeBuilder.MissingLibraries(result.Diagnostics);
+            _status.Text = $"Build failed: {result.Errors.Count()} error(s) ({result.Duration.TotalSeconds:0.0} s)" +
+                           (missing.Count > 0 ? " · not in the simulator yet: " + string.Join(", ", missing.Take(6)) : "") +
+                           " · \"Copy build log\" puts the full output on the clipboard";
             return;
         }
         _program.ReloadTeamCode(result.JarPath!);
