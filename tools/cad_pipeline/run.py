@@ -27,7 +27,7 @@ import shutil
 import sys
 import time
 import zipfile
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -157,9 +157,40 @@ def hull_proxy(mesh: Mesh) -> Mesh:
     )
 
 
+class Progress:
+    """Prints what the pipeline is doing, so a long run (a 250 MB STEP takes many minutes) never looks stuck.
+    `step` prints at most every PERIOD_S seconds, plus the last item of a stage."""
+
+    PERIOD_S = 10.0
+
+    def __init__(self, enabled: bool):
+        self.enabled = enabled
+        self.start = time.perf_counter()
+        self._last = 0.0
+
+    def say(self, message: str) -> None:
+        if self.enabled:
+            elapsed = int(time.perf_counter() - self.start)
+            print(f"[{elapsed // 60:3d}:{elapsed % 60:02d}] {message}", flush=True)
+
+    def step(self, done: int, total: int, what: str, stage_start: float, label: str = "") -> None:
+        now = time.perf_counter()
+        if done < total and now - self._last < self.PERIOD_S:
+            return
+        self._last = now
+        rate = (now - stage_start) / max(done, 1)
+        left = f", about {_duration(rate * (total - done))} left" if done < total and done >= 3 else ""
+        self.say(f"  {what} {done}/{total}{left}{f' ({label})' if label else ''}")
+
+
+def _duration(seconds: float) -> str:
+    return f"{seconds / 60:.0f} min" if seconds >= 90 else f"{seconds:.0f} s"
+
+
 class Pipeline:
-    def __init__(self, config_path: Path, out_root: Path = REPO_ROOT, source_root: Path = REPO_ROOT):
-        """out_root: where generated/ and godot/generated/ are written (tests use a temp dir)."""
+    def __init__(self, config_path: Path, out_root: Path = REPO_ROOT, source_root: Path = REPO_ROOT, verbose: bool = False):
+        """out_root: where generated/ and godot/generated/ are written (tests use a temp dir).
+        verbose: print progress (the command line does; tests stay quiet)."""
         self.cfg = load_yaml(config_path)
         self.name = self.cfg["name"]
         self.out_root = out_root
@@ -181,14 +212,19 @@ class Pipeline:
         self._proxy_cache: dict[str, Mesh] = {}
         self._surfaces: dict[str, tuple[str, tuple[float, float, float] | None]] = {}
         self.timings: dict[str, float] = {}
+        self.progress = Progress(verbose)
 
     # ---------------------------------------------------------------- reading
     def read(self) -> None:
         t0 = time.perf_counter()
         step_path = extract_source(self.cfg, self.cache, self.source_root)
+        size_mb = step_path.stat().st_size / 1e6
+        self.progress.say(f"{self.name}: reading {step_path.name} ({size_mb:.0f} MB)"
+                          + (" - a large STEP takes several minutes and prints nothing until it is read" if size_mb > 20 else ""))
         self.reader = StepReader(step_path)
         self.roots = self.reader.roots()
         self.timings["read_step_s"] = round(time.perf_counter() - t0, 1)
+        self.progress.say(f"read {len(self.reader.prototypes)} distinct parts in {_duration(self.timings['read_step_s'])}")
 
         raw = []
         for root in self.roots:
@@ -285,6 +321,11 @@ class Pipeline:
         its B-rep edges, so it stays visible (reported)."""
         meshes: dict[str, Mesh] = {}
         self.tess_info: dict[str, tuple[int, int, bool]] = {}
+        keys = {self._mesh_key(i) for i in kept}
+        todo = sum(1 for k in keys if not (self.cache / "parts" / f"{k}.npz").exists())
+        if todo:
+            self.progress.say(f"meshing: {todo} parts to mesh, {len(keys) - todo} cached (each is saved as soon as it is meshed)")
+        start, done = time.perf_counter(), 0
         for inst in kept:
             key = self._mesh_key(inst)
             if key in meshes:
@@ -310,6 +351,8 @@ class Pipeline:
                 path, v=mesh.vertices, n=mesh.normals, t=mesh.triangles,
                 info=np.array([tess.faces, tess.missing_faces, int(tess.repaired)]),
             )
+            done += 1
+            self.progress.step(done, todo, "meshed", start, inst.name)
         return meshes
 
     def _mesh_broken(self, inst: Instance) -> bool:
@@ -432,12 +475,26 @@ class Pipeline:
         if jobs:
             workers = max(1, min(len(jobs), (os.cpu_count() or 4) - 2))
             ordered = sorted(jobs.values(), key=lambda j: -len(j.triangles))  # big jobs first
+            self.progress.say(f"colliders: {len(jobs)} to fit in {workers} worker processes, {len(shapes)} cached "
+                              "(CoACD parts can take minutes each; each is saved as soon as it is done)")
+            start, last_report = time.perf_counter(), time.perf_counter()
             with ProcessPoolExecutor(max_workers=workers) as pool:
-                for result in pool.map(coll.fit_job, ordered):
-                    shapes[result.key] = result.shapes
-                    self.collider_info[result.key] = self.collider_info[result.key] | result.info
-                    path = self.cache / "parts" / f"{result.key}.colliders.json"
-                    path.write_text(json.dumps({"shapes": result.shapes, "info": result.info}))
+                pending = {pool.submit(coll.fit_job, job): job.key for job in ordered}
+                while pending:
+                    finished, _ = wait(pending, timeout=Progress.PERIOD_S, return_when=FIRST_COMPLETED)
+                    for future in finished:
+                        result = future.result()
+                        del pending[future]
+                        shapes[result.key] = result.shapes
+                        self.collider_info[result.key] = self.collider_info[result.key] | result.info
+                        path = self.cache / "parts" / f"{result.key}.colliders.json"
+                        path.write_text(json.dumps({"shapes": result.shapes, "info": result.info}))
+                        self.progress.step(len(jobs) - len(pending), len(jobs), "colliders", start,
+                                           self.collider_info[result.key]["part"])
+                    if pending and time.perf_counter() - last_report > 60:
+                        last_report = time.perf_counter()
+                        running = sorted({self.collider_info[k]["part"] for f, k in pending.items() if f.running()})
+                        self.progress.say(f"  still fitting {len(pending)} colliders, running now: {', '.join(running[:6])}")
         return shapes
 
     def build(self) -> None:
@@ -448,13 +505,25 @@ class Pipeline:
         props_file = self.cache / f"props_v{PIPELINE_VERSION}_{digest}.json"
         stored = json.loads(props_file.read_text("utf-8")) if props_file.exists() else {}
         props_cache: dict[str, MassProps] = {k: MassProps(**v) for k, v in stored.items()}
+
+        def save_props() -> None:
+            props_file.write_text(json.dumps({k: vars(v) for k, v in sorted(props_cache.items())}), "utf-8")
+
+        todo = sorted({i.prototype for i in self.instances} - set(props_cache))
+        if todo:
+            self.progress.say(f"mass properties: {len(todo)} parts to measure, {len(props_cache)} cached")
+        saved = time.perf_counter()
+        for n, key in enumerate(todo, 1):
+            props_cache[key] = mass_props(self.reader.prototypes[key].shape)
+            self.progress.step(n, len(todo), "measured", t0)
+            if time.perf_counter() - saved > 60:   # an interrupted run keeps what it measured
+                save_props()
+                saved = time.perf_counter()
         for inst in self.instances:
-            if inst.prototype not in props_cache:
-                props_cache[inst.prototype] = mass_props(self.reader.prototypes[inst.prototype].shape)
             inst.props = props_cache[inst.prototype]
             inst.sig = signature(inst.props)
             inst.world_bbox = bbox_world(inst.props, inst.world)
-        props_file.write_text(json.dumps({k: vars(v) for k, v in sorted(props_cache.items())}), "utf-8")
+        save_props()
         self.timings["mass_props_s"] = round(time.perf_counter() - t0, 1)
 
         kept = [i for i in self.instances if not i.dropped]
@@ -860,6 +929,7 @@ class Pipeline:
     def run(self) -> list[dict]:
         self.read()
         self.build()
+        self.progress.say("writing meshes, manifest and report")
         self.export()
         self.manifest()
         validation = self.validate()
@@ -877,7 +947,7 @@ def main(argv: list[str] | None = None) -> int:
     failed = 0
     for cfg in configs:
         t0 = time.perf_counter()
-        pipeline = Pipeline(cfg)
+        pipeline = Pipeline(cfg, verbose=True)
         validation = pipeline.run()
         bad = [v for v in validation if not v["ok"]]
         failed += len(bad)
@@ -887,6 +957,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         for v in bad:
             print(f"  FAIL {v['what']}: expected {v['expected_m']} m, measured {v['measured_m']} m")
+        print(f"  report: {pipeline.out / 'report.md'}")
     return 1 if failed else 0
 
 
