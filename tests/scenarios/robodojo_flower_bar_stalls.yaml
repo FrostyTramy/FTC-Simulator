@@ -1,0 +1,18 @@
+# RoboDojo #23205 flower bar is solid against the field (USER 2026-10-26: it went through the FLOWER): with the robot
+# facing the red wall 7 cm away, the bar swung down stops on the wall (the servo stalls) high above the tiles, and the
+# robot is neither pushed nor tilted.
+name: robodojo_flower_bar_stalls
+layout: field
+duration_s: 2.0
+actions:
+  - action: robot
+    at_s: 0
+    name: robodojo_23205
+    position: [-1.495, 0.0, 0.3]
+    yaw_deg: 90
+    drive:
+      - {at_s: 0.3, servo: {flower_bar: 1.0, hood: 0.0}}
+checks:
+  - {check: arm_lowest_point, group: yellow_bar, min_m: 0.03, max_m: 0.4}
+  - {check: robot_position, min: [-1.505, -0.004, 0.29], max: [-1.485, 0.002, 0.31]}
+  - {check: robot_upright, max_tilt_deg: 0.5}

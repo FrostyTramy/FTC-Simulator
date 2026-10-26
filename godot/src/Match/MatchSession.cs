@@ -215,7 +215,7 @@ public partial class MatchSession : Node
     {
         // Spawn far away, measure the outline, then put the robot against its wall (config/match.yaml).
         var robot = RobotBody.Spawn(this, setup.Robot, new Transform3D(Basis.Identity, new Vector3(0, -50, 0)), _physics,
-            nodeName: $"Robot_{setup.Station.Key()}");
+            nodeName: $"Robot_{setup.Station.Key()}", ballPath: Setup.BallPath);
         var outline = robot.FootprintLocal.Select(p => new Core.Numerics.Vec2(p.X, p.Y)).ToList();
         var g = Controller?.Geometry ?? Game.Field.FieldGeometry.Load(RepoPaths.Config("field_mechanisms.yaml"));
         var pose = _config.StartPose(setup.Station, outline, g.WallXMin, g.WallXMax, g.WallZMin, g.WallZMax);
@@ -723,7 +723,7 @@ public partial class MatchSession : Node
             }
             var stored = s.Robot.StoredElements.Count();
             var footprint = state.Footprint;
-            var touching = _field.Elements.Count(e => e.Group == "pollen" && !e.Body.Freeze
+            var touching = _field.Elements.Count(e => e.Group == "pollen" && !e.Body.Freeze && !s.Robot.Holds(e)
                 && footprint.DistanceTo(new Core.Numerics.Vec2(e.Body.GlobalPosition.X, e.Body.GlobalPosition.Z)) < _physics.Element("pollen").RadiusM + 0.005);
             list.AddRange(SetupValidator.Validate(state, Controller.Geometry, Controller.Rules, stored + touching, s.Robot.LinearVelocity.Length() < 0.01f));
         }

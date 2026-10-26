@@ -232,6 +232,7 @@ public partial class MatchSetupPanel : MatchDialog
     private readonly Dictionary<Station, (OptionButton Kind, OptionButton Robot, LineEdit Team, LineEdit Auto, LineEdit TeleOp)> _rows = new();
     private OptionButton _fouls = null!;
     private CheckBox _autoHuman = null!;
+    private OptionButton _ballPath = null!;
     private LineEdit _label = null!;
 
     public MatchSetupPanel(MatchSetup current, IReadOnlyList<string> robots, Func<string, string?> jarFor)
@@ -296,6 +297,20 @@ public partial class MatchSetupPanel : MatchDialog
         options.AddChild(_fouls);
         _autoHuman = new CheckBox { Text = "Automatic human players", ButtonPressed = _current.AutoHumanPlayer, FocusMode = FocusModeEnum.None };
         options.AddChild(_autoHuman);
+        options.AddChild(Cell("Ball path"));
+        _ballPath = new OptionButton
+        {
+            FocusMode = FocusModeEnum.None,
+            TooltipText = "Physical: elements move through the robot by its rollers and colliders and can jam. Guided: the robot stores " +
+                          "and feeds them by rule. Robot default: each robot's config (ball_path.model).",
+        };
+        _ballPath.AddItem("Robot default");
+        foreach (var mode in MatchSetup.BallPaths)
+        {
+            _ballPath.AddItem(mode);
+        }
+        _ballPath.Select(_current.BallPath is { } chosen ? Array.IndexOf(MatchSetup.BallPaths, chosen) + 1 : 0);
+        options.AddChild(_ballPath);
         options.AddChild(Cell("Label"));
         _label = new LineEdit { Text = _current.Label, CustomMinimumSize = new Vector2(180, 0) };
         options.AddChild(_label);
@@ -315,7 +330,11 @@ public partial class MatchSetupPanel : MatchDialog
             stations.Add(new StationSetup(station, kind, robot, row.Team.Text.Trim(), kind == StationKind.Code ? _jarFor(robot) : null,
                 Blank(row.Auto.Text), Blank(row.TeleOp.Text)));
         }
-        Applied?.Invoke(_current with { Stations = stations, FoulMode = (FoulMode)_fouls.Selected, AutoHumanPlayer = _autoHuman.ButtonPressed, Label = _label.Text.Trim() });
+        Applied?.Invoke(_current with
+        {
+            Stations = stations, FoulMode = (FoulMode)_fouls.Selected, AutoHumanPlayer = _autoHuman.ButtonPressed, Label = _label.Text.Trim(),
+            BallPath = _ballPath.Selected > 0 ? MatchSetup.BallPaths[_ballPath.Selected - 1] : null,
+        });
         QueueFree();
     }
 

@@ -134,7 +134,7 @@ public partial class Main : Node3D
         var jar = args.TeamCodeJar ?? TeamCodeJars.DefaultFor(args.Robot);
         var kind = jar != null && File.Exists(jar) ? StationKind.Code : StationKind.Gamepad;
         return new MatchSetup([new StationSetup(Station.Red1, kind, args.Robot, "SIM 1", kind == StationKind.Code ? jar : null)],
-            Label: "Practice");
+            Label: "Practice", BallPath: args.BallPath);
     }
 
     private void BuildUi(MatchSetup setup, CommandLine args)
@@ -149,6 +149,7 @@ public partial class Main : Node3D
         layer.AddChild(new FoulReviewPanel(session) { Name = "FoulReview" });
         var history = new MatchHistory(HistoryDir);
         scoreboard.RematchRequested += () => Reload(setup, null);
+        scoreboard.BallPathToggled += () => Reload(setup with { BallPath = session.Stations.Any(s => s.Robot.PhysicalBallPath) ? "guided" : "physical" }, null);
         scoreboard.HistoryRequested += () =>
         {
             var panel = new HistoryPanel(history, session.Controller.Rules);

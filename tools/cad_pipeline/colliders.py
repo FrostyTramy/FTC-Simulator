@@ -4,7 +4,8 @@ Modes per part (chosen in run.py from the config, see config/cad/*.yaml `collide
   sphere   one sphere from the bounding box (game elements)
   box      one oriented box (perimeter rails, glass, flat panels)
   hull     one convex hull (default for structure: tubes, brackets, legs; concavity irrelevant)
-  auto     sphere/box/cylinder fit, else hull if nearly convex, else CoACD
+  auto     sphere/box/cylinder fit, else hull if nearly convex or its hollow is too small to hold a game element
+           (coacd_min_gap_volume), else CoACD
   coacd    CoACD convex decomposition (parts whose concave side touches game elements)
   sectors  radial sector hulls around the part's thin axis, centred on its largest hole
            (rings with an exact opening, e.g. FLOWER layers: opening error < 0.5 mm)
@@ -31,6 +32,7 @@ MAX_HULL_POINTS = 96
 class ColliderSettings:
     max_fit_error: float = 0.12  # relative volume error allowed for a primitive fit (auto mode)
     convex_ratio: float = 0.92  # part volume / hull volume above this -> single hull (auto mode)
+    coacd_min_gap_volume: float = 0.0  # m^3: a concave part whose hull adds less than this stays one hull (auto mode)
     coacd_threshold: float = 0.08
     coacd_max_hulls: int = 12
     coacd_params: dict = field(
@@ -134,7 +136,7 @@ def _auto(tm: trimesh.Trimesh, job: Job) -> list[dict] | None:
     except (ValueError, IndexError, np.linalg.LinAlgError):
         pass
     hull_vol = float(tm.convex_hull.volume)
-    if hull_vol > 0 and job.volume / hull_vol > s.convex_ratio:
+    if hull_vol > 0 and (job.volume / hull_vol > s.convex_ratio or hull_vol - job.volume < s.coacd_min_gap_volume):
         return [{"type": "convex", "points": _hull_points(tm.vertices)}]
     return None
 

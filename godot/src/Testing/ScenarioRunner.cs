@@ -176,13 +176,31 @@ public partial class ScenarioRunner : Node3D
                     FieldLoader.SpawnElement(_field!, group, new Transform3D(Basis.Identity, center + offset));
                 }
                 break;
+            case "preload":
+            {
+                // Spawns COUNT elements of GROUP and pre-loads them into the robot (G304.G; a physical path puts them at
+                // the storage slots as free bodies).
+                var robot = _robot ?? throw new InvalidOperationException("preload needs a robot");
+                for (var i = 0; i < (int)Num(action, "count", 1); i++)
+                {
+                    var spawned = FieldLoader.SpawnElement(_field!, Str(action, "group", "pollen"),
+                        new Transform3D(Basis.Identity, robot.GlobalPosition + new Vector3(0, 2 + 0.2f * i, 0)));
+                    if (!robot.Preload(spawned))
+                    {
+                        throw new InvalidOperationException($"the robot takes no pre-load {i + 1}");
+                    }
+                }
+                break;
+            }
             case "robot":
             {
                 // Spawns robot NAME at POSITION (y above the ground) turned YAW_DEG about +Y (0 = facing −Z), driven by
                 // a direct-drive script: drive: [{at_s, forward, strafe, rotate}, ...] (seconds since the scenario start).
+                // ball_path: guided | physical overrides the robot YAML ball_path.model.
                 var position = Vec(action, "position") + new Vector3(0, _field!.TileTopY, 0);
                 var yaw = Mathf.DegToRad((float)Num(action, "yaw_deg", 0));
-                _robot = RobotBody.Spawn(this, Str(action, "name", "gobilda_starter"), new Transform3D(new Basis(Vector3.Up, yaw), position), _physics);
+                _robot = RobotBody.Spawn(this, Str(action, "name", "gobilda_starter"), new Transform3D(new Basis(Vector3.Up, yaw), position), _physics,
+                    ballPath: action.ContainsKey("ball_path") ? Str(action, "ball_path", "") : null);
                 var script = List(action, "drive").Cast<Dictionary<object, object>>()
                     .Select(d => ((int)Math.Round(Num(d, "at_s", 0) * Engine.PhysicsTicksPerSecond), d))
                     .ToList();
@@ -346,6 +364,30 @@ public partial class ScenarioRunner : Node3D
                 var lo = (float)Num(c, "min_deg", -1e9);
                 var hi = (float)Num(c, "max_deg", 1e9);
                 return (deg >= lo && deg <= hi, $"{name} rotation about {axis} = {deg:F2}° (expected {lo}..{hi})");
+            }
+            case "element_displaced":
+            {
+                // Element GROUP[INDEX] moved between MIN_M and MAX_M from where it was spawned.
+                var group = Str(c, "group", "");
+                var matching = elements.Where(e => e.Group == group).ToList();
+                var index = (int)Num(c, "index", 0);
+                index = index < 0 ? matching.Count + index : index;
+                if (index < 0 || index >= matching.Count)
+                {
+                    return (false, $"element {group}[{index}] does not exist");
+                }
+                var moved = matching[index].Body.GlobalPosition.DistanceTo(matching[index].StartPosition);
+                var lo = Num(c, "min_m", 0);
+                var hi = Num(c, "max_m", 1e9);
+                return (moved >= lo && moved <= hi, $"{group}[{index}] moved {moved:F3} m from its spawn point (expected {lo}..{hi})");
+            }
+            case "robot_holds":
+            {
+                // The robot holds between MIN and MAX elements (guided hopper, or inside its outline with a physical path).
+                var held = _robot?.StoredElements.Count() ?? 0;
+                var lo = (int)Num(c, "min", 0);
+                var hi = (int)Num(c, "max", 99);
+                return (held >= lo && held <= hi, $"robot holds {held} element(s) (expected {lo}..{hi}, ball path {(_robot?.PhysicalBallPath == true ? "physical" : "guided")})");
             }
             case "element_in_robot":
             {

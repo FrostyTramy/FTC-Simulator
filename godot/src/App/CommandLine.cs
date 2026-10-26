@@ -8,7 +8,7 @@ namespace Sim.App;
 /// godot --path godot -- [--layout field|synthetic|res://...] [--quality low|medium]
 ///                       [--screenshot DIR] [--run-scenarios [FILTER]] [--seconds N]
 ///                       [--no-robot] [--teamcode JAR] [--project DIR]
-///                       [--robot NAME] [--robot-pose X,Z,YAW_DEG] [--opmode NAME]
+///                       [--robot NAME] [--robot-pose X,Z,YAW_DEG] [--opmode NAME] [--ball-path guided|physical]
 ///                       [--capture PNG [--capture-seconds N] [--capture-panels]]
 ///                       [--setup MATCH.json] [--replay FILE] [--match-test [OUT_DIR]] [--verify-replay FILE]
 /// </code></summary>
@@ -28,6 +28,9 @@ public sealed class CommandLine
 
     /// <summary>Robot to spawn (config/robots/NAME.yaml).</summary>
     public string Robot { get; private set; } = "gobilda_starter";
+
+    /// <summary>"guided" or "physical" overrides the robots' ball_path.model (practice); null keeps it.</summary>
+    public string? BallPath { get; private set; }
 
     /// <summary>Robot start on the field: x, z (m) and heading (deg, counter-clockwise seen from above); null = default.</summary>
     public (float X, float Z, float YawDeg)? RobotPose { get; private set; }
@@ -94,6 +97,11 @@ public sealed class CommandLine
                     break;
                 case "--robot" when next != null:
                     cl.Robot = next;
+                    i++;
+                    break;
+                case "--ball-path" when next != null:
+                    cl.BallPath = next.ToLowerInvariant() is "guided" or "physical" ? next.ToLowerInvariant()
+                        : throw new ArgumentException($"--ball-path {next}: expected guided or physical");
                     i++;
                     break;
                 case "--robot-pose" when next != null:

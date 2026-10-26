@@ -93,8 +93,12 @@ public sealed record MatchSetup(
     bool AutoHumanPlayer = true,
     ulong Seed = 1,
     string? EventType = null,
-    string Label = "Practice match")
+    string Label = "Practice match",
+    string? BallPath = null)
 {
+    /// <summary>Ball path values: <see cref="BallPath"/> null = each robot's YAML ball_path.model.</summary>
+    public static readonly string[] BallPaths = ["guided", "physical"];
+
     public static readonly JsonSerializerOptions Json = new()
     {
         WriteIndented = true,

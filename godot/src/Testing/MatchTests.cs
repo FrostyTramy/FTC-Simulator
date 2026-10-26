@@ -92,7 +92,8 @@ public partial class ScriptedMatch : Node
         Check(record.Outcome == "completed", $"outcome {record.Outcome}");
         Check(phases.SequenceEqual([MatchPhase.Auto, MatchPhase.Transition, MatchPhase.Teleop, MatchPhase.MatchEnd, MatchPhase.PostMatchSettle, MatchPhase.Results]),
             "phases " + string.Join(" → ", phases));
-        Check(_session.SetupProblems.Count == 0 && record.DurationTicks > 0, "G304 setup legal, MATCH started");
+        Check(_session.SetupProblems.Count == 0 && record.DurationTicks > 0, "G304 setup legal, MATCH started" +
+            string.Concat(_session.SetupProblems.Select(p => $" [{p.RobotId} {p.Rule}: {p.Message}]")));
         foreach (var a in new[] { record.Score.Red, record.Score.Blue })
         {
             Check(a.Total == a.AutoPoints + a.TeleopPoints + a.PenaltyPoints, $"{a.Alliance} total {a.Total} = auto {a.AutoPoints} + teleop {a.TeleopPoints} + penalties {a.PenaltyPoints}");

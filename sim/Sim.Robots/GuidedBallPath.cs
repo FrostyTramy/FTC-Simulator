@@ -34,6 +34,16 @@ public sealed record BallPathDef(
 
     /// <summary>Spring-loaded nip between the launcher wheels and the hood: grip (and so exit speed) per element size.</summary>
     public SpringNipDef? SpringNip { get; init; }
+
+    /// <summary>
+    /// ball_path.model = physical (USER 2026-10-26: a stuck element must be simulated): elements stay ordinary bodies
+    /// inside the robot, moved only by its rollers and stopped by its colliders, so they can jam. Only the launch is a
+    /// rule: an element touching the launcher rim while the rim is fast enough leaves the nip at the exit speed below
+    /// (a few millimetres of nip at 240 Hz cannot accelerate an element by contact). The capture zone, storage slots,
+    /// feeder and gate fields are not used for moving elements (the gate arm and feeder roller act physically); the
+    /// slots place pre-loads. Guided (false): <see cref="GuidedBallPath"/>.
+    /// </summary>
+    public bool Physical { get; init; }
 }
 
 /// <summary>Gate arm driven by a servo; open while the servo angle (degrees from centre) is inside OpenServoAnglesDeg.</summary>

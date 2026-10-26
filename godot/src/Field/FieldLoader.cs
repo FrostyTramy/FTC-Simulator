@@ -178,7 +178,10 @@ public static class FieldLoader
             PhysicsMaterialOverride = t.Material,
             ContinuousCd = true,
             CollisionLayer = CollisionLayers.Elements,
-            CollisionMask = CollisionLayers.FieldStatic | CollisionLayers.FieldMoving | CollisionLayers.Elements | CollisionLayers.Robots,
+            // Robot mechanisms (arms, paddles) are kinematic bodies on their own layer: elements must scan it too, or
+            // they pass through them (USER 2026-10-26: the flower bar must be solid so elements roll onto its ramp).
+            CollisionMask = CollisionLayers.FieldStatic | CollisionLayers.FieldMoving | CollisionLayers.Elements | CollisionLayers.Robots
+                            | CollisionLayers.RobotMechanisms,
             AngularDampMode = RigidBody3D.DampMode.Replace,
             AngularDamp = t.Props.AngularDamp,
             LinearDampMode = RigidBody3D.DampMode.Replace,

@@ -1,0 +1,20 @@
+# Physical ball path (D-037): a NECTAR that reaches the shooter rim while the Geckos spin at 1800 ticks/s is launched
+# (the nip itself is a rule: spring nip exit speed, hood elevation, turret heading), as in robodojo_nectar_forward.
+name: robodojo_physical_launch
+layout: field
+duration_s: 4.0
+actions:
+  - action: robot
+    at_s: 0
+    name: robodojo_23205
+    position: [-1.3, 0.0, 1.05]
+    yaw_deg: -90
+    drive:
+      - {at_s: 0.1, velocity: {shooter: 1800}, servo: {gate: 0.5, hood: 0.5, flower_bar: 0.25}}
+  # Touching the rim from the front (shooter axle 0.290 m up, 26 mm behind the centre; rim 36 mm + NECTAR 45.7 mm).
+  - {action: spawn, at_s: 1.5, group: nectar_red, count: 1, relative_to: robot, center: [0.0, 0.29, -0.0537]}
+trace: {group: nectar_red, index: -1, every_s: 0.1}
+checks:
+  - {check: element_peak_height, group: nectar_red, index: -1, min_m: 2.4}
+  - {check: element_displaced, group: nectar_red, index: -1, min_m: 0.5}
+  - {check: robot_upright, max_tilt_deg: 3.0}

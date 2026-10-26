@@ -105,6 +105,9 @@ public sealed class MecanumDrivetrain
     /// <summary>Wheel rotation angle (rad, forward positive), e.g. for the visual mesh and encoder.</summary>
     public double WheelAngle(int i) => _wheels[i].Angle;
 
+    /// <summary>Wheel spin (rad/s, forward positive), e.g. for game elements touching the wheel.</summary>
+    public double WheelOmega(int i) => _wheels[i].Omega;
+
     /// <param name="chassisVelocity">Planar velocity of the robot origin in the robot frame.</param>
     /// <param name="yawRate">Yaw rate (rad/s, counter-clockwise seen from above).</param>
     public WheelForce[] Step(double dt, Vec2d chassisVelocity, double yawRate, IReadOnlyList<WheelInput> inputs)

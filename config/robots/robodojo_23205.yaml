@@ -112,6 +112,7 @@ mechanisms:
     width: {value: 0.191, unit: m, source: "CAD wheels x -76..100 mm centres + 15 mm width"}
     contact_material: {value: gecko, unit: label, source: "ASSUMED: soft silicone (SLIDES 2) behaves like Gecko tread"}
     contact_stiffness: {value: 300, unit: N/m, source: "ASSUMED: the intake is spring-loaded and lifts for a NECTAR (SLIDES 2); a soft contact stands in for the lift"}
+    contact_preload: {value: 2.0, unit: N, source: "ASSUMED: spring preload pressing the sprung intake on an element (SLIDES 2 'spring-loaded'); measure the force to lift the intake 10 mm"}
     inertia: {value: 0.00003, unit: kg·m^2, source: "ASSUMED: 4 × 25 g × (0.034 m)² / 2 + shaft"}
     drive_sign: {value: -1, unit: "1", source: "geometry (as the starter bot): the wheels grab the top of an element in front; pulling it in (+Z) needs rotation about -X; positive power = intake in (CODE right trigger)"}
   - id: transfer_stage2
@@ -119,22 +120,32 @@ mechanisms:
     parts: {value: "2 × Gecko 48 mm on the sprung stage-2 arm", unit: label, source: "SLIDES 3; CAD 'bara transfer stage 2'"}
     axis_point: {value: [-0.0, 0.173, -0.109], unit: m, source: "CAD Gecko centres (y -278, z 127) mm"}
     axis: {value: [1, 0, 0], unit: "1", source: "CAD"}
+    radius: {value: 0.024, unit: m, source: "Gecko 48 mm (SLIDES 3, part list above); the width comes from the CAD colliders of the group"}
+    contact_material: {value: gecko, unit: label, source: "Gecko wheels (SLIDES 3)"}
     driven_by: {value: transfer, unit: device, source: "USER: the transfer motor drives stage 2, stage 3 and the back Gecko"}
     follow_ratio: {value: 1.0, unit: ratio, source: "ASSUMED (chain sprockets not measured)"}
     drive_sign: {value: -1, unit: "1", source: "ASSUMED: moves elements rearward like the intake"}
+    contact_stiffness: {value: 400, unit: N/m, source: "ASSUMED: the sprung stage arm gives way for a NECTAR (SLIDES 3 'sprung'); soft contact stands in for the arm travel"}
+    contact_preload: {value: 2.0, unit: N, source: "ASSUMED: spring preload of the stage arm; measure the force to lift it 10 mm"}
   - id: transfer_stage3
     type: wheel
     parts: {value: "2 × Gecko 48 mm on the sprung stage-3 arm", unit: label, source: "SLIDES 3; CAD 'bara transfer stage 3'"}
     axis_point: {value: [-0.0, 0.156, -0.013], unit: m, source: "CAD Gecko centres (y -182, z 110) mm"}
     axis: {value: [1, 0, 0], unit: "1", source: "CAD"}
+    radius: {value: 0.024, unit: m, source: "Gecko 48 mm (SLIDES 3, part list above); the width comes from the CAD colliders of the group"}
+    contact_material: {value: gecko, unit: label, source: "Gecko wheels (SLIDES 3)"}
     driven_by: {value: transfer, unit: device, source: "USER"}
     follow_ratio: {value: 1.0, unit: ratio, source: "ASSUMED"}
     drive_sign: {value: -1, unit: "1", source: "ASSUMED"}
+    contact_stiffness: {value: 400, unit: N/m, source: "ASSUMED: the sprung stage arm gives way for a NECTAR (SLIDES 3 'sprung'); soft contact stands in for the arm travel"}
+    contact_preload: {value: 2.0, unit: N, source: "ASSUMED: spring preload of the stage arm; measure the force to lift it 10 mm"}
   - id: transfer_out
     type: wheel
     parts: {value: "Gecko 32 mm at the back pushing elements up into the turret", unit: label, source: "SLIDES 4; CAD 'Bara transfer-outtake'"}
     axis_point: {value: [0.0, 0.148, 0.142], unit: m, source: "CAD Gecko centre (12, -27, 102) mm"}
     axis: {value: [1, 0, 0], unit: "1", source: "CAD"}
+    radius: {value: 0.016, unit: m, source: "Gecko 32 mm (SLIDES 4, part list above); the width comes from the CAD colliders of the group"}
+    contact_material: {value: gecko, unit: label, source: "Gecko wheel (SLIDES 4)"}
     inertia: {value: 0.00004, unit: kg·m^2, source: "ASSUMED: the back Gecko plus stages 2-3 (4 × 48 mm Gecko) and chains, reflected to this shaft"}
     drive_sign: {value: -1, unit: "1", source: "ASSUMED"}
   - id: gate_arm
@@ -183,7 +194,7 @@ mechanisms:
 
 ball_path:
   description: {value: "floor → 5 silicone intake wheels (flower bar ramp feeds NECTAR from the FLOWER) → sprung transfer stages 2 and 3 → back Gecko pushes up past the gate into the turret → squeezed between the 72 mm Geckos and the sprung hood insert → leaves over the wheel toward the turret's front", unit: label, source: "SLIDES 2-6; CAD"}
-  model: {value: guided, unit: label, source: "D-027 (guided path; the sprung intake and transfer arms are not contact-simulated)"}
+  model: {value: physical, unit: label, source: "USER 2026-10-26: every part solid, a stuck element must be simulated (D-037): elements move through the robot by the rollers' contacts and the CAD colliders and launch when they touch the shooter rim; the guided path (D-027) stays one click away (scoreboard 'Ball path')"}
   hopper_capacity: {value: 4, unit: count, source: "CAD shows 4 POLLEN along the path; RULES G407 (4 elements)"}
   capture_zone: {value: {min: [-0.11, 0.0, -0.31], max: [0.11, 0.12, -0.19]}, unit: m, source: "CAD: in front of the intake wheels (front face z -0.257) across the funnel opening; ASSUMED"}
   capture_min_surface_speed: {value: 0.3, unit: m/s, source: "ASSUMED"}

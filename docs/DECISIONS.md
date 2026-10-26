@@ -270,3 +270,33 @@ Why we chose X over Y. Newest last. Format: ID, date, decision, why, alternative
   the FIELD) and release it 15 cm above the free spot of the LOADING ZONE nearest its centre. G427 is judged from the
   physics engine's first contact report: other SCORING ELEMENTS are ignored (the rule names ROBOTS and field elements), a
   ROBOT or field element first is a MINOR FOUL. Q-007 answered as planned (both modes).
+
+## D-037 — Every robot part solid; physical ball path (2026-10-26)
+- **Context (USER 2026-10-26):** "all robot parts … hard", "i want to simulate even when a ball is stuck", "the yellow
+  bar flower … goes through the flower without affecting the balls, it should be solid and hard so balls can go on the
+  ramp". Before: the wheels and a turret-borne flywheel did not touch elements, servo arms (flower bar, gate, paddles)
+  were on a layer elements did not scan and passed through elements and the field, concave parts collided as one
+  filled hull, and the guided path (D-027) froze elements inside the robot, so nothing could jam.
+- **Decision:**
+  - Elements scan the robot-mechanism layer: arms and paddles push them and carry them on their ramps.
+  - Servo arms stall on the field: each tick the arm goes to its commanded angle unless its colliders would press into
+    a field body on the way (3° steps, bisected); the floor the wheels stand on is left to the arm's floor stop. An arm
+    the robot drives into the field is pushed back towards its CAD pose. Kinematic arms are not stopped by contacts,
+    hence the shape queries (one box query per arm and tick while it is away from the field).
+  - Drive wheels and every roller (turret-borne ones moving with the turret) touch elements through `CompliantContact`,
+    now a solid cylinder with flat ends (was a capsule: 5 cm too wide beside a 104 mm wheel). Sprung rollers press with
+    `contact_preload`. Rollers without a width take it from their CAD colliders.
+  - `ball_path.model: physical`: elements stay free bodies inside the robot, moved only by its rollers and colliders;
+    the launch stays a rule (an element touching the launcher rim while it is fast enough leaves the nip as in D-027:
+    a nip a few millimetres long cannot accelerate an element by contact at 240 Hz). Elements inside the robot's outline
+    count as held (G304.G, statistics). The RoboDojo robot uses it by default; the StarterBot keeps the guided path (its
+    example code acceptance tests are built on it). The match setup, the scoreboard "Ball path" button (a fresh session)
+    and `--ball-path guided|physical` override it; the choice is part of the match setup, so replays re-simulate it.
+  - Robot CAD colliders default to `auto`: a primitive or one hull, and a CoACD decomposition only when the part's hollow
+    could hold an element (`coacd_min_gap_volume`, ASSUMED one NECTAR).
+- **Limits:** a stalled servo draws no extra current; elements do not load the drive wheels; arms do not touch other
+  robots. Whether elements travel the RoboDojo path depends on the real CAD colliders and the ASSUMED roller preloads:
+  the stand-in robot in CI only checks holding, pushing, stalling and the launch rule.
+- **Alternatives:** arms as dynamic bodies on motorised hinges (heavier, needs arm masses and servo torques we do not
+  have, and less stable at 240 Hz); arm shapes on the chassis body (Jolt's 2 cm penetration slop lets them sink into
+  elements before pushing); keeping the guided path (cannot jam).

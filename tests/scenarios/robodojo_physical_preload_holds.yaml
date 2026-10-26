@@ -1,0 +1,21 @@
+# Physical ball path (D-037): two NECTAR pre-loaded at the storage slots stay inside the robot as free bodies while it
+# drives forward and stops (they rest on its floor between its walls; nothing holds them by rule).
+name: robodojo_physical_preload_holds
+layout: field
+duration_s: 3.0
+actions:
+  - action: robot
+    at_s: 0
+    name: robodojo_23205
+    position: [-1.3, 0.0, 1.05]
+    yaw_deg: -90
+    drive:
+      - {at_s: 0.8, forward: 0.3}
+      - {at_s: 1.8, forward: 0}
+  - {action: preload, at_s: 0.1, group: nectar_red, count: 2}
+trace: {group: nectar_red, index: -1, every_s: 0.25}
+checks:
+  - {check: robot_holds, min: 2, max: 2}
+  - {check: element_in_robot, group: nectar_red, index: -1, min: [-0.2, 0.0, -0.3], max: [0.2, 0.3, 0.25]}
+  - {check: element_in_robot, group: nectar_red, index: -2, min: [-0.2, 0.0, -0.3], max: [0.2, 0.3, 0.25]}
+  - {check: robot_upright, max_tilt_deg: 3.0}

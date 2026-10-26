@@ -30,15 +30,36 @@ public interface IRobotDriver
 /// firmware, battery bus, mecanum force model, mechanism shafts, servos). Meshes stay in pipeline coordinates under a
 /// node with the YAML cad_to_robot transform (after undoing the pipeline's Y-up turn); wheels and mechanisms spin about
 /// their axles.
-/// Mechanisms (spec 04): rollers, wheels and flywheels with a radius touch game elements through
-/// <see cref="CompliantContact"/> (no colliders; the reaction loads their motor or servo); paddle wheels are kinematic
-/// bodies turned by their servo. Robot frame = Godot local frame: +X right, +Y up, −Z forward; origin on the floor.
+/// Mechanisms (spec 04): rollers, wheels and flywheels with a radius, and the drive wheels, touch game elements through
+/// <see cref="CompliantContact"/> (no colliders; the reaction loads their motor or servo); arms and paddle wheels are
+/// kinematic bodies turned by their servo; everything else is a chassis collider. Every part is solid to elements
+/// (USER 2026-10-26: a stuck element must be simulated). Robot frame = Godot local frame: +X right, +Y up, −Z forward;
+/// origin on the floor.
 /// </summary>
 public partial class RobotBody : RigidBody3D
 {
     private readonly List<(Node3D Pivot, Vector3 AxisCad, Func<double> Angle)> _spinners = new();
     private readonly List<RollerMechanism> _rollers = new();
-    private readonly List<(AnimatableBody3D Body, Vector3 CenterCad, Vector3 AxisCad, Func<double> Angle)> _paddles = new();
+    private readonly List<(AnimatableBody3D Body, Vector3 CenterCad, Vector3 AxisCad, Func<double> Angle, string Group)> _paddles = new();
+
+    /// <summary>Servo arms: commanded angle (floor stop applied), the angle the arm is at (it stalls on the field), the
+    /// goal it last stalled short of, and the arm's collider box (mesh frame) for the quick field test.</summary>
+    private readonly Dictionary<string, Func<double>> _armTargets = new();
+    private readonly Dictionary<string, double> _armApplied = new();
+    private readonly Dictionary<string, double> _armStalledGoal = new();
+    private readonly Dictionary<string, Aabb> _armBox = new();
+
+    /// <summary>Field bodies the wheels stand on (the tiles): arms leave the floor to their floor stop.</summary>
+    private readonly HashSet<Rid> _floorRids = new();
+    private Godot.Collections.Array<Rid> _floorExclude = new();
+    private PhysicsShapeQueryParameters3D? _armQuery;
+    private readonly BoxShape3D _armProbe = new();
+
+    /// <summary>Physical ball path: tick each element was launched (no contacts while it leaves the nip), elements in
+    /// the robot (pre-loaded or taken in), by id.</summary>
+    private readonly Dictionary<int, long> _launchedAt = new();
+    private readonly HashSet<int> _inRobot = new();
+    private readonly Dictionary<int, FieldElement> _elementById = new();
     private Vector3[] _wheelCenters = Array.Empty<Vector3>();   // robot frame
     private double[] _normals = Array.Empty<double>();
     private Transform3D _meshToRobot;
@@ -64,16 +85,17 @@ public partial class RobotBody : RigidBody3D
     /// <summary>Chassis collision shapes of groups that move with a mechanism (a turret): CAD-frame shape transform.</summary>
     private readonly List<(CollisionShape3D Shape, Transform3D Cad, string Group)> _movingShapes = new();
 
-    /// <summary>A roller/wheel/flywheel that grips elements: axle in the robot frame, the port that drives it.</summary>
-    private sealed record RollerMechanism(MechanismDef Def, Vector3 AxisPoint, Vector3 Axis, MotorPort? Motor, ServoPort? Servo)
+    /// <summary>
+    /// A roller/wheel/flywheel or a drive wheel that grips elements: axle in the robot frame at the CAD pose (a roller
+    /// mounted on another mechanism, e.g. a turret's launcher, moves with it), the port that drives it, or
+    /// <see cref="Spin"/> for a drive wheel (spun by the drivetrain model, which the element does not load).
+    /// </summary>
+    private sealed record RollerMechanism(MechanismDef Def, Vector3 AxisPoint, Vector3 Axis, MotorPort? Motor, ServoPort? Servo,
+        Func<double>? Spin = null)
     {
-        /// <summary>Touches field elements by compliant contact (not for surfaces riding on another mechanism, e.g. a
-        /// turret's launcher: their axle moves, and launched elements leave through the guided path).</summary>
-        public bool Contact => Def.MountedOn == null;
-
         /// <summary>Spin about <see cref="Axis"/>, rad/s (0 for a fixed bar).</summary>
-        public double Omega => Motor != null
-            ? Motor.OutputOmega * Motor.Device.SpeedRatio * Def.DriveSign
+        public double Omega => Spin != null ? Spin()
+            : Motor != null ? Motor.OutputOmega * Motor.Device.SpeedRatio * Def.DriveSign
             : Servo != null ? Mathf.DegToRad(Servo.Model.SpeedDegPerS) * Def.DriveSign : 0;
 
         /// <summary>Hands a torque on the roller (about <see cref="Axis"/>) to its motor or servo.</summary>
@@ -134,7 +156,10 @@ public partial class RobotBody : RigidBody3D
     public Vector3 VelocityAt(Vector3 point) => LinearVelocity + AngularVelocity.Cross(point - GlobalTransform * CenterOfMass);
 
     /// <summary>Loads robot NAME (config/robots/NAME.yaml + generated/NAME) and adds it to <paramref name="parent"/> at <paramref name="pose"/>.</summary>
-    public static RobotBody Spawn(Node parent, string name, Transform3D pose, PhysicsConfig physics, ulong sensorSeed = 1, string? nodeName = null)
+    /// <param name="ballPath">"guided" or "physical" overrides the robot YAML ball_path.model (match setup, practice
+    /// toggle, scenarios); null keeps it.</param>
+    public static RobotBody Spawn(Node parent, string name, Transform3D pose, PhysicsConfig physics, ulong sensorSeed = 1, string? nodeName = null,
+        string? ballPath = null)
     {
         var definition = RobotDefinition.Load(RepoPaths.Config(Path.Combine("robots", name + ".yaml")));
         var hardware = HardwareConfig.Load(Path.Combine(RepoPaths.RepoRoot, "config"));
@@ -166,6 +191,13 @@ public partial class RobotBody : RigidBody3D
         robot.Build(name, parent);
         robot.MeasureOutline();
         robot._ballPath = definition.BallPath is { } path ? new GuidedBallPath(path) : null;
+        robot.PhysicalBallPath = ballPath switch
+        {
+            "physical" => true,
+            "guided" => false,
+            null or "" or "robot" => definition.BallPath?.Physical ?? false,
+            _ => throw new ArgumentException($"ball path '{ballPath}': expected guided, physical or robot"),
+        };
         robot.Sensors = new SensorSuite(definition, SensorModels.Load(RepoPaths.Config("sensors.yaml")), sensorSeed);
         robot._sensorWorld = new GodotSensorWorld(robot);
         foreach (var webcam in robot.Sensors.Webcams)
@@ -184,13 +216,53 @@ public partial class RobotBody : RigidBody3D
     /// <summary>The last launch: element group, rolling (ideal) exit speed and actual exit speed, m/s (diagnostics).</summary>
     public (string Group, double IdealSpeed, double ExitSpeed)? LastLaunch { get; private set; }
 
-    /// <summary>Elements held in the robot by the guided path (hopper), oldest first.</summary>
-    public IEnumerable<FieldElement> StoredElements => _ballPath?.Stored.Select(id => _stored[id].Element) ?? Enumerable.Empty<FieldElement>();
+    /// <summary>
+    /// Elements move through the robot as ordinary bodies (ball_path.model physical, <see cref="BallPathDef.Physical"/>):
+    /// they can jam. False: the guided path stores and feeds them by rule (D-027).
+    /// </summary>
+    public bool PhysicalBallPath { get; private set; }
 
-    /// <summary>Puts an element straight into the hopper (pre-loads at match setup, G304.G). False if full or no hopper.</summary>
+    /// <summary>The robot has a ball path (an intake-to-launcher path in its YAML) to switch.</summary>
+    public bool HasBallPath => _ballPath != null;
+
+    /// <summary>Elements held in the robot: in the guided hopper (oldest first), or with a physical path the elements
+    /// inside the robot's outline (pre-loaded or taken in, not yet launched).</summary>
+    public IEnumerable<FieldElement> StoredElements => PhysicalBallPath
+        ? _inRobot.OrderBy(id => id).Select(id => _elementById[id])
+        : _ballPath?.Stored.Select(id => _stored[id].Element) ?? Enumerable.Empty<FieldElement>();
+
+    /// <summary>The element is held by this robot (<see cref="StoredElements"/>).</summary>
+    public bool Holds(FieldElement element) => _elementIds.TryGetValue(element.Body, out var id) && (_inRobot.Contains(id) || _stored.ContainsKey(id));
+
+    /// <summary>
+    /// Puts an element straight into the hopper (pre-loads at match setup, G304.G). False if full or no hopper. A
+    /// physical path places it at the next storage slot as a free body (it settles where the robot holds it).
+    /// </summary>
     public bool Preload(FieldElement element)
     {
-        if (_ballPath == null || !_ballPath.Preload(IdOf(element.Body)))
+        if (_ballPath is not { } path)
+        {
+            return false;
+        }
+        if (PhysicalBallPath)
+        {
+            var id = IdOf(element.Body);
+            var slot = _inRobot.Count;
+            if (slot >= path.Def.Capacity || slot >= path.Def.StorageSlots.Count || _inRobot.Contains(id))
+            {
+                return false;
+            }
+            var local = path.Def.StorageSlots[slot];
+            var body = element.Body;
+            body.Freeze = false;
+            body.GlobalTransform = new Transform3D(GlobalBasis, GlobalTransform * new Vector3(local.X, local.Y, local.Z));
+            body.LinearVelocity = VelocityAt(body.GlobalPosition);
+            body.AngularVelocity = Vector3.Zero;
+            _elementById[id] = element;
+            _inRobot.Add(id);
+            return true;
+        }
+        if (!path.Preload(IdOf(element.Body)))
         {
             return false;
         }
@@ -318,11 +390,22 @@ public partial class RobotBody : RigidBody3D
                     meshes.Add((group.Name, mesh));
                 }
             }
-            if (group.Colliders == null || group.Name.StartsWith("wheel_", StringComparison.Ordinal))
+            if (group.Name.StartsWith("wheel_", StringComparison.Ordinal))
             {
-                continue;   // the wheels touch the ground through the suspension rays, not through colliders
+                // The wheels touch the ground through the suspension rays and game elements by compliant contact, as
+                // spinning cylinders (no colliders, which would also touch the floor).
+                AddWheelContact(group.Name);
+                continue;
+            }
+            if (group.Colliders == null)
+            {
+                continue;
             }
             var mechanism = MechanismFor(group.Name);
+            if (mechanism is { Radius: not null, Width: null })
+            {
+                mechanism = WithCadWidth(group.Name, mechanism);
+            }
             if (mechanism is { Radius: not null, AxisPoint: { } point, Axis: { } axis })
             {
                 var (motor, servo) = DriverOf(mechanism);
@@ -346,7 +429,16 @@ public partial class RobotBody : RigidBody3D
                     body.AddChild(ShapeFactory.Create(spec));   // CAD coordinates
                 }
                 parent.AddChild(body);
-                _paddles.Add((body, paddle.CenterCad, paddle.AxisCad, paddle.Angle));
+                _paddles.Add((body, paddle.CenterCad, paddle.AxisCad, paddle.Angle, group.Name));
+                if (_groupPoints.TryGetValue(group.Name, out var outline) && outline.Count > 0)
+                {
+                    var box = new Aabb(outline[0], Vector3.Zero);
+                    foreach (var corner in outline)
+                    {
+                        box = box.Expand(corner);
+                    }
+                    _armBox[group.Name] = box;
+                }
                 body.GlobalTransform = PaddleTransform(GlobalTransform, paddle.CenterCad, paddle.AxisCad, paddle.Angle());
                 continue;
             }
@@ -376,6 +468,37 @@ public partial class RobotBody : RigidBody3D
                 cadRoot.AddChild(node);
             }
         }
+    }
+
+    /// <summary>Roller width the YAML leaves out: the extent of the group's CAD colliders along the axle (the axle point
+    /// moves to their middle); 50 mm (ASSUMED) when the group has none (stand-in assets).</summary>
+    private MechanismDef WithCadWidth(string group, MechanismDef mechanism)
+    {
+        if (!_groupPoints.TryGetValue(group, out var outline) || outline.Count == 0 || mechanism is not { AxisPoint: { } p, Axis: { } a })
+        {
+            return mechanism with { Width = 0.05 };
+        }
+        var axis = System.Numerics.Vector3.Normalize(a);
+        var along = outline.Select(v => _meshToRobot * v).Select(v => System.Numerics.Vector3.Dot(new System.Numerics.Vector3(v.X, v.Y, v.Z) - p, axis)).ToList();
+        var (lo, hi) = (along.Min(), along.Max());
+        return mechanism with { Width = hi - lo, AxisPoint = p + axis * ((lo + hi) / 2) };
+    }
+
+    /// <summary>A drive wheel as a spinning cylinder that game elements touch (its tread material on the element).</summary>
+    private void AddWheelContact(string group)
+    {
+        var index = Definition.Wheels.ToList().FindIndex(w => "wheel_" + w.Id == group);
+        if (index < 0)
+        {
+            return;
+        }
+        var wheel = Definition.Wheels[index];
+        var material = Definition.DrivetrainType == "mecanum" ? "mecanum_roller" : "traction_rubber";
+        var def = new MechanismDef(group, "drive_wheel", null, wheel.Position, new System.Numerics.Vector3(-1, 0, 0),
+            Radius: Definition.WheelRadius, Width: Definition.WheelWidth, ContactMaterial: material);
+        var drive = Powertrain.Drive;
+        // Rolling forward turns the wheel about the robot's −X axis (as its mesh, SpinFor).
+        _rollers.Add(new RollerMechanism(def, _wheelCenters[index], new Vector3(-1, 0, 0), null, null, () => drive.WheelOmega(index)));
     }
 
     /// <summary>Pose of a CAD group relative to its CAD position (its own spin, then its carriers'), CAD frame.</summary>
@@ -468,9 +591,19 @@ public partial class RobotBody : RigidBody3D
         // arm with a floor stop rests on the tiles once it reaches them (the servo stalls against the floor).
         var cadAngle = mechanism.CadServoAngleDeg;
         var stops = _floorStops.TryGetValue(group, out var s) ? s : ((double?)null, (double?)null);
-        return servo != null
-            ? (center, axisCad, () => FloorStop.Clamp(Mathf.DegToRad(servo.Model.AngleDeg - cadAngle) * servo.Device.SpeedRatio * sign, stops))
-            : null;
+        if (servo == null)
+        {
+            return null;
+        }
+        Func<double> commanded = () => FloorStop.Clamp(Mathf.DegToRad(servo.Model.AngleDeg - cadAngle) * servo.Device.SpeedRatio * sign, stops);
+        if (mechanism.Type != "arm")
+        {
+            return (center, axisCad, commanded);
+        }
+        // A servo arm is where UpdateArms puts it: at the commanded angle unless the field is in the way.
+        _armTargets[group] = commanded;
+        _armApplied.TryAdd(group, commanded());
+        return (center, axisCad, () => _armApplied[group]);
     }
 
     public override void _PhysicsProcess(double delta)
@@ -499,8 +632,9 @@ public partial class RobotBody : RigidBody3D
             }
         }
         ApplySuspension();
+        UpdateArms();
+        RunBallPath();   // launches first: an element leaving the nip is not also squeezed by the launcher
         ApplyElementContacts();
-        RunBallPath();
         var (velocity, yawRate) = PlanarMotion();
         var forces = Powertrain.Step(velocity, yawRate, _normals);
         var basis = GlobalBasis;
@@ -550,6 +684,10 @@ public partial class RobotBody : RigidBody3D
                 _normals[i] = 0;
                 continue;
             }
+            if (hit["collider"].AsGodotObject() is StaticBody3D && _floorRids.Add((Rid)hit["rid"]))
+            {
+                _floorExclude = new Godot.Collections.Array<Rid>(_floorRids);
+            }
             var point = (Vector3)hit["position"];
             var normal = ((Vector3)hit["normal"]).Normalized();
             var penetration = rest - from.DistanceTo(point);
@@ -565,7 +703,13 @@ public partial class RobotBody : RigidBody3D
         }
     }
 
-    /// <summary>Rollers, sweepers and flywheels squeezing nearby elements (forces on both bodies, torque on the roller).</summary>
+    /// <summary>Seconds after a launch during which the element leaving the nip touches no roller.</summary>
+    private const double LaunchClearSeconds = 0.15;
+
+    /// <summary>
+    /// Rollers, sweepers, flywheels and drive wheels squeezing nearby elements (forces on both bodies, torque on the
+    /// roller). Elements held by the guided path (frozen) and elements just launched are left alone.
+    /// </summary>
     private void ApplyElementContacts()
     {
         if (Elements == null || _rollers.Count == 0)
@@ -577,7 +721,7 @@ public partial class RobotBody : RigidBody3D
         foreach (var element in Elements)
         {
             var body = element.Body;
-            if (!IsInstanceValid(body) || body.GlobalPosition.DistanceTo(GlobalPosition) > reach)
+            if (!IsInstanceValid(body) || body.Freeze || body.GlobalPosition.DistanceTo(GlobalPosition) > reach || JustLaunched(body))
             {
                 continue;
             }
@@ -586,18 +730,12 @@ public partial class RobotBody : RigidBody3D
             var ball = new Ball(V(body.GlobalPosition), props.RadiusM, V(body.LinearVelocity), V(body.AngularVelocity));
             foreach (var roller in _rollers)
             {
-                if (!roller.Contact)
-                {
-                    continue;
-                }
-                var axisPoint = transform * roller.AxisPoint;
+                var r = WorldRoller(roller, transform);
                 var def = roller.Def;
-                var r = new Roller(V(axisPoint), V(transform.Basis * roller.Axis), def.Radius!.Value, (def.Width ?? 0) / 2, roller.Omega,
-                    V(VelocityAt(axisPoint)), V(AngularVelocity));
                 var friction = _physics.PairFriction(def.ContactMaterial ?? "default", material);
                 // Element and surface compliance in series (soft Gecko tread, foam bar rollers).
                 var k = def.ContactStiffness is { } kSurface ? 1 / (1 / kElement + 1 / kSurface) : kElement;
-                if (CompliantContact.Compute(r, ball, new ContactParams(k, c, friction, slip)) is not { } contact)
+                if (CompliantContact.Compute(r, ball, new ContactParams(k, c, friction, slip, def.ContactPreload ?? 0)) is not { } contact)
                 {
                     continue;
                 }
@@ -610,9 +748,24 @@ public partial class RobotBody : RigidBody3D
         }
     }
 
+    /// <summary>A roller in world coordinates now: carried by the mechanism it is mounted on (a turret's launcher).</summary>
+    private Roller WorldRoller(RollerMechanism roller, Transform3D transform)
+    {
+        var carry = roller.Def.MountedOn is { } carrier ? GroupTransformRobot(carrier) : Transform3D.Identity;
+        var axisPoint = transform * (carry * roller.AxisPoint);
+        var def = roller.Def;
+        return new Roller(V(axisPoint), V((transform.Basis * (carry.Basis * roller.Axis)).Normalized()), def.Radius!.Value, (def.Width ?? 0) / 2,
+            roller.Omega, V(VelocityAt(axisPoint)), V(AngularVelocity));
+    }
+
+    private bool JustLaunched(RigidBody3D body) =>
+        _elementIds.TryGetValue(body, out var id) && _launchedAt.TryGetValue(id, out var at)
+        && _tick - at < LaunchClearSeconds * Engine.PhysicsTicksPerSecond;
+
     /// <summary>
-    /// Guided element path (D-027): capture in front of the running intake roller, hold in the hopper slots, launch one
-    /// element per feeder quarter turn at the flywheel's exit speed; the flywheel loses the angular momentum it gives.
+    /// Element path (D-027). Guided: capture in front of the running intake roller, hold in the hopper slots, launch one
+    /// element per feeder quarter turn at the flywheel's exit speed. Physical (<see cref="PhysicalBallPath"/>): see
+    /// <see cref="RunPhysicalPath"/>. Either way the flywheel loses the angular momentum it gives.
     /// </summary>
     private void RunBallPath()
     {
@@ -620,8 +773,13 @@ public partial class RobotBody : RigidBody3D
         {
             return;
         }
-        var intake = _rollers.FirstOrDefault(r => r.Motor != null && r.Def.Id == "intake_roller");
         var flywheel = _rollers.FirstOrDefault(r => r.Motor != null && (path.Def.Launcher != null ? r.Def.Id == path.Def.Launcher : r.Def.Type == "flywheel"));
+        if (PhysicalBallPath)
+        {
+            RunPhysicalPath(path, flywheel);
+            return;
+        }
+        var intake = _rollers.FirstOrDefault(r => r.Motor != null && r.Def.Id == "intake_roller");
         var feederDef = Definition.Mechanism(path.Def.Feeder);
         var (feederMotor, feeder) = DriverOf(feederDef);
         var transform = GlobalTransform;
@@ -660,7 +818,7 @@ public partial class RobotBody : RigidBody3D
             var gateOpen = path.Def.Gate is not { } gate || ServoOf(gate.Mechanism) is not { } gateServo || gate.IsOpen(gateServo.Model.AngleDeg);
             if (path.Feed(turned, rim, gateOpen) is { } id)
             {
-                Launch(id, path, path.ExitSpeed(rim), launcher, flywheel);
+                Launch(_stored[id].Element, path, path.ExitSpeed(rim), launcher, flywheel);
             }
         }
 
@@ -670,6 +828,73 @@ public partial class RobotBody : RigidBody3D
             var slot = path.SlotOf(id);
             _stored[id].Element.Body.GlobalTransform = new Transform3D(transform.Basis, transform * new Vector3(slot.X, slot.Y, slot.Z));
         }
+    }
+
+    /// <summary>
+    /// Physical element path (USER 2026-10-26): elements stay free bodies and move through the robot only by its rollers
+    /// and colliders, so they can jam. An element counts as taken in when its centre enters the robot's outline. It is
+    /// launched (by rule, as the guided path does) when it touches the launcher rim while the rim is fast enough: a
+    /// nip a few millimetres long cannot accelerate it by contact at 240 Hz. A slow or stopped launcher leaves it stuck
+    /// against the wheel.
+    /// </summary>
+    private void RunPhysicalPath(GuidedBallPath path, RollerMechanism? flywheel)
+    {
+        var transform = GlobalTransform;
+        var inverse = transform.AffineInverse();
+        var rim = flywheel?.Motor is { } m ? Math.Abs(m.OutputOmega * m.Device.SpeedRatio) * flywheel.Def.Radius!.Value : 0;
+        var launcherRoller = flywheel != null ? WorldRoller(flywheel, transform) : default;
+        FieldElement? launch = null;
+        foreach (var element in Elements!)
+        {
+            var body = element.Body;
+            if (!IsInstanceValid(body) || body.Freeze || body.GlobalPosition.DistanceTo(GlobalPosition) > 0.6f)
+            {
+                continue;
+            }
+            var id = IdOf(body);
+            _elementById[id] = element;
+            var inside = InsideRobot(inverse * body.GlobalPosition);
+            if (inside && _inRobot.Add(id) && !JustLaunched(body))
+            {
+                ElementCaptured?.Invoke(element);
+            }
+            else if (!inside)
+            {
+                _inRobot.Remove(id);
+            }
+            if (launch == null && flywheel != null && rim >= path.Def.MinLaunchSurfaceSpeed && !JustLaunched(body))
+            {
+                var ball = new Ball(V(body.GlobalPosition), _physics.Element(element.Group).RadiusM, V(body.LinearVelocity), V(body.AngularVelocity));
+                if (CompliantContact.Squeeze(launcherRoller, ball) > 0)
+                {
+                    launch = element;   // one element per tick through the nip
+                }
+            }
+        }
+        if (launch != null)
+        {
+            Launch(launch, path, path.ExitSpeed(rim), flywheel!.Motor!, flywheel);
+        }
+    }
+
+    /// <summary>A robot-frame point inside the robot's outline (footprint, below its top).</summary>
+    private bool InsideRobot(Vector3 local)
+    {
+        if (local.Y > TopLocal || FootprintLocal.Count < 3)
+        {
+            return false;
+        }
+        var p = new Vector2(local.X, local.Z);
+        for (var i = 0; i < FootprintLocal.Count; i++)
+        {
+            var a = FootprintLocal[i];
+            var b = FootprintLocal[(i + 1) % FootprintLocal.Count];
+            if ((b.X - a.X) * (p.Y - a.Y) - (b.Y - a.Y) * (p.X - a.X) < 0)
+            {
+                return false;
+            }
+        }
+        return true;
     }
 
     private int IdOf(RigidBody3D body)
@@ -696,6 +921,8 @@ public partial class RobotBody : RigidBody3D
         }
         _stored.Clear();
         _ballPath?.Clear();
+        _inRobot.Clear();
+        _launchedAt.Clear();
         GlobalTransform = pose;
         LinearVelocity = Vector3.Zero;
         AngularVelocity = Vector3.Zero;
@@ -739,11 +966,13 @@ public partial class RobotBody : RigidBody3D
         return (point, direction.Normalized());
     }
 
-    private void Launch(int id, GuidedBallPath path, double idealSpeed, MotorPort launcher, RollerMechanism flywheel)
+    private void Launch(FieldElement element, GuidedBallPath path, double idealSpeed, MotorPort launcher, RollerMechanism flywheel)
     {
-        var (element, layer, mask) = _stored[id];
-        _stored.Remove(id);
         var body = element.Body;
+        var id = IdOf(body);
+        var (layer, mask) = _stored.Remove(id, out var held) ? (held.Layer, held.Mask) : (body.CollisionLayer, body.CollisionMask);
+        _inRobot.Remove(id);
+        _launchedAt[id] = _tick;
         var t = GlobalTransform;
         var rimRadius = flywheel.Def.Radius!.Value;
         var mass = _physics.Element(element.Group).MassKg;
@@ -774,6 +1003,114 @@ public partial class RobotBody : RigidBody3D
         }
     }
 
+    /// <summary>A servo arm may press this far into a field body before it counts as blocked, m.</summary>
+    private const float ArmStallTolerance = 0.001f;
+
+    /// <summary>Largest arm swing tested in one go, rad (3°): smaller than any obstacle the arm could skip.</summary>
+    private const double ArmStep = 0.05;
+
+    /// <summary>
+    /// Servo arms stall on the field (USER 2026-10-26: the flower bar is solid; it stops on the FLOWER instead of
+    /// passing through it). Each tick an arm goes to its commanded angle unless its colliders would press into a field
+    /// body there; then it stops at the last free angle on the way, as a servo stalls on an obstacle. An arm the robot
+    /// drove into the field is pushed back towards its CAD pose until it is free. The floor the wheels stand on is
+    /// left to the arm's floor stop. (Kinematic arms are not stopped by contacts, hence the shape queries; elements are
+    /// pushed by the arm, which does not stall on them.)
+    /// </summary>
+    private void UpdateArms()
+    {
+        foreach (var paddle in _paddles)
+        {
+            if (!_armTargets.TryGetValue(paddle.Group, out var target))
+            {
+                continue;
+            }
+            var goal = target();
+            var applied = _armApplied[paddle.Group];
+            var appliedFree = ArmFree(paddle, applied);
+            if (appliedFree && _armStalledGoal.TryGetValue(paddle.Group, out var stalled) && stalled == goal)
+            {
+                continue;   // still stalled short of the same goal, and nothing pressed it further
+            }
+            var from = appliedFree ? applied : 0.0;   // pressed into the field: back from the CAD pose, inside the robot
+            if (!appliedFree && !ArmFree(paddle, from))
+            {
+                continue;
+            }
+            // Along the swing in small steps, so the arm cannot jump over an obstacle to a free goal beyond it.
+            var steps = Math.Max(1, (int)Math.Ceiling(Math.Abs(goal - from) / ArmStep));
+            var reached = goal;
+            for (var k = 1; k <= steps; k++)
+            {
+                var angle = from + (goal - from) * k / steps;
+                if (ArmFree(paddle, angle))
+                {
+                    continue;
+                }
+                var (lo, hi) = (from + (goal - from) * (k - 1) / steps, angle);
+                for (var i = 0; i < 8; i++)
+                {
+                    var mid = (lo + hi) / 2;
+                    if (ArmFree(paddle, mid))
+                    {
+                        lo = mid;
+                    }
+                    else
+                    {
+                        hi = mid;
+                    }
+                }
+                reached = lo;
+                break;
+            }
+            _armApplied[paddle.Group] = reached;
+            if (reached == goal)
+            {
+                _armStalledGoal.Remove(paddle.Group);
+            }
+            else
+            {
+                _armStalledGoal[paddle.Group] = goal;
+            }
+        }
+    }
+
+    /// <summary>The arm's colliders at <paramref name="angle"/> (current robot pose) press into no field body except
+    /// the floor. A box around the arm is tested first, so an arm away from the field costs one query.</summary>
+    private bool ArmFree((AnimatableBody3D Body, Vector3 CenterCad, Vector3 AxisCad, Func<double> Angle, string Group) paddle, double angle)
+    {
+        if (!_armBox.TryGetValue(paddle.Group, out var box))
+        {
+            return true;
+        }
+        var space = GetWorld3D().DirectSpaceState;
+        var pose = PaddleTransform(GlobalTransform, paddle.CenterCad, paddle.AxisCad, angle);
+        var world = pose * box;
+        _armQuery ??= new PhysicsShapeQueryParameters3D { CollisionMask = CollisionLayers.FieldStatic | CollisionLayers.FieldMoving, Margin = 0 };
+        _armQuery.Exclude = _floorExclude;
+        _armProbe.Size = world.Size + new Vector3(0.004f, 0.004f, 0.004f);
+        _armQuery.Shape = _armProbe;
+        _armQuery.Transform = new Transform3D(Basis.Identity, world.GetCenter());
+        if (space.IntersectShape(_armQuery, 1).Count == 0)
+        {
+            return true;
+        }
+        foreach (var shape in paddle.Body.GetChildren().OfType<CollisionShape3D>())
+        {
+            _armQuery.Shape = shape.Shape;
+            _armQuery.Transform = pose * shape.Transform;
+            var points = space.CollideShape(_armQuery, 4);
+            for (var i = 0; i + 1 < points.Count; i += 2)
+            {
+                if (points[i].DistanceTo(points[i + 1]) > ArmStallTolerance)
+                {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
     /// <summary>Kinematic paddles go where the chassis will be at the end of this step, turned by their servo.</summary>
     private void MovePaddles(double dt)
     {
@@ -786,7 +1123,7 @@ public partial class RobotBody : RigidBody3D
         var predicted = new Transform3D(
             spin.LengthSquared() > 1e-12f ? new Basis(spin.Normalized(), spin.Length()) * t.Basis : t.Basis,
             t.Origin + VelocityAt(t.Origin) * (float)dt);
-        foreach (var (body, center, axis, angle) in _paddles)
+        foreach (var (body, center, axis, angle, _) in _paddles)
         {
             body.GlobalTransform = PaddleTransform(predicted, center, axis, angle());
         }

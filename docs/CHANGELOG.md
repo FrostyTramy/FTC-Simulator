@@ -1,5 +1,20 @@
 # Changelog
 
+## Every robot part solid, physical ball path — 2026-10-26
+- USER: all robot parts must be solid to the balls and a stuck ball must be possible; the flower bar went through the
+  FLOWER and the balls. D-037: elements collide with arms and paddles; servo arms stall on field bodies (the flower bar
+  stops on the FLOWER or a wall); drive wheels and turret-borne rollers touch elements; roller contacts are solid
+  cylinders with flat ends and sprung rollers press with `contact_preload`.
+- `ball_path.model: physical` (RoboDojo default): elements move through the robot by its rollers and colliders and can
+  jam; the launch rule fires when an element touches a fast launcher rim. Match setup option, scoreboard "Ball path"
+  button and `--ball-path` switch it; replays keep it.
+- Robot CAD colliders: `default: auto` with `coacd_min_gap_volume` (concave parts get their real shape). Re-run
+  `tools/cad_pipeline/run.py --config config/cad/robodojo_23205.yaml` (colliders only; the meshes are cached).
+- Stand-in robots have an open channel with a floor under the storage slots and a back wall.
+- Tests: scenarios `robodojo_flower_bar_pushes`, `robodojo_flower_bar_stalls`, `robodojo_physical_launch`,
+  `robodojo_physical_preload_holds`, `robodojo_physical_stuck`, `robot_wheel_pushes_ball`; `SolidPartsTests`;
+  auto collider test. 16/16 scenarios, match test 14/14 with the replay reproduced bit for bit.
+
 ## CAD pipeline: progress output, broken faces — 2026-10-26
 - `tools/cad_pipeline/run.py` prints every stage (STEP read, mass properties, meshing, colliders, export) with counts,
   time left and the current part; colliders are cached the moment they finish and mass properties every minute, so an

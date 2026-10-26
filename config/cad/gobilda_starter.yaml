@@ -42,7 +42,11 @@ tessellation:
   coarse: {linear: 0.0012, angular: 0.6}
 
 colliders:
-  default: hull
+  # USER 2026-10-26: every part solid with its real shape (D-037). auto: a box/cylinder/sphere when the part is one, a
+  # hull when it is nearly convex or its hollow could not hold a game element, else a CoACD decomposition, so an element
+  # never bounces off the empty inside of a hull (a concave bracket, shroud or printed part).
+  default: auto
+  coacd_min_gap_volume: 0.0003   # m^3, ASSUMED: about one NECTAR (0.0004 m^3); smaller hollows keep the single hull
   rules:
     # First matching rule wins: the curved hood must come before the generic flat-gridplate rule.
     - {regex: '(?i)1117-0088-0352 \(3200-2627-0004_G\)', mode: coacd, threshold: 0.04, max_hulls: 8}   # curved hood (STEP 48)

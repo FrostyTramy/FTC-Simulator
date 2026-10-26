@@ -50,3 +50,14 @@ public class StartPositionTests
         Assert.Equal(Math.PI, blue2.YawRad, 6);       // facing +Z, towards the audience
     }
 }
+
+public class MatchSetupBallPathTests
+{
+    [Fact]
+    public void The_ball_path_choice_survives_the_replay_header()
+    {
+        var setup = Sim.Match.MatchSetup.AllStations(Sim.Match.StationKind.Gamepad) with { BallPath = "physical" };
+        Assert.Equal("physical", Sim.Match.MatchSetup.FromJson(setup.ToJson()).BallPath);
+        Assert.Null(Sim.Match.MatchSetup.FromJson(Sim.Match.MatchSetup.AllStations(Sim.Match.StationKind.Gamepad).ToJson()).BallPath);
+    }
+}

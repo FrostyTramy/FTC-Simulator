@@ -103,3 +103,23 @@ def test_parts_longer_than_the_limit_are_reported(tmp_path: Path) -> None:
     pipeline.run()
     assert {n for n, _ in pipeline.oversized} == {"Control Hub", "aparatoare roti"}
     assert "Parts longer than max_part_extent" in (pipeline.out / "report.md").read_text("utf-8")
+
+
+def test_auto_colliders_decompose_only_hollows_that_hold_an_element() -> None:
+    import colliders as coll
+
+    def job(solid, gap: float) -> coll.Job:
+        tess = mesh_mod.tessellate_checked(solid.val().wrapped, 0.001, 0.5)
+        props = mesh_mod.mass_props(solid.val().wrapped)
+        settings = coll.ColliderSettings(coacd_min_gap_volume=gap, coacd_max_hulls=6)
+        return coll.Job("k", tess.mesh.vertices, tess.mesh.triangles, props.volume, props.bbox_min, props.bbox_max, "auto", settings)
+
+    # A bracket with a 180 x 120 mm pocket: its hull would fill 0.0013 m^3 of empty space.
+    bucket = cq.Workplane("XY").box(0.2, 0.14, 0.08).faces(">Z").shell(-0.01)
+    assert coll.fit_job(job(bucket, 0.0003)).info["mode"] == "auto->coacd"
+    # The same shape with a pocket too small to matter (threshold above its hollow) stays one hull.
+    assert coll.fit_job(job(bucket, 0.01)).shapes[0]["type"] == "convex"
+    # A small L-bracket: hollow far below one NECTAR, one hull.
+    bracket = cq.Workplane("XY").polyline([(0, 0), (0.04, 0), (0.04, 0.004), (0.004, 0.004), (0.004, 0.04), (0, 0.04)]).close().extrude(0.02)
+    shapes = coll.fit_job(job(bracket, 0.0003)).shapes
+    assert len(shapes) == 1 and shapes[0]["type"] == "convex"

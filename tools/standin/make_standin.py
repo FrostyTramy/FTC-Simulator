@@ -349,10 +349,30 @@ def robot(path: Path) -> None:
 
     chassis = Group("chassis", "rigid")
     inner = track / 2 - wheel_w / 2 - 0.004
-    g_box(chassis, [2 * inner, 0.012, d / 2 - front_free_z], [0, wheel_r * 0.55, (front_free_z + d / 2) / 2], "chassis")
     tower_h = max(h * 0.55, front_free_y + 0.03)
-    g_box(chassis, [2 * inner * 0.8, tower_h - wheel_r * 0.6, d / 2 - front_free_z - 0.02],
-          [0, (tower_h + wheel_r * 0.6) / 2, (front_free_z + 0.02 + d / 2) / 2], "chassis")
+    slots = [np.array(v, dtype=float) for v in val(ball["storage_slots"])] if "storage_slots" in ball else []
+    if slots:
+        # A channel along the ball path, open on top, so elements held with a physical path (D-037) rest at the storage
+        # slots: its floor is just under the lowest slot for the largest element, the tower stands on both sides of it.
+        r_max = max(float(val(e["radius"])) for e in load(REPO / "config" / "physics.yaml")["elements"].values())
+        floor_top = max(0.004, min(float(v[1]) for v in slots) - r_max - 0.002)
+        half = min(inner * 0.8 - 0.02, max(abs(float(v[0])) for v in slots) + r_max + 0.01)
+        floor_front = min(front_free_z, min(float(v[2]) for v in slots) - r_max)   # under every slot
+        g_box(chassis, [2 * inner, 0.004, d / 2 - floor_front], [0, floor_top - 0.002, (floor_front + d / 2) / 2], "chassis")
+        if floor_top > 0.01 and capture:   # a ramp from the tiles up to the channel floor across the capture zone
+            z0, z1 = float(capture["min"][2]), float(capture["max"][2])
+            run = z1 - z0
+            g_box(chassis, [2 * half, 0.004, math.hypot(run, floor_top)], [0, floor_top / 2 - 0.002, (z0 + z1) / 2], "chassis",
+                  rot=trimesh.transformations.rotation_matrix(-math.atan2(floor_top, run), [1, 0, 0]))   # rises to the back (+Z)
+        side = inner * 0.8 - half
+        for sx in (-1, 1):
+            g_box(chassis, [side, tower_h - floor_top, d / 2 - front_free_z - 0.02],
+                  [sx * (half + side / 2), (tower_h + floor_top) / 2, (front_free_z + 0.02 + d / 2) / 2], "chassis")
+        g_box(chassis, [2 * half, tower_h - floor_top, 0.006], [0, (tower_h + floor_top) / 2, d / 2 - 0.003], "chassis")   # back wall
+    else:
+        g_box(chassis, [2 * inner, 0.012, d / 2 - front_free_z], [0, wheel_r * 0.55, (front_free_z + d / 2) / 2], "chassis")
+        g_box(chassis, [2 * inner * 0.8, tower_h - wheel_r * 0.6, d / 2 - front_free_z - 0.02],
+              [0, (tower_h + wheel_r * 0.6) / 2, (front_free_z + 0.02 + d / 2) / 2], "chassis")
     for sx in (-1, 1):   # side plates frame the intake opening
         g_box(chassis, [0.006, 0.1, d], [sx * (inner - 0.003), 0.07, 0], "chassis")
     if front_free_y > 0:  # cross plate above the capture zone

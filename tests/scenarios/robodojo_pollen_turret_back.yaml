@@ -10,6 +10,7 @@ actions:
   - action: robot
     at_s: 0
     name: robodojo_23205
+    ball_path: guided   # the guided launch (hood, turret, spring nip); physical: robodojo_physical_*
     position: [-1.3, 0.0, 1.05]
     yaw_deg: -90
     drive:

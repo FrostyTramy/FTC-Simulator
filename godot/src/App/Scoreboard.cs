@@ -40,6 +40,11 @@ public partial class Scoreboard : PanelContainer
     /// <summary>"New match": a fresh session with the same setup (one session plays one MATCH).</summary>
     public event Action? RematchRequested;
 
+    /// <summary>"Ball path": a fresh session with the other ball path (physical ⇄ guided).</summary>
+    public event Action? BallPathToggled;
+
+    private Button _ballPath = null!;
+
     public override void _Ready()
     {
         // Between the HUD text (left) and the Driver Station panel (right, 380 px).
@@ -73,6 +78,8 @@ public partial class Scoreboard : PanelContainer
         Make(buttons, "New match", "A fresh field and robots with the same setup", () => RematchRequested?.Invoke());
         Make(buttons, "Setup…", "Robots, drivers, code and rules for the next MATCH", () => SetupRequested?.Invoke());
         Make(buttons, "History…", "Saved matches: results, CSV, replays", () => HistoryRequested?.Invoke());
+        _ballPath = Make(buttons, "Ball path", "Physical: elements move through the robot by its rollers and can jam. Guided: the robot " +
+                                              "stores and feeds them by rule. Switching starts a fresh session.", () => BallPathToggled?.Invoke());
         box.AddChild(buttons);
 
         var hp = new HFlowContainer { Alignment = FlowContainer.AlignmentMode.Center };
@@ -132,6 +139,9 @@ public partial class Scoreboard : PanelContainer
             : "";
         _start.Disabled = m.Phase != MatchPhase.PreMatch || problems.Count > 0 || _session.LastRecord != null;
         _abort.Disabled = !m.IsRunning;
+        var physical = _session.Stations.Any(s => s.Robot.PhysicalBallPath);
+        _ballPath.Text = physical ? "Ball path: physical" : "Ball path: guided";
+        _ballPath.Disabled = m.IsRunning || _session.Stations.All(s => !s.Robot.HasBallPath);
         var open = m.NectarAllEntryOpen(tick);
         _redNectar.Disabled = !m.IsRunning || hp.AllowedNow(Alliance.Red, open) == 0;
         _blueNectar.Disabled = !m.IsRunning || hp.AllowedNow(Alliance.Blue, open) == 0;

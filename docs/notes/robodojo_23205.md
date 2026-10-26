@@ -84,6 +84,14 @@ Sources for `config/robots/robodojo_23205.yaml` and `config/cad/robodojo_23205.y
   a re-run only redoes those parts. If a part still draws longer than `max_part_extent` (18 in + 1 in), the run prints
   a WARNING with its name and `report.md` lists it: add the name to `drop`.
 
+- **Every part solid, stuck balls (USER 2026-10-26, D-037):** the balls now collide with every part: the wheels, the
+  turret's shooter, the arms (flower bar, gate) and the real shape of concave parts. The flower bar pushes balls, carries
+  them on its ramp and stops on the FLOWER (or a wall) like a stalled servo instead of passing through. Balls move
+  through the robot physically (`ball_path.model: physical`): the intake and the sprung transfer stages drag them, the
+  gate arm blocks them, and they launch when they touch the shooter Geckos at speed, so a ball can jam anywhere the real
+  geometry lets it. The scoreboard "Ball path" button switches back to the guided path. Re-run the CAD pipeline once
+  (new colliders). Open points 9-10 below.
+
 ## Open points for the team (ASSUMED until checked)
 1. **Mecanum wheels in the CAD:** both left wheels ("Stanga") have their top rollers along the same diagonal, and so
    do both right wheels. That is not the X pattern, so the robot could not strafe. The sim uses FL/BR left slant and
@@ -104,4 +112,7 @@ Sources for `config/robots/robodojo_23205.yaml` and `config/cad/robodojo_23205.y
    - Intake/transfer chain ratios are 1:1.
    - Drive belt is 1:1.
 8. **Mass:** 12.5 kg estimated. Weigh the robot.
-
+9. **Sprung intake and transfer stages:** spring preload 2 N and stiffness 300/400 N/m are guesses. Measure the force
+   to lift the intake and each stage arm by 10 mm.
+10. **Physical path:** if balls stop somewhere they should not on the real robot, note where (a screenshot helps): it is
+    either a collider that is too big there or a roller that does not reach the ball.

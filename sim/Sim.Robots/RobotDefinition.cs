@@ -77,6 +77,12 @@ public sealed record MechanismDef(
     /// into the floor at the stop, m; null = no floor stop.
     /// </summary>
     public double? FloorStopPenetration { get; init; }
+
+    /// <summary>
+    /// Spring preload pressing a roller on a sprung arm against an element it touches, N (added to the contact
+    /// stiffness force, <see cref="ContactParams.Preload"/>); null = a fixed axle.
+    /// </summary>
+    public double? ContactPreload { get; init; }
 }
 
 /// <summary>
@@ -110,6 +116,9 @@ public sealed class RobotDefinition
 
     public required string DrivetrainType { get; init; }
     public required double WheelRadius { get; init; }
+
+    /// <summary>Drive wheel width (drivetrain.wheel_width), m; game elements touch the wheel over it.</summary>
+    public double WheelWidth { get; init; } = 0.038;
     public required double DriveGearing { get; init; }
     public required double WheelMassKg { get; init; }
     public required IReadOnlyList<WheelDef> Wheels { get; init; }
@@ -121,7 +130,8 @@ public sealed class RobotDefinition
     /// <summary>Row-major 4×4 matrix from CAD coordinates to the robot frame (robot = M · cad), frame.cad_to_robot.</summary>
     public required double[] CadToRobot { get; init; }
 
-    /// <summary>Guided element path (ball_path.model = guided), or null when elements only move by contact.</summary>
+    /// <summary>Element path (ball_path.model guided or physical, <see cref="BallPathDef.Physical"/>), or null when
+    /// elements only move by contact and nothing launches them.</summary>
     public BallPathDef? BallPath { get; init; }
 
     /// <summary>Sensors and cameras (robot YAML sensors).</summary>
@@ -217,6 +227,7 @@ public sealed class RobotDefinition
                     DrivenBy = m.ContainsKey("driven_by") ? QRaw(m, "driven_by").ToString() : null,
                     FollowRatio = m.ContainsKey("follow_ratio") ? Q(m, "follow_ratio") : 1,
                     FloorStopPenetration = m.ContainsKey("floor_stop") ? Q(m, "floor_stop") : null,
+                    ContactPreload = m.ContainsKey("contact_preload") ? Q(m, "contact_preload") : null,
                 };
             }).ToList()
             : [];
@@ -229,6 +240,7 @@ public sealed class RobotDefinition
             Inertia = Vec(QRaw(mass, "inertia_diagonal")),
             DrivetrainType = Str(drive, "type"),
             WheelRadius = Q(drive, "wheel_radius"),
+            WheelWidth = drive.ContainsKey("wheel_width") ? Q(drive, "wheel_width") : 0.038,
             DriveGearing = Q(drive, "drive_gearing"),
             WheelMassKg = Q(drive, "wheel_mass"),
             Wheels = wheels,
@@ -319,7 +331,7 @@ public sealed class RobotDefinition
     private static BallPathDef? ReadBallPath(Dictionary<object, object> root)
     {
         if (!root.TryGetValue("ball_path", out var raw) || raw is not Dictionary<object, object> b
-            || !b.ContainsKey("model") || QRaw(b, "model").ToString() != "guided")
+            || !b.ContainsKey("model") || QRaw(b, "model").ToString() is not ("guided" or "physical"))
         {
             return null;
         }
@@ -354,6 +366,7 @@ public sealed class RobotDefinition
             Gate = b.ContainsKey("gate") ? GateOf((Dictionary<object, object>)QRaw(b, "gate")) : null,
             Hood = hood,
             SpringNip = spring,
+            Physical = QRaw(b, "model").ToString() == "physical",
         };
     }
 
