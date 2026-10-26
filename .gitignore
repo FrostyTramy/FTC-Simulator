@@ -2,6 +2,9 @@
 # tools/inventory/resources_manifest.json, never committed; see docs/DECISIONS.md D-001)
 /*.zip
 /*.pdf
+/*.step
+/*.pptx
+/~$*
 /Godot_*/
 
 # Generated output (pipeline products, reports)

@@ -25,7 +25,14 @@ public sealed record DeviceDef(
     string ZeroPower,
     string? RunMode,
     double[]? Pidf,
-    double SpeedRatio);
+    double SpeedRatio)
+{
+    /// <summary>
+    /// Encoder counts per output-shaft revolution when the port's encoder input is not the motor's own encoder (e.g. a
+    /// REV Through Bore Encoder geared to the mechanism), already referred to the motor output shaft; null = the motor's.
+    /// </summary>
+    public double? EncoderCountsPerOutputRev { get; init; }
+}
 
 /// <summary>One REV hub. Index in <see cref="RobotDefinition.Hubs"/> = SDK hub index (0 = Control Hub).
 /// ImuLogo/ImuUsb: how the hub (and its IMU) is mounted, RevHubOrientationOnRobot terms (UP, FORWARD, ...).</summary>
@@ -46,7 +53,25 @@ public sealed record MechanismDef(
     double? Radius = null,
     double? Width = null,
     string? ContactMaterial = null,
-    double? ContactStiffness = null);
+    double? ContactStiffness = null)
+{
+    /// <summary>Mechanism this one rides on (e.g. a shooter on a turret): its pivot moves with that mechanism.</summary>
+    public string? MountedOn { get; init; }
+
+    /// <summary>Hard stops of the mechanism angle about <see cref="Axis"/> from its CAD pose, degrees (min, max); null = free.</summary>
+    public (double Min, double Max)? LimitsDeg { get; init; }
+
+    /// <summary>Servo angle (degrees from the servo centre) at which the CAD shows a servo-driven arm.</summary>
+    public double CadServoAngleDeg { get; init; }
+
+    /// <summary>
+    /// Device that turns this mechanism as well as the one it <c>drives</c> (chain or gear followers, e.g. transfer
+    /// stages on the transfer motor); <see cref="FollowRatio"/> = mechanism speed / device output speed.
+    /// </summary>
+    public string? DrivenBy { get; init; }
+
+    public double FollowRatio { get; init; } = 1;
+}
 
 /// <summary>
 /// One sensor (robot YAML <c>sensors:</c>, spec 05/09): exact hardwareMap name, kind (pinpoint, otos, color, distance,
@@ -145,7 +170,10 @@ public sealed class RobotDefinition
                 d.TryGetValue("zero_power", out var zp) ? zp.ToString()! : "FLOAT",
                 d.TryGetValue("run_mode", out var rm) ? rm.ToString() : null,
                 d.TryGetValue("pidf", out var pidf) ? ((List<object>)pidf).Select(Num).ToArray() : null,
-                d.TryGetValue("speed_ratio", out var ratio) ? Num(ratio) : 1.0);
+                d.TryGetValue("speed_ratio", out var ratio) ? Num(ratio) : 1.0)
+            {
+                EncoderCountsPerOutputRev = d.ContainsKey("encoder_counts_per_output_rev") ? Q(d, "encoder_counts_per_output_rev") : null,
+            };
         }).ToList();
         var hubs = ((List<object>)root["hubs"]).Select(o =>
         {
@@ -172,7 +200,14 @@ public sealed class RobotDefinition
                     m.ContainsKey("radius") ? Q(m, "radius") : null,
                     m.ContainsKey("width") ? Q(m, "width") : m.ContainsKey("length") ? Q(m, "length") : null,
                     m.ContainsKey("contact_material") ? QRaw(m, "contact_material").ToString() : null,
-                    m.ContainsKey("contact_stiffness") ? Q(m, "contact_stiffness") : null);
+                    m.ContainsKey("contact_stiffness") ? Q(m, "contact_stiffness") : null)
+                {
+                    MountedOn = m.ContainsKey("mounted_on") ? QRaw(m, "mounted_on").ToString() : null,
+                    LimitsDeg = m.ContainsKey("limits") ? Pair(QRaw(m, "limits")) : null,
+                    CadServoAngleDeg = m.ContainsKey("cad_servo_angle") ? Q(m, "cad_servo_angle") : 0,
+                    DrivenBy = m.ContainsKey("driven_by") ? QRaw(m, "driven_by").ToString() : null,
+                    FollowRatio = m.ContainsKey("follow_ratio") ? Q(m, "follow_ratio") : 1,
+                };
             }).ToList()
             : [];
         return new RobotDefinition
@@ -278,6 +313,18 @@ public sealed class RobotDefinition
             return null;
         }
         var zone = (Dictionary<object, object>)QRaw(b, "capture_zone");
+        HoodDef? hood = null;
+        if (b.ContainsKey("hood"))
+        {
+            var h = (Dictionary<object, object>)QRaw(b, "hood");
+            hood = new HoodDef(h["mechanism"].ToString()!, Pair(h["servo_angles"]), Pair(h["elevation"]));
+        }
+        SpringNipDef? spring = null;
+        if (b.ContainsKey("spring_nip"))
+        {
+            var n = (Dictionary<object, object>)QRaw(b, "spring_nip");
+            spring = new SpringNipDef(Num(n["gap"]), Num(n["travel"]), Num(n["rate"]), Num(n["preload"]), Num(n["contact_length"]));
+        }
         return new BallPathDef(
             Vec(zone["min"]), Vec(zone["max"]),
             Q(b, "capture_min_surface_speed"),
@@ -288,7 +335,23 @@ public sealed class RobotDefinition
             Vec(QRaw(b, "launch_point")),
             Vector3.Normalize(Vec(QRaw(b, "launch_direction"))),
             Q(b, "exit_speed_ratio"),
-            Q(b, "min_launch_surface_speed"));
+            Q(b, "min_launch_surface_speed"))
+        {
+            Feeder = b.ContainsKey("feeder") ? QRaw(b, "feeder").ToString()! : "windmill",
+            Launcher = b.ContainsKey("launcher") ? QRaw(b, "launcher").ToString() : null,
+            Turret = b.ContainsKey("turret") ? QRaw(b, "turret").ToString() : null,
+            Gate = b.ContainsKey("gate") ? GateOf((Dictionary<object, object>)QRaw(b, "gate")) : null,
+            Hood = hood,
+            SpringNip = spring,
+        };
+    }
+
+    private static GateDef GateOf(Dictionary<object, object> g) => new(g["mechanism"].ToString()!, Pair(g["open_servo_angles"]));
+
+    private static (double, double) Pair(object raw)
+    {
+        var v = ((List<object>)raw).Select(Num).ToArray();
+        return v.Length == 2 ? (v[0], v[1]) : throw new RobotConfigException("expected a [min, max] pair");
     }
 
     public static string FindConfig(string name)

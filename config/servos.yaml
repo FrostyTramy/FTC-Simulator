@@ -40,6 +40,36 @@ models:
     mass: {value: 0.058, unit: kg, source: "goBILDA 2000-0025-0003 product page"}
     proportional_band: {value: 5, unit: deg, source: "ASSUMED (full drive when the position error exceeds this)"}
 
+  axon_max_mk2:
+    part: 2004-0025-0002
+    name: "Axon MAX Servo MK2 (goBILDA 2004-0025-0002)"
+    supply_voltages: {value: [4.8, 6.0, 7.4, 8.4], unit: V, source: "https://www.gobilda.com/axon-max-servo-mk2/"}
+    no_load_speed: {value: [71, 83, 100, 111], unit: rpm, source: "goBILDA 2004-0025-0002 page (0.14/0.12/0.10/0.09 s per 60 deg)"}
+    stall_torque: {value: [28, 34, 39, 45], unit: kgf_cm, source: "goBILDA 2004-0025-0002 page"}
+    stall_current: {value: [3.6, 4.0, 4.3, 4.6], unit: A, source: "goBILDA 2004-0025-0002 page"}
+    no_load_current: {value: [0.28, 0.32, 0.36, 0.40], unit: A, source: "goBILDA 2004-0025-0002 page"}
+    standard_pwm_range: {value: [500, 2500], unit: us, source: "goBILDA 2004-0025-0002 page (max PWM range, standard)"}
+    continuous_pwm_range: {value: [1050, 1950], unit: us, source: "goBILDA 2004-0025-0002 page (continuous rotation)"}
+    travel: {value: 350, unit: deg, source: "goBILDA 2004-0025-0002 page (max rotation)"}
+    degrees_per_us: {value: 0.175, unit: deg_per_us, source: "goBILDA 2004-0025-0002 page (travel per usec)"}
+    deadband: {value: 2, unit: us, source: "goBILDA 2004-0025-0002 page (deadband width)"}
+    mass: {value: 0.078, unit: kg, source: "goBILDA 2004-0025-0002 page"}
+    proportional_band: {value: 3, unit: deg, source: "ASSUMED (digital encoder feedback: tighter than the 2000 series)"}
+  axon_mini_mk2:
+    part: 2004-0025-0001
+    name: "Axon MINI Servo MK2 (goBILDA 2004-0025-0001)"
+    supply_voltages: {value: [4.8, 6.0, 7.4, 8.4], unit: V, source: "https://www.gobilda.com/axon-mini-servo-mk2/"}
+    no_load_speed: {value: [90, 111, 125, 142], unit: rpm, source: "goBILDA 2004-0025-0001 page (0.11/0.09/0.08/0.07 s per 60 deg)"}
+    stall_torque: {value: [20, 25, 30, 33], unit: kgf_cm, source: "goBILDA 2004-0025-0001 page"}
+    stall_current: {value: [3.2, 3.8, 4.3, 4.4], unit: A, source: "goBILDA 2004-0025-0001 page"}
+    no_load_current: {value: [0.30, 0.35, 0.38, 0.42], unit: A, source: "goBILDA 2004-0025-0001 page"}
+    standard_pwm_range: {value: [500, 2500], unit: us, source: "goBILDA 2004-0025-0001 page (max PWM range, standard)"}
+    continuous_pwm_range: {value: [1050, 1950], unit: us, source: "goBILDA 2004-0025-0001 page (continuous)"}
+    travel: {value: 350, unit: deg, source: "goBILDA 2004-0025-0001 page (max rotation)"}
+    degrees_per_us: {value: 0.175, unit: deg_per_us, source: "goBILDA 2004-0025-0001 page (travel per usec)"}
+    deadband: {value: 2, unit: us, source: "goBILDA 2004-0025-0001 page (deadband width)"}
+    mass: {value: 0.067, unit: kg, source: "goBILDA 2004-0025-0001 page"}
+    proportional_band: {value: 3, unit: deg, source: "ASSUMED (digital encoder feedback)"}
 # What the FTC SDK sends to a servo port (constants from the SDK 12.0.0 javadoc constant-values page,
 # https://javadoc.io/static/org.firstinspires.ftc/RobotCore/10.1.0/constant-values.html, unchanged in 12.0.0).
 # Servo position 0..1 maps linearly to [pulse_lower, pulse_upper]; CRServo power -1..1 maps to

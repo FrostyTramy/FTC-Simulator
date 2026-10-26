@@ -209,3 +209,28 @@ Why we chose X over Y. Newest last. Format: ID, date, decision, why, alternative
   origin (7.1874 in above the tag row, 5.622 in behind it) lands within 3-4 cm of each CELL opening's centre (SDK 12.0
   release notes: "the Origin of each cluster is located in the center of the Cell opening"). The other orientation
   misses by 7 cm. Tag row 0.26 in above the sticker middle (printable pages).
+
+## D-032 — Team robot RoboDojo #23205 as data on the shared robot model (2026-10-25)
+- **Decision:** the team's turret robot is `config/robots/robodojo_23205.yaml` plus `config/cad/robodojo_23205.yaml`, using
+  the following generic extensions (no robot-specific code):
+  - Mechanisms can be `mounted_on` another one (the shooter and hood ride on the turret: their meshes hang under the
+    turret pivot, their colliders are re-posed every tick).
+  - Mechanism angle `limits` act as hard stops on the driving motor's shaft.
+  - `driven_by`/`follow_ratio` spin follower stages.
+  - Positional-servo `arm`s (kinematic, like the windmill paddles) start at their `cad_servo_angle`, and a servo's
+    `speed_ratio` gears its arm.
+  - A device's `encoder_counts_per_output_rev` models an external encoder (signed).
+  - The guided path takes a configurable `feeder` (servo or motor), a `gate` servo window, a `turret`, a `hood`
+    (elevation from the servo angle) and a `spring_nip`.
+- **Spring nip:** the element pushes the sprung plate back (preload + rate·push, up to its travel), then is itself
+  squeezed (its contact stiffness). The wheel can give it at most μ·N·L/v of impulse, so v = min(rim/2, √(μ·N·L/m)).
+  POLLEN (71 mm in a 52 mm gap, 19 mm push, inside the 20 mm travel) slips; NECTAR bottoms out the travel and grips
+  fully. This answers slide 6, "nectar will shoot different than pollen due to different compression".
+- **Why:** the brief asks for mechanisms as data, and every addition is reusable for the next team robot (Phase 13).
+  Contact simulation inside the robot stays out (D-027).
+- **Found in the CAD:**
+  - The encoder pinion meshes the motor pinion, not the ring, so the Through Bore Encoder counter-rotates. The
+    TeleOp closes its own loop with the sign flipped; RUN_TO_POSITION would run away, as on the real robot.
+  - Both left mecanum wheels have the same roller direction. The sim uses the standard X layout (open point for
+    the team).
+

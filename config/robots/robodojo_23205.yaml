@@ -1,0 +1,218 @@
+# FTC RoboDojo #23205 team robot (BIOBUZZ): mecanum chassis, 5-wheel sprung intake, flower bar with ramp, two sprung
+# transfer stages, gate, 360° turret with a sprung-hood Gecko shooter. Robot definition (spec 05); evidence and the
+# team's answers: docs/notes/robodojo_23205.md.
+#
+# Evidence ids used in `source` strings:
+#   CAD    = "robot assembly.step" (team Fusion export, Z up, front = intake side = CAD -Y; OCP read 2026-10-25,
+#            positions measured from generated/robodojo_23205/manifest.json and the cached meshes)
+#   SLIDES = "FTC RoboDojo #23205 robot.pptx" slide N
+#   USER   = the team's answers, 2026-10-25 (docs/notes/robodojo_23205.md)
+#   CODE   = tests/compat/robodojo_23205/TeamCode/.../RoboDojoTeleOp.java (written by the simulator for the team, USER)
+#   RULES  = BIOBUZZ Competition Manual TU06
+#
+# Robot frame (Godot convention): origin on the floor below the centre of the 4 wheel contact points; +X = robot right,
+# +Y = up, -Z = forward (intake side). Metres, radians unless `unit` says.
+
+version: 1
+name: robodojo_23205
+display_name: "FTC RoboDojo #23205 (turret robot)"
+description: "Mecanum chassis, 5-wheel sprung intake with flower bar and ramp, 2 sprung transfer stages, gate servo, 360° turret with a 6000 RPM Gecko shooter, sprung hood insert and servo hood."
+cad: {value: generated/robodojo_23205, unit: path, source: "tools/cad_pipeline (config/cad/robodojo_23205.yaml)"}
+
+frame:
+  cad_up_axis: {value: "+Z", unit: label, source: "CAD: wheel axles horizontal at z 6 mm, turret on top"}
+  forward: {value: "intake side (CAD -Y)", unit: label, source: "SLIDES 2 (intake at the front); USER: the turret shoots toward the intake side"}
+  cad_to_robot:
+    value: [[-1, 0, 0, 0.012], [0, 0, 1, 0.046], [0, 1, 0, 0.169], [0, 0, 0, 1]]
+    unit: matrix4 (row-major, robot = M · cad)
+    source: "x_r = -(X_cad - 0.012) (wheel centres x +0.148/-0.124), y_r = Z_cad + 0.046 (axle z 0.006 - wheel radius 0.052), z_r = Y_cad + 0.169 (axles y -0.297/-0.041); CAD"
+
+mass:
+  total: {value: 12.5, unit: kg, source: "ASSUMED until weighed (USER: weight unknown). CAD parts 10.03 kg (volume × material density, PLA parts counted solid) + 0.57 kg screws/nuts; CAD motor bodies (0.6 kg for 8 motors) are under the ~0.4 kg real mass each (+2.6 kg), CAD battery 0.09 kg vs 0.6 kg real; printed parts are not solid (-1.5 kg)"}
+  center_of_mass: {value: [-0.002, 0.131, -0.008], unit: m, source: "CAD mass-weighted part centres (14.2, -176.5, 84.5) mm in CAD; ASSUMED unchanged by the corrections above"}
+  inertia_diagonal: {value: [0.243, 0.237, 0.183], unit: kg·m^2, source: "ASSUMED: 0.7 × solid box 0.348 × 0.36 × 0.451 m of 12.5 kg (mass concentrated low and central)"}
+
+start_size_check: {value: true, unit: bool, source: "RULES R102 (18 in cube), specs/05 Robot checks"}
+dimensions:
+  bbox_size: {value: [0.348, 0.360, 0.451], unit: m, source: "CAD overall bounding box (width x, height y, depth z) without the CAD POLLEN; generated/robodojo_23205/report.md 3/3 start-cube checks"}
+
+hubs:
+  - id: control_hub
+    type: control_hub
+    part: {value: "REV-31-1152 Control Hub", unit: label, source: "CAD 'Control Hub REV-31-1152' at (147, -169, 102) mm, mounted upright on the left side panel"}
+    pose: {value: {position: [-0.135, 0.148, 0.0], logo: LEFT, usb: UP}, unit: m, source: "CAD position; logo facing out of the left side (CAD +X); USB direction ASSUMED UP"}
+    size: {value: [0.143, 0.0295, 0.103], unit: m, source: "REV Control Hub 143 × 103 × 29.5 mm (REV docs; CAD 30 × 143 × 103)"}
+    imu: {value: {model: BHI260AP, orientation: {logo: LEFT, usb: UP}}, unit: label, source: "ASSUMED BHI260AP (REV ships it since Sept 2022); orientation as the pose"}
+    collide: {value: false, unit: bool, source: "the CAD hub body is already a chassis collider"}
+  - id: expansion_hub
+    type: expansion_hub
+    part: {value: "REV Expansion Hub (CAD shows a second REV-31-1152 body)", unit: label, source: "CAD second hub at (-123, -169, 102) mm on the right side panel; 8 motors > 4 Control Hub ports"}
+    pose: {value: {position: [0.135, 0.148, 0.0], logo: RIGHT, usb: UP}, unit: m, source: "CAD position; orientation ASSUMED"}
+    size: {value: [0.143, 0.0295, 0.103], unit: m, source: "REV docs"}
+    connection: {value: rs485, unit: label, source: "ASSUMED"}
+    collide: {value: false, unit: bool, source: "CAD body is a chassis collider"}
+
+battery:
+  part: {value: "goBILDA 12V NiMH (CAD 'Baterie + Suport')", unit: label, source: "CAD 'Baterie + Suport' under the chassis centre; model ASSUMED = the starter bot's goBILDA battery"}
+  model: {value: gobilda_3100_0012_0020, unit: key, source: "ASSUMED (config/battery.yaml)"}
+  pose: {value: [-0.028, 0.045, 0.142], unit: m, source: "CAD 'Baterie + Suport' centre (-16, -27, -1) mm"}
+
+drivetrain:
+  type: mecanum
+  model: {value: force, unit: label, source: "config/physics.yaml drivetrain.model_default"}
+  wheel_part: {value: "goBILDA GripForce mecanum Ø104 mm", unit: label, source: "CAD 'Roata Mecanum Gripforce 104mm Stanga/Dreapta'"}
+  wheel_radius: {value: 0.052, unit: m, source: "Ø104 mm (CAD part name)"}
+  wheel_width: {value: 0.038, unit: m, source: "CAD wheel plates 135..160 mm in x"}
+  wheel_mass: {value: 0.236, unit: kg, source: "goBILDA GripForce 104 mm page (236 g)"}
+  track_width: {value: 0.272, unit: m, source: "CAD wheel centres x +0.148 / -0.124"}
+  wheelbase: {value: 0.256, unit: m, source: "CAD axles y -0.297 / -0.041"}
+  drive_gearing: {value: 1.0, unit: "output/motor speed", source: "ASSUMED 1:1 HTD5 belt (CAD shows only the 44T wheel pulleys)"}
+  wheels:
+    # CAD has both left wheels with the same roller direction ('Stanga' top rollers along (0.71, -0.71)) and both right
+    # wheels the same: not an X pattern, it could not strafe. The real robot strafes, so the standard X layout is used
+    # (FL/BR left slant, FR/BL right slant) - check the CAD (docs/notes/robodojo_23205.md).
+    - {id: fl, motor: left_front_drive, position: [-0.136, 0.052, -0.128], slant: left, cad_assembly: "Roata Stanga RD3-X <1>#0", drive_sign: -1, source: "CAD centre (148, -297, 6) mm; slant ASSUMED standard X; drive_sign -1: CODE left motors REVERSE"}
+    - {id: fr, motor: right_front_drive, position: [0.136, 0.052, -0.128], slant: right, cad_assembly: "Roata Drepta RD3-X <1>#0", drive_sign: 1, source: "CAD centre (-124, -297, 6) mm; slant ASSUMED; CODE FORWARD"}
+    - {id: bl, motor: left_back_drive, position: [-0.136, 0.052, 0.128], slant: right, cad_assembly: "Roata Stanga RD3-X <2>#0", drive_sign: -1, source: "CAD centre (148, -41, 6) mm; slant ASSUMED; CODE REVERSE"}
+    - {id: br, motor: right_back_drive, position: [0.136, 0.052, 0.128], slant: left, cad_assembly: "Roata Drepta RD3-X <2>#0", drive_sign: 1, source: "CAD centre (-124, -41, 6) mm; slant ASSUMED; CODE FORWARD"}
+
+# Devices: names are the ones CODE uses (USER: the simulator writes the code). Ports ASSUMED (no wiring given).
+devices:
+  - {name: left_front_drive, type: motor, sdk_class: DcMotor, model: gobilda_5203_13_7, hub: control_hub, port: 0, drives: "wheel:fl", direction: REVERSE, zero_power: BRAKE, source: "USER: drive 13.7:1 (435 RPM); CODE; port ASSUMED"}
+  - {name: left_back_drive, type: motor, sdk_class: DcMotor, model: gobilda_5203_13_7, hub: control_hub, port: 1, drives: "wheel:bl", direction: REVERSE, zero_power: BRAKE, source: "USER; CODE; port ASSUMED"}
+  - {name: right_front_drive, type: motor, sdk_class: DcMotor, model: gobilda_5203_13_7, hub: control_hub, port: 2, drives: "wheel:fr", direction: FORWARD, zero_power: BRAKE, source: "USER; CODE; port ASSUMED"}
+  - {name: right_back_drive, type: motor, sdk_class: DcMotor, model: gobilda_5203_13_7, hub: control_hub, port: 3, drives: "wheel:br", direction: FORWARD, zero_power: BRAKE, source: "USER; CODE; port ASSUMED"}
+  - {name: intake, type: motor, sdk_class: DcMotor, model: gobilda_5203_5_2, hub: expansion_hub, port: 0, drives: "mechanism:intake_roller", speed_ratio: 1.0, direction: FORWARD, zero_power: BRAKE, source: "USER: intake 1150 RPM, separate motor; CAD 'assembly motor intake'; speed_ratio ASSUMED 1:1 (gear/chain not measured); port ASSUMED"}
+  - {name: transfer, type: motor, sdk_class: DcMotor, model: gobilda_5203_5_2, hub: expansion_hub, port: 1, drives: "mechanism:transfer_out", speed_ratio: 1.0, direction: FORWARD, zero_power: BRAKE, source: "USER: transfer 1150 RPM drives stage 2, stage 3 and the back Gecko (SLIDES 3-4); CAD 'assembly motor transfer'; speed_ratio ASSUMED 1:1; port ASSUMED"}
+  - name: turret
+    type: motor
+    sdk_class: DcMotorEx
+    model: gobilda_5203_5_2
+    hub: expansion_hub
+    port: 2
+    drives: "mechanism:turret"
+    speed_ratio: 0.2142857
+    direction: FORWARD
+    zero_power: BRAKE
+    encoder_counts_per_output_rev: {value: -8192, unit: counts/rev, source: "REV Through Bore Encoder (CAD REV-11-1271 on the 'Pinion 24T LH (encoder)' shaft), 8192 counts/rev; that pinion meshes the 24T motor pinion (centres 30.5 mm apart = 2 × 15 mm pitch radius), so it turns 1:1 with the motor output but the other way (-). ASSUMED plugged into the turret motor's encoder port"}
+    source: "USER: turret 1150 RPM; SLIDES 6 (one motor under the turret); speed_ratio 24/112: CAD 24T pinion (tip r 16.5 mm) 84.7 mm from the turret centre meshing the platform ring (tip r 70.7 mm, ~110 tooth tips counted, module 1.25 → 112T); port ASSUMED"
+  - {name: shooter, type: motor, sdk_class: DcMotorEx, model: gobilda_5203_1_1, hub: expansion_hub, port: 3, drives: "mechanism:shooter", speed_ratio: 1.0, direction: FORWARD, zero_power: FLOAT, run_mode: RUN_USING_ENCODER, pidf: [30, 0, 0, 13], source: "SLIDES 6 (6000 RPM motor); CAD 1:1 24T bevel pair (2302-4008-0024 × 2) to the shooter shaft; CODE PIDF; port ASSUMED"}
+  - {name: gate, type: servo, sdk_class: Servo, model: gobilda_2000_0025_0003, hub: control_hub, port: 0, drives: "mechanism:gate_arm", source: "SLIDES 5; CAD 'servo gate' 2000-0025-0003 (25-3 Speed) in a 1802 frame; port ASSUMED"}
+  - {name: hood, type: servo, sdk_class: Servo, model: axon_mini_mk2, hub: control_hub, port: 1, drives: "mechanism:hood", speed_ratio: 0.0735, source: "SLIDES 6 (servo raises/lowers the hood); CAD 2004-0025-0001 (Axon MINI MK2) driving 'Gear 10T (same teeth as hood)' (pitch r ≈ 9.6 mm) on the hood's toothed arc ≈ 130.6 mm from the shooter axle → ratio 9.6/130.6, ASSUMED; port ASSUMED"}
+  - {name: flower_bar, type: servo, sdk_class: Servo, model: axon_max_mk2, hub: control_hub, port: 2, drives: "mechanism:yellow_bar", source: "SLIDES 2 (Axon servo lifts the yellow bar); CAD 'Axon Max' + 1908 hub at (135, -358, 103) mm; port ASSUMED"}
+  - {name: imu, type: imu, sdk_class: IMU, model: BHI260AP, hub: control_hub, i2c_bus: 0, source: "default Control Hub configuration name 'imu' (ftc-docs IMU page)"}
+
+mechanisms:
+  - id: intake_roller
+    type: roller
+    parts: {value: "4 × 68 mm silicone 'Intake Wheel' on 'bara intake' (5th, 90 mm wheel above them static in the sim)", unit: label, source: "SLIDES 2; CAD Intake Wheel #0-#3 at y -392, z 61 mm"}
+    axis_point: {value: [0.0, 0.107, -0.223], unit: m, source: "CAD wheel centres (y -392, z 61) mm"}
+    axis: {value: [1, 0, 0], unit: "1", source: "CAD shaft along X"}
+    radius: {value: 0.034, unit: m, source: "CAD Intake Wheel bbox 68 mm"}
+    width: {value: 0.191, unit: m, source: "CAD wheels x -76..100 mm centres + 15 mm width"}
+    contact_material: {value: gecko, unit: label, source: "ASSUMED: soft silicone (SLIDES 2) behaves like Gecko tread"}
+    contact_stiffness: {value: 300, unit: N/m, source: "ASSUMED: the intake is spring-loaded and lifts for a NECTAR (SLIDES 2); a soft contact stands in for the lift"}
+    inertia: {value: 0.00003, unit: kg·m^2, source: "ASSUMED: 4 × 25 g × (0.034 m)² / 2 + shaft"}
+    drive_sign: {value: -1, unit: "1", source: "geometry (as the starter bot): the wheels grab the top of an element in front; pulling it in (+Z) needs rotation about -X; positive power = intake in (CODE right trigger)"}
+  - id: transfer_stage2
+    type: wheel
+    parts: {value: "2 × Gecko 48 mm on the sprung stage-2 arm", unit: label, source: "SLIDES 3; CAD 'bara transfer stage 2'"}
+    axis_point: {value: [-0.0, 0.173, -0.109], unit: m, source: "CAD Gecko centres (y -278, z 127) mm"}
+    axis: {value: [1, 0, 0], unit: "1", source: "CAD"}
+    driven_by: {value: transfer, unit: device, source: "USER: the transfer motor drives stage 2, stage 3 and the back Gecko"}
+    follow_ratio: {value: 1.0, unit: ratio, source: "ASSUMED (chain sprockets not measured)"}
+    drive_sign: {value: -1, unit: "1", source: "ASSUMED: moves elements rearward like the intake"}
+  - id: transfer_stage3
+    type: wheel
+    parts: {value: "2 × Gecko 48 mm on the sprung stage-3 arm", unit: label, source: "SLIDES 3; CAD 'bara transfer stage 3'"}
+    axis_point: {value: [-0.0, 0.156, -0.013], unit: m, source: "CAD Gecko centres (y -182, z 110) mm"}
+    axis: {value: [1, 0, 0], unit: "1", source: "CAD"}
+    driven_by: {value: transfer, unit: device, source: "USER"}
+    follow_ratio: {value: 1.0, unit: ratio, source: "ASSUMED"}
+    drive_sign: {value: -1, unit: "1", source: "ASSUMED"}
+  - id: transfer_out
+    type: wheel
+    parts: {value: "Gecko 32 mm at the back pushing elements up into the turret", unit: label, source: "SLIDES 4; CAD 'Bara transfer-outtake'"}
+    axis_point: {value: [0.0, 0.148, 0.142], unit: m, source: "CAD Gecko centre (12, -27, 102) mm"}
+    axis: {value: [1, 0, 0], unit: "1", source: "CAD"}
+    inertia: {value: 0.00004, unit: kg·m^2, source: "ASSUMED: the back Gecko plus stages 2-3 (4 × 48 mm Gecko) and chains, reflected to this shaft"}
+    drive_sign: {value: -1, unit: "1", source: "ASSUMED"}
+  - id: gate_arm
+    type: arm
+    parts: {value: "1102 flat beams (11-hole and 5-hole) on a 1910 servo hub-shaft", unit: label, source: "SLIDES 5; CAD 'servo gate'"}
+    axis_point: {value: [0.074, 0.146, 0.085], unit: m, source: "CAD servo spline centre (-62, -84, 100) mm"}
+    axis: {value: [1, 0, 0], unit: "1", source: "CAD spline along X"}
+    cad_servo_angle: {value: 0, unit: deg, source: "ASSUMED: the CAD shows the gate closed at the servo centre (CODE GATE_CLOSED 0.5)"}
+    drive_sign: {value: 1, unit: "1", source: "ASSUMED"}
+  - id: yellow_bar
+    type: arm
+    parts: {value: "'rampa floare' (yellow bar with the flower ramp), 2 × 1105 arms, dampers", unit: label, source: "SLIDES 2; CAD"}
+    axis_point: {value: [0.0, 0.149, -0.189], unit: m, source: "CAD Axon 1908 servo hub centre (y -358, z 103) mm"}
+    axis: {value: [-1, 0, 0], unit: "1", source: "CAD pivot along X; robot -X = CAD +X so a positive servo turn swings the bar up and over to the front"}
+    cad_servo_angle: {value: -80, unit: deg, source: "ASSUMED: the CAD shows the bar UP (SLIDES 2 'now is up'); DOWN in front of the intake is 162° further (bar centre from 39° above the back to 21° below the front, 145 mm from the pivot), inside the ±157.5° SDK servo range only if UP is at -80° (CODE FLOWER_BAR_UP 0.25 / DOWN 0.76)"}
+    drive_sign: {value: 1, unit: "1", source: "geometry above"}
+  - id: turret
+    type: turret
+    parts: {value: "'Turret Mounting Platform (rotating)' with a 112T ring on a ball-bearing ring, everything above it", unit: label, source: "SLIDES 6; CAD 'Turrret V7'"}
+    axis_point: {value: [0.0, 0.233, 0.089], unit: m, source: "CAD ring circle fit centre (12.2, -80.4) mm, platform z 187 mm"}
+    axis: {value: [0, 1, 0], unit: "1", source: "CAD: vertical"}
+    limits: {value: [-180, 180], unit: deg, source: "USER: 360° but not continuous, it must unwind; ASSUMED the CAD pose (shooting forward) is in the middle"}
+    inertia: {value: 0.012, unit: kg·m^2, source: "ASSUMED: ~1.6 kg turret (CAD parts above the platform) at ~0.085 m radius of gyration"}
+    drive_sign: {value: 1, unit: "1", source: "ASSUMED: positive power turns the turret counter-clockwise seen from above"}
+  - id: shooter
+    type: flywheel
+    parts: {value: "2 × Gecko 72 mm (3613-0014-0072) + 85 mm 'Flywheel' on a 168 mm REX shaft", unit: label, source: "SLIDES 6; CAD"}
+    mounted_on: {value: turret, unit: mechanism, source: "SLIDES 6"}
+    axis_point: {value: [-0.0005, 0.290, 0.026], unit: m, source: "CAD shaft (12.5, -143, 244) mm"}
+    axis: {value: [1, 0, 0], unit: "1", source: "CAD shaft along X"}
+    radius: {value: 0.036, unit: m, source: "Gecko Ø72 mm"}
+    width: {value: 0.049, unit: m, source: "CAD Geckos x -12..37 mm"}
+    mass: {value: 0.16, unit: kg, source: "goBILDA Gecko 72 mm 56 g × 2 + CAD Flywheel 40 g + shaft"}
+    inertia: {value: 0.00012, unit: kg·m^2, source: "ASSUMED: Geckos 2 × ½·0.056·0.036² + Flywheel ½·0.04·0.0425² + shaft/bevel; calibrate with spin-up time"}
+    contact_material: {value: gecko, unit: label, source: "config/physics.yaml materials"}
+    drive_sign: {value: 1, unit: "1", source: "ASSUMED: positive velocity launches (CODE setVelocity > 0)"}
+  - id: hood
+    type: hood
+    parts: {value: "'Ciocan' side plates and back block with the sprung 'Hood Insert' (slides 0-20 mm)", unit: label, source: "USER: the servo turns the whole hood with the hood insert; SLIDES 6"}
+    mounted_on: {value: turret, unit: mechanism, source: "SLIDES 6"}
+    axis_point: {value: [-0.0005, 0.290, 0.026], unit: m, source: "ASSUMED: the hood pivots about the shooter shaft (its toothed arc is concentric: Gear 10T 140 mm from the shaft)"}
+    axis: {value: [1, 0, 0], unit: "1", source: "CAD"}
+    cad_servo_angle: {value: 157.5, unit: deg, source: "ASSUMED: the CAD shows the hood fully back (vertical exit) at the servo end (position 1.0)"}
+    drive_sign: {value: -1, unit: "1", source: "ASSUMED: lowering the servo angle tilts the hood forward over the wheel"}
+
+ball_path:
+  description: {value: "floor → 5 silicone intake wheels (flower bar ramp feeds NECTAR from the FLOWER) → sprung transfer stages 2 and 3 → back Gecko pushes up past the gate into the turret → squeezed between the 72 mm Geckos and the sprung hood insert → leaves over the wheel toward the turret's front", unit: label, source: "SLIDES 2-6; CAD"}
+  model: {value: guided, unit: label, source: "D-027 (guided path; the sprung intake and transfer arms are not contact-simulated)"}
+  hopper_capacity: {value: 4, unit: count, source: "CAD shows 4 POLLEN along the path; RULES G407 (4 elements)"}
+  capture_zone: {value: {min: [-0.11, 0.0, -0.31], max: [0.11, 0.12, -0.19]}, unit: m, source: "CAD: in front of the intake wheels (front face z -0.257) across the funnel opening; ASSUMED"}
+  capture_min_surface_speed: {value: 0.3, unit: m/s, source: "ASSUMED"}
+  storage_slots: {value: [[0.0, 0.106, 0.028], [0.0, 0.098, -0.042], [0.0, 0.092, -0.112], [0.0, 0.055, -0.175]], unit: m, source: "CAD POLLEN placed on the path at y -141, -211, -281, -344 mm (oldest at the back)"}
+  feeder: {value: transfer_out, unit: mechanism, source: "SLIDES 4"}
+  feed_angle: {value: 290, unit: deg, source: "ASSUMED: about 80 mm of Gecko 32 mm rim travel per element"}
+  feed_power_sign: {value: 1, unit: "1", source: "CODE: transfer power +1 feeds"}
+  gate: {value: {mechanism: gate_arm, open_servo_angles: [40, 160]}, unit: deg, source: "ASSUMED: open when the arm is turned more than 40° from the CAD (closed) pose (CODE GATE_OPEN 0.8 = +81°)"}
+  launcher: {value: shooter, unit: mechanism, source: "SLIDES 6"}
+  turret: {value: turret, unit: mechanism, source: "SLIDES 6"}
+  launch_point: {value: [-0.0005, 0.341, 0.089], unit: m, source: "CAD: top of the nip between the Gecko rims (y -107) and the hood insert (y -55), z 295 mm, ball centre y -80"}
+  launch_direction: {value: [0, 0.94, -0.34], unit: "1", source: "heading toward the turret front (USER: shoots toward the intake side); the elevation comes from the hood"}
+  hood: {value: {mechanism: hood, servo_angles: [157.5, -157.5], elevation: [90, 66.8]}, unit: deg, source: "CAD: hood insert vertical at the CAD pose → vertical exit; tilting forward by the servo turn × 0.0735 lowers the exit by as much (315° × 0.0735 = 23.2°); ASSUMED"}
+  exit_speed_ratio: {value: 0.5, unit: "1", source: "kinematics: an element rolling without slip between the moving rim and the hood insert moves at half the rim speed"}
+  min_launch_surface_speed: {value: 3.0, unit: m/s, source: "ASSUMED"}
+  spring_nip: {value: {gap: 0.052, travel: 0.020, rate: 600, preload: 2.0, contact_length: 0.055}, unit: "m, N/m, N", source: "gap: CAD Gecko rims (y -107) to the hood insert (y -55); travel: CAD part name 'slides 0-20mm'; rate and preload ASSUMED (one spring and 3 screws, USER; measure it); contact length ≈ quarter of the 72 mm rim"}
+
+sensors:
+  - name: pinpoint
+    type: pinpoint
+    model: gobilda_pinpoint
+    sdk_class: GoBildaPinpointDriver
+    hub: control_hub
+    i2c_bus: 1
+    pose: {value: {position: [0.004, 0.029, 0.068], forward: [0, 0, -1], up: [0, 1, 0]}, unit: m, source: "CAD Pinpoint 3110-0002-0001 at (8, -100.9, -17.1) mm, flat; X toward the front ASSUMED"}
+    x_pod: {value: {model: goBILDA_SWINGARM_POD, position: [-0.084, 0.0, 0.145], axis: [0, 0, -1]}, unit: m, source: "CAD 32 mm omni (A-arm, spring = swingarm pod) at (96, -24.1) mm, wheel plane along Y → measures forward"}
+    y_pod: {value: {model: goBILDA_SWINGARM_POD, position: [-0.082, 0.0, -0.084], axis: [-1, 0, 0]}, unit: m, source: "CAD 32 mm omni at (94.4, -252.5) mm, wheel plane along X → measures sideways (left positive)"}
+bumpers: []
+
+checks:
+  motor_count: {value: 8, unit: count, source: "devices above; RULES R503 max 8"}
+  servo_count: {value: 3, unit: count, source: "devices above (the 'servo camera' is not used, USER)"}
+  start_cube: {value: [0.4572, 0.4572, 0.4572], unit: m, source: "RULES R102 (18 in)"}

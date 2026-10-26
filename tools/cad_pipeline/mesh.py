@@ -73,12 +73,24 @@ def tessellate(shape: TopoDS_Shape, linear: float, angular: float) -> Mesh:
         for i in range(1, n_nodes + 1):
             p = tri.Node(i).Transformed(trsf)
             v[i - 1] = (p.X(), p.Y(), p.Z())
-            d = tri.Normal(i).Transformed(trsf)
-            n[i - 1] = (d.X(), d.Y(), d.Z())
+            try:
+                d = tri.Normal(i).Transformed(trsf)
+                n[i - 1] = (d.X(), d.Y(), d.Z())
+            except Exception:  # degenerate surface point (zero-length normal): rebuilt from the triangles below
+                n[i - 1] = np.nan
         t = np.empty((tri.NbTriangles(), 3), dtype=np.int32)
         for i in range(1, tri.NbTriangles() + 1):
             a, b, c = tri.Triangle(i).Get()
             t[i - 1] = (a - 1, b - 1, c - 1)
+        bad = np.isnan(n).any(axis=1)
+        if bad.any():
+            face_n = np.cross(v[t[:, 1]] - v[t[:, 0]], v[t[:, 2]] - v[t[:, 0]])
+            acc = np.zeros_like(v)
+            for k in range(3):
+                np.add.at(acc, t[:, k], face_n)
+            length = np.linalg.norm(acc, axis=1, keepdims=True)
+            fixed = np.where(length > 0, acc / np.maximum(length, 1e-30), [0.0, 0.0, 1.0])
+            n[bad] = fixed[bad]
         if face.Orientation() == TopAbs_REVERSED:
             t = t[:, ::-1]
             n = -n

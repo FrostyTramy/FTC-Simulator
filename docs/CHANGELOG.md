@@ -1,5 +1,14 @@
 # Changelog
 
+## Team robot RoboDojo #23205 — 2026-10-25
+- CAD pipeline: plain STEP sources (`source: {path}`), zero-length normals rebuilt from triangles; config
+  `config/cad/robodojo_23205.yaml` (wheels, intake, transfer stages, gate, flower bar, turret, shooter, hood).
+- Robot model (D-032): mounted mechanisms, turret hard stops, follower stages, servo arms with CAD pose, geared servos,
+  external encoders, guided path with feeder/gate/turret/hood/spring nip; Axon MAX/MINI servo models.
+- `config/robots/robodojo_23205.yaml`, TeleOp `tests/compat/robodojo_23205` (built automatically for `--robot`).
+- Tests: TurretRobotTests (6), test_team_robot.py (7), TeamRobotCodeTests (2), scenarios robodojo_pollen_turret_back,
+  robodojo_nectar_forward; scenario driver sets any motor/servo.
+
 ## Phase 9 (in progress) — 2026-10-25
 - Sensor models in `sim/Sim.Sensors` (config/sensors.yaml): Pinpoint firmware odometry from physical pods, OTOS optical
   tracking, REV colour/2m distance/touch; robot variants (`base:`), `gobilda_starter_sensors`.

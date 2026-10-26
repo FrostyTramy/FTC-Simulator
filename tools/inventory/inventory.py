@@ -28,8 +28,8 @@ import step_scan  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 MANIFEST = Path(__file__).resolve().parent / "resources_manifest.json"
-RESOURCE_SUFFIXES = {".zip", ".pdf", ".step", ".stp"}
-TOOL_PREFIXES = ("Godot_",)
+RESOURCE_SUFFIXES = {".zip", ".pdf", ".step", ".stp", ".pptx"}
+TOOL_PREFIXES = ("Godot_", "~$")  # "~$" = Office lock files
 STEP_SUFFIXES = (".step", ".stp")
 
 

@@ -187,13 +187,17 @@ public partial class ScenarioRunner : Node3D
     /// <summary>
     /// Direct drive from a scenario script. Each entry (at_s) sets some of: forward/strafe/rotate (mecanum mixing),
     /// intake (power on the intake motor and both corner servos, as the example TeleOp), launcher (ticks/s, velocity
-    /// mode with the example's PIDF), windmill (CR servo power). Values hold until an entry changes them.
+    /// mode with the example's PIDF), windmill (CR servo power). Any robot: power {motor: power}, velocity {motor:
+    /// ticks/s, PIDF from the robot YAML}, servo {servo: position}. Values hold until an entry changes them.
     /// </summary>
     private sealed class ScriptedDrive : IRobotDriver
     {
         private static readonly Sim.Hardware.Pidf LauncherPidf = new(40, 0, 0, 12.5);
         private readonly List<(int Step, Dictionary<object, object> Entry)> _script;
         private readonly Dictionary<string, double> _state = new();
+        private readonly Dictionary<string, double> _power = new();
+        private readonly Dictionary<string, double> _velocity = new();
+        private readonly Dictionary<string, double> _servo = new();
         private readonly int _startStep;
 
         public ScriptedDrive(List<(int Step, Dictionary<object, object> Entry)> script, int startStep)
@@ -214,9 +218,35 @@ public partial class ScenarioRunner : Node3D
                         _state[key] = Num(entry, key, 0);
                     }
                 }
+                foreach (var (key, target) in new[] { ("power", _power), ("velocity", _velocity), ("servo", _servo) })
+                {
+                    if (entry.TryGetValue(key, out var raw) && raw is Dictionary<object, object> map)
+                    {
+                        foreach (var (name, _) in map)
+                        {
+                            target[name.ToString()!] = Num(map, name.ToString()!, 0);
+                        }
+                    }
+                }
+            }
+            foreach (var (name, power) in _power)
+            {
+                robot.Powertrain.SetPowerFromSdk(name, power);
+            }
+            foreach (var (name, velocity) in _velocity)
+            {
+                var pidf = robot.Definition.Device(name).Pidf is { Length: 4 } k ? new Sim.Hardware.Pidf(k[0], k[1], k[2], k[3]) : LauncherPidf;
+                robot.Powertrain.SetVelocityFromSdk(name, velocity, pidf);
+            }
+            foreach (var (name, position) in _servo)
+            {
+                robot.Powertrain.SetServoFromSdk(name, position);
             }
             var p = robot.Powertrain;
-            p.MecanumDrive(_state.GetValueOrDefault("forward"), _state.GetValueOrDefault("strafe"), _state.GetValueOrDefault("rotate"));
+            if (_state.ContainsKey("forward") || _state.ContainsKey("strafe") || _state.ContainsKey("rotate"))
+            {
+                p.MecanumDrive(_state.GetValueOrDefault("forward"), _state.GetValueOrDefault("strafe"), _state.GetValueOrDefault("rotate"));
+            }
             if (_state.TryGetValue("intake", out var intake))
             {
                 p.SetPowerFromSdk("intake", intake);
@@ -327,6 +357,7 @@ public partial class ScenarioRunner : Node3D
                 return (Inside(local, min, max), $"{group}[{index}] at {local} (robot frame) inside [{min} .. {max}]");
             }
             case "element_peak_height":
+            case "element_peak_max":
             {
                 var group = Str(c, "group", "");
                 var index = (int)Num(c, "index", 0);
@@ -337,6 +368,11 @@ public partial class ScenarioRunner : Node3D
                     return (false, $"element {group}[{index}] does not exist");
                 }
                 var peak = _peakHeight.GetValueOrDefault(matching[index]);
+                if (check == "element_peak_max")
+                {
+                    var max = Num(c, "max_m", 1e9);
+                    return (peak <= max, $"{group}[{index}] peak height {peak:F3} m (max {max})");
+                }
                 var min = Num(c, "min_m", 0);
                 return (peak >= min, $"{group}[{index}] peak height {peak:F3} m (min {min})");
             }
@@ -423,9 +459,12 @@ public partial class ScenarioRunner : Node3D
         var v = inv.Basis * body.LinearVelocity;
         var hw = _robot.Powertrain.Hardware;
         string Motor(string name) => hw.Motors.FirstOrDefault(m => m.Device.Name == name) is { } m ? $"{m.OutputOmega:F1}" : "-";
-        var windmill = hw.Servos.FirstOrDefault(sv => sv.Device.Name == "windmillServo");
+        var servos = string.Join(" ", hw.Servos.Select(sv => $"{sv.Device.Name}={sv.Model.AngleDeg:F0}°"));
+        var motors = string.Join(" ", hw.Motors.Where(m => m.LoadInertia != null).Select(m => $"{m.Device.Name}={Motor(m.Device.Name)}rad/s"));
+        var stored = _robot.StoredElements.Count();
         GD.Print($"    t={_step / (double)Engine.PhysicsTicksPerSecond:F2}s ball=({local.X:F3},{local.Y:F3},{local.Z:F3}) v=({v.X:F2},{v.Y:F2},{v.Z:F2}) " +
-                 $"intake={Motor("intake")}rad/s launcher={_robot.Powertrain.VelocityFromSdk("launcher"):F0}tps windmill={windmill?.Model.AngleDeg:F0}°");
+                 $"stored={stored} {motors} {servos}" +
+                 (_robot.LastLaunch is { } l ? $" last launch {l.Group} ideal {l.IdealSpeed:F2} exit {l.ExitSpeed:F2} m/s" : ""));
     }
 
     private void Record(string name, string status, List<string> messages, double wallMs)

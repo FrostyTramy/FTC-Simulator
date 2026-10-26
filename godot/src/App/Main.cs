@@ -73,7 +73,20 @@ public partial class Main : Node3D
             var robot = RobotBody.Spawn(this, args.Robot, pose, physics);
             robot.Elements = field.Elements;
             _reset = new FieldReset(field, robot);
-            var jar = args.TeamCodeJar ?? System.IO.Path.Combine(RepoPaths.RepoRoot, "java", "build-adapter", "build", "libs", "teamcode.jar");
+            // A robot with its own TeamCode (tests/compat/<robot>) runs that code (built by tools/build_teamcode.ps1).
+            var codeRobot = robot.Definition.CadPath.Replace("generated/", "");
+            var hasOwnCode = codeRobot != "gobilda_starter"
+                && System.IO.Directory.Exists(System.IO.Path.Combine(RepoPaths.RepoRoot, "tests", "compat", codeRobot, "TeamCode"));
+            var jar = args.TeamCodeJar ?? (hasOwnCode
+                ? System.IO.Path.Combine(RepoPaths.RepoRoot, "generated", "build", codeRobot, "libs", "teamcode.jar")
+                : System.IO.Path.Combine(RepoPaths.RepoRoot, "java", "build-adapter", "build", "libs", "teamcode.jar"));
+            if (args.TeamCodeJar == null && hasOwnCode && !System.IO.File.Exists(jar))
+            {
+                var built = Sim.Runner.TeamCodeBuilder.Build(
+                    System.IO.Path.Combine(RepoPaths.RepoRoot, "tests", "compat", codeRobot, "TeamCode", "src", "main", "java"),
+                    System.IO.Path.Combine(RepoPaths.RepoRoot, "generated", "build", codeRobot));
+                GD.Print(built.Success ? $"built {jar}" : $"TeamCode build failed: {built.Output}");
+            }
             _program = new RobotProgram(robot, input, jar);
             _program.Connect();
             var layer = new CanvasLayer { Name = "DriverStationLayer" };
@@ -101,13 +114,13 @@ public partial class Main : Node3D
             scoreboard.ResetRequested += () => _reset?.Apply();
             layer.AddChild(scoreboard);
 
-            // Code editor (F4): the team project lives in workspace/ (git-ignored); the first run copies the goBILDA
-            // example's TeamCode there so the original resources are never edited.
+            // Code editor (F4): the team project lives in workspace/ (git-ignored); the first run copies the robot's
+            // TeamCode (tests/compat/<robot>, or the goBILDA example) there so the original resources are never edited.
             var project = args.Project != null ? System.IO.Path.GetFullPath(args.Project)
-                : System.IO.Path.Combine(RepoPaths.RepoRoot, "workspace", "starter");
+                : System.IO.Path.Combine(RepoPaths.RepoRoot, "workspace", hasOwnCode ? codeRobot : "starter");
             if (args.Project == null)
             {
-                EnsureStarterProject(project);
+                EnsureStarterProject(project, hasOwnCode ? codeRobot : "gobilda_starter");
             }
             var tools = System.IO.Path.Combine(RepoPaths.RepoRoot, "workspace", ".ftcsim", System.IO.Path.GetFileName(project));
             layer.AddChild(new Sim.EditorUi.CodePanel(program, project, tools) { Name = "CodeEditor" });
@@ -149,15 +162,15 @@ public partial class Main : Node3D
         }
     }
 
-    /// <summary>Copies tests/compat/gobilda_starter/TeamCode into a new workspace project (once).</summary>
-    private static void EnsureStarterProject(string project)
+    /// <summary>Copies tests/compat/&lt;source&gt;/TeamCode into a new workspace project (once).</summary>
+    private static void EnsureStarterProject(string project, string sourceName)
     {
         var target = System.IO.Path.Combine(project, "TeamCode");
         if (System.IO.Directory.Exists(target))
         {
             return;
         }
-        var source = System.IO.Path.Combine(RepoPaths.RepoRoot, "tests", "compat", "gobilda_starter", "TeamCode");
+        var source = System.IO.Path.Combine(RepoPaths.RepoRoot, "tests", "compat", sourceName, "TeamCode");
         foreach (var file in System.IO.Directory.GetFiles(source, "*", System.IO.SearchOption.AllDirectories))
         {
             var dest = System.IO.Path.Combine(target, System.IO.Path.GetRelativePath(source, file));

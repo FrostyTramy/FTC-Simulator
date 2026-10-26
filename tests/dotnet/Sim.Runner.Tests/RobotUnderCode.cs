@@ -33,11 +33,12 @@ internal sealed class RobotUnderCode : IDisposable
     /// <summary>The example TeamCode compiled by java/build-adapter, unchanged.</summary>
     public static string TeamCodeJar => RepoPaths.Find(Path.Combine("java", "build-adapter", "build", "libs", "teamcode.jar"));
 
-    public static RobotUnderCode Start()
+    /// <summary>Starts robot <paramref name="robot"/> (config/robots) running <paramref name="jar"/> (default: the example).</summary>
+    public static RobotUnderCode Start(RobotDefinition? robot = null, string? jar = null)
     {
-        var sim = new PlanarRobotSim(Robot, Hardware, DriveContact.LoadDefault(), TickRate);
+        var sim = new PlanarRobotSim(robot ?? Robot, Hardware, DriveContact.LoadDefault(), TickRate);
         var bridge = new RunnerBridge(sim.Hardware, Hardware.HubController);
-        var session = RunnerSession.Start(RunnerLaunch.ForTeamCode(TeamCodeJar));
+        var session = RunnerSession.Start(RunnerLaunch.ForTeamCode(jar ?? TeamCodeJar));
         return new RobotUnderCode(sim, session, bridge);
     }
 

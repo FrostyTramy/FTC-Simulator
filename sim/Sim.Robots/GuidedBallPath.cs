@@ -14,7 +14,84 @@ public sealed record BallPathDef(
     Vector3 LaunchPoint,
     Vector3 LaunchDirection,
     double ExitSpeedRatio,
-    double MinLaunchSurfaceSpeed);
+    double MinLaunchSurfaceSpeed)
+{
+    /// <summary>Mechanism whose rotation in the feeding direction moves elements into the launcher (windmill paddles,
+    /// a transfer wheel).</summary>
+    public string Feeder { get; init; } = "windmill";
+
+    /// <summary>Launcher mechanism (a flywheel); null = the robot's only flywheel.</summary>
+    public string? Launcher { get; init; }
+
+    /// <summary>Turret carrying the launcher: <see cref="LaunchPoint"/> and the launch direction turn with it.</summary>
+    public string? Turret { get; init; }
+
+    /// <summary>Servo gate in front of the launcher: feeding waits while it is closed.</summary>
+    public GateDef? Gate { get; init; }
+
+    /// <summary>Adjustable hood: launch elevation from the hood servo angle.</summary>
+    public HoodDef? Hood { get; init; }
+
+    /// <summary>Spring-loaded nip between the launcher wheels and the hood: grip (and so exit speed) per element size.</summary>
+    public SpringNipDef? SpringNip { get; init; }
+}
+
+/// <summary>Gate arm driven by a servo; open while the servo angle (degrees from centre) is inside OpenServoAnglesDeg.</summary>
+public sealed record GateDef(string Mechanism, (double Min, double Max) OpenServoAnglesDeg)
+{
+    public bool IsOpen(double servoAngleDeg) =>
+        servoAngleDeg >= Math.Min(OpenServoAnglesDeg.Min, OpenServoAnglesDeg.Max)
+        && servoAngleDeg <= Math.Max(OpenServoAnglesDeg.Min, OpenServoAnglesDeg.Max);
+}
+
+/// <summary>
+/// Hood: launch elevation (degrees above horizontal, towards the launch heading) varies linearly with the hood servo
+/// angle between two calibration points (clamped outside them).
+/// </summary>
+public sealed record HoodDef(string Mechanism, (double A, double B) ServoAnglesDeg, (double A, double B) ElevationDeg)
+{
+    public double Elevation(double servoAngleDeg)
+    {
+        var span = ServoAnglesDeg.B - ServoAnglesDeg.A;
+        var t = span == 0 ? 0 : Math.Clamp((servoAngleDeg - ServoAnglesDeg.A) / span, 0, 1);
+        return ElevationDeg.A + t * (ElevationDeg.B - ElevationDeg.A);
+    }
+}
+
+/// <summary>
+/// Spring-loaded nip: the launcher wheel rim and a sprung back plate are <see cref="Gap"/> apart. An element wider than
+/// the gap pushes the plate back (spring: <see cref="Preload"/> + <see cref="Rate"/>·push, up to <see cref="Travel"/>);
+/// beyond the travel the element itself is squeezed (its own contact stiffness). That normal force N lets the wheel
+/// give at most μ·N·t of impulse while the element rolls along <see cref="ContactLength"/> (t = ContactLength / v),
+/// so a lightly pressed element slips and leaves slower than rolling (half the rim speed) would give.
+/// </summary>
+public sealed record SpringNipDef(double Gap, double Travel, double Rate, double Preload, double ContactLength)
+{
+    /// <summary>Normal force on an element of <paramref name="diameter"/> with contact stiffness <paramref name="elementStiffness"/>, N.</summary>
+    public double NormalForce(double diameter, double elementStiffness)
+    {
+        var over = diameter - Gap;
+        if (over <= 0)
+        {
+            return 0;
+        }
+        var push = Math.Min(over, Travel);
+        return Preload + Rate * push + elementStiffness * Math.Max(0, over - Travel);
+    }
+
+    /// <summary>Exit speed when rolling without slip would give <paramref name="idealSpeed"/>; 0 if the element is not gripped.</summary>
+    public double ExitSpeed(double diameter, double elementStiffness, double massKg, double idealSpeed, double friction)
+    {
+        var n = NormalForce(diameter, elementStiffness);
+        if (idealSpeed <= 0 || n <= 0)
+        {
+            return 0;
+        }
+        // Impulse needed m·v against the impulse available μ·N·L/v: v² ≤ μ·N·L/m.
+        return Math.Min(idealSpeed, Math.Sqrt(friction * n * ContactLength / massKg));
+    }
+}
+
 
 /// <summary>
 /// The StarterBot's intake → hopper → feeder → flywheel path as rules instead of contacts (D-027): an element inside the
@@ -78,10 +155,12 @@ public sealed class GuidedBallPath
     /// feed angle has turned in the feeding direction and the flywheel rim is fast enough. Turning backwards unwinds.
     /// </summary>
     /// <param name="feedRotationDeg">Feeder rotation this tick, positive in the feeding direction.</param>
-    public int? Feed(double feedRotationDeg, double flywheelSurfaceSpeed)
+    /// <param name="gateOpen">False while a closed gate holds the next element back.</param>
+    public int? Feed(double feedRotationDeg, double flywheelSurfaceSpeed, bool gateOpen = true)
     {
         _feedAccumulatedDeg = Math.Max(0, _feedAccumulatedDeg + feedRotationDeg);
-        if (_stored.Count == 0 || _feedAccumulatedDeg < Def.FeedAngleDeg || flywheelSurfaceSpeed < Def.MinLaunchSurfaceSpeed)
+        if (_stored.Count == 0 || _feedAccumulatedDeg < Def.FeedAngleDeg || flywheelSurfaceSpeed < Def.MinLaunchSurfaceSpeed
+            || !gateOpen)
         {
             _feedAccumulatedDeg = Math.Min(_feedAccumulatedDeg, Def.FeedAngleDeg);   // a waiting element blocks the feeder
             return null;

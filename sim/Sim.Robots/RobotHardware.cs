@@ -10,8 +10,9 @@ namespace Sim.Robots;
 public sealed class MotorPort
 {
     internal MotorPort(int index, int hub, int port, DeviceDef device, DcMotor motor, SdkMotorType sdkType, Encoder encoder,
-        HubMotorController controller, double? loadInertia)
+        HubMotorController controller, double? loadInertia, (double Min, double Max)? outputLimits)
     {
+        OutputLimits = outputLimits;
         Index = index;
         Hub = hub;
         Port = port;
@@ -37,6 +38,9 @@ public sealed class MotorPort
 
     /// <summary>Inertia at the output shaft of a mechanism motor (mechanism × speed_ratio² + rotor); null for drive motors.</summary>
     public double? LoadInertia { get; }
+
+    /// <summary>Hard stops of the output shaft (rad, from the CAD pose) from the driven mechanism's limits; null = free.</summary>
+    public (double Min, double Max)? OutputLimits { get; }
 
     public double OutputAngle { get; set; }
     public double OutputOmega { get; set; }
@@ -102,15 +106,20 @@ public sealed class RobotHardware
                 var spec = hardware.Motor(model);
                 var motor = new DcMotor(spec);
                 var sdkType = hardware.SdkTypeOf(spec);
-                var encoder = new Encoder(spec.CountsPerOutputRev, hardware.HubController.VelocityWindowS, tickRate);
+                var encoder = new Encoder(device.EncoderCountsPerOutputRev ?? spec.CountsPerOutputRev, hardware.HubController.VelocityWindowS, tickRate);
                 var controller = new HubMotorController(hardware.HubController, sdkType, encoder);
                 _motors.Add(new MotorPort(_motors.Count, hub, port, device, motor, sdkType, encoder, controller,
-                    LoadInertia(robot, device, motor)));
+                    LoadInertia(robot, device, motor), OutputLimits(robot, device)));
             }
             else
             {
-                _servos.Add(new ServoPort(hub, port, device, new ServoModel(hardware.Servo(model), hardware.ServoPorts,
-                    continuous: device.Type == "crservo")));
+                var servo = new ServoModel(hardware.Servo(model), hardware.ServoPorts, continuous: device.Type == "crservo");
+                if (device.Drives is { } d && d.StartsWith("mechanism:", StringComparison.Ordinal)
+                    && robot.Mechanism(d["mechanism:".Length..]).CadServoAngleDeg is var cad && cad != 0)
+                {
+                    servo.Place(cad);   // an unpowered servo stays where the robot was built (the CAD pose)
+                }
+                _servos.Add(new ServoPort(hub, port, device, servo));
             }
         }
         var duplicate = _motors.Select(m => m.Key).Concat(_servos.Select(s => "servo " + s.Key))
@@ -194,6 +203,11 @@ public sealed class RobotHardware
                 }
                 omega = next;
                 angle += omega * h;
+                if (m.OutputLimits is { } stop && (angle < stop.Min || angle > stop.Max))
+                {
+                    angle = Math.Clamp(angle, stop.Min, stop.Max);   // hard stop: the mechanism halts, the motor stalls
+                    omega = 0;
+                }
             }
             m.OutputOmega = omega;
             m.OutputAngle = angle;
@@ -208,6 +222,20 @@ public sealed class RobotHardware
             s.Model.Step(dt, s.LoadTorque);
             s.LoadTorque = 0;
         }
+    }
+
+    /// <summary>Mechanism limits (degrees of the mechanism) as output-shaft angles of the motor driving it.</summary>
+    private static (double Min, double Max)? OutputLimits(RobotDefinition robot, DeviceDef device)
+    {
+        if (device.Drives is not { } drives || !drives.StartsWith("mechanism:", StringComparison.Ordinal)
+            || robot.Mechanism(drives["mechanism:".Length..]) is not { LimitsDeg: { } limits } mechanism)
+        {
+            return null;
+        }
+        var scale = device.SpeedRatio * mechanism.DriveSign;   // mechanism angle = output angle × ratio × sign
+        var a = limits.Min * Math.PI / 180 / scale;
+        var b = limits.Max * Math.PI / 180 / scale;
+        return (Math.Min(a, b), Math.Max(a, b));
     }
 
     private static double? LoadInertia(RobotDefinition robot, DeviceDef device, DcMotor motor)

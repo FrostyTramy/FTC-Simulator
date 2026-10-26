@@ -1,0 +1,23 @@
+# RoboDojo #23205 turret robot, NECTAR: same as robodojo_pollen_turret_back with the turret left facing forward.
+# The NECTAR (91.4 mm) bottoms out the 20 mm hood-insert travel and is itself squeezed 19 mm, so it grips fully and
+# leaves at half the rim speed (7.7 m/s at 1800 ticks/s): it flies higher than the POLLEN (about 2.9 m) and lands IN
+# FRONT of the robot.
+name: robodojo_nectar_forward
+layout: field
+duration_s: 5.5
+actions:
+  - action: robot
+    at_s: 0
+    name: robodojo_23205
+    position: [-1.3, 0.0, 1.05]
+    yaw_deg: -90
+    drive:
+      - {at_s: 0.1, power: {intake: 1, transfer: 0.3}, servo: {gate: 0.5, hood: 0.5, flower_bar: 0.25}}
+      - {at_s: 0.8, power: {intake: 0, transfer: 0}, velocity: {shooter: 1800}}
+      - {at_s: 2.5, servo: {gate: 0.8}, power: {transfer: 1}}
+  - {action: spawn, at_s: 0.05, group: nectar_red, count: 1, relative_to: robot, center: [0.0, 0.0467, -0.25]}
+trace: {group: nectar_red, index: -1, every_s: 0.1}
+checks:
+  - {check: element_peak_height, group: nectar_red, index: -1, min_m: 2.4}
+  - {check: element_in_robot, group: nectar_red, index: -1, min: [-0.8, -1.0, -4.0], max: [0.8, 3.0, -0.3]}
+  - {check: robot_upright, max_tilt_deg: 3.0}

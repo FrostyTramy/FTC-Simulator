@@ -56,6 +56,15 @@ public sealed class RobotPowertrain
         port.Model.Enabled = true;
     }
 
+    /// <summary>Servo.setPosition(position) with the configured direction (REVERSE mirrors the range); turns the PWM on.</summary>
+    public void SetServoFromSdk(string servoName, double position)
+    {
+        var port = Hardware.Servos.FirstOrDefault(s => s.Device.Name == servoName)
+            ?? throw new RobotConfigException($"{Robot.Name}: no servo '{servoName}'");
+        port.Model.SetPosition(port.Device.Direction == "REVERSE" ? 1 - position : position);
+        port.Model.Enabled = true;
+    }
+
     /// <summary>
     /// DcMotorEx in RUN_USING_ENCODER with velocity PIDF <paramref name="pidf"/> and setVelocity(ticksPerSecond), the
     /// configured direction applied (as the example's launcher, CODE:145-147, 278).

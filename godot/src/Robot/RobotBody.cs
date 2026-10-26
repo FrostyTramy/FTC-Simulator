@@ -52,9 +52,19 @@ public partial class RobotBody : RigidBody3D
     private readonly Dictionary<int, (FieldElement Element, uint Layer, uint Mask)> _stored = new();
     private double _lastFeederAngle;
 
+    /// <summary>Moving CAD groups (wheels, mechanisms) by group name: pivot in the CAD frame, angle source, carrier.</summary>
+    private readonly Dictionary<string, (Vector3 CenterCad, Vector3 AxisCad, Func<double> Angle, string? MountedOn)> _moving = new();
+
+    /// <summary>Chassis collision shapes of groups that move with a mechanism (a turret): CAD-frame shape transform.</summary>
+    private readonly List<(CollisionShape3D Shape, Transform3D Cad, string Group)> _movingShapes = new();
+
     /// <summary>A roller/wheel/flywheel that grips elements: axle in the robot frame, the port that drives it.</summary>
     private sealed record RollerMechanism(MechanismDef Def, Vector3 AxisPoint, Vector3 Axis, MotorPort? Motor, ServoPort? Servo)
     {
+        /// <summary>Touches field elements by compliant contact (not for surfaces riding on another mechanism, e.g. a
+        /// turret's launcher: their axle moves, and launched elements leave through the guided path).</summary>
+        public bool Contact => Def.MountedOn == null;
+
         /// <summary>Spin about <see cref="Axis"/>, rad/s (0 for a fixed bar).</summary>
         public double Omega => Motor != null
             ? Motor.OutputOmega * Motor.Device.SpeedRatio * Def.DriveSign
@@ -159,6 +169,9 @@ public partial class RobotBody : RigidBody3D
         return robot;
     }
 
+    /// <summary>The last launch: element group, rolling (ideal) exit speed and actual exit speed, m/s (diagnostics).</summary>
+    public (string Group, double IdealSpeed, double ExitSpeed)? LastLaunch { get; private set; }
+
     /// <summary>Elements held in the robot by the guided path (hopper), oldest first.</summary>
     public IEnumerable<FieldElement> StoredElements => _ballPath?.Stored.Select(id => _stored[id].Element) ?? Enumerable.Empty<FieldElement>();
 
@@ -247,6 +260,15 @@ public partial class RobotBody : RigidBody3D
         var toCad = _meshToRobot.AffineInverse();
         foreach (var group in layout.Groups)
         {
+            if (SpinFor(group.Name, toCad) is { } moving)
+            {
+                _moving[group.Name] = (moving.CenterCad, moving.AxisCad, moving.Angle, MechanismFor(group.Name)?.MountedOn);
+            }
+        }
+        var pivots = new Dictionary<string, Node3D>();
+        var meshes = new List<(string Group, Node3D Node)>();
+        foreach (var group in layout.Groups)
+        {
             var mesh = group.Mesh != null ? MeshLoader.Instantiate(dir + group.Mesh) : null;
             var spin = SpinFor(group.Name, toCad);
             if (mesh != null)
@@ -256,13 +278,14 @@ public partial class RobotBody : RigidBody3D
                     var pivot = new Node3D { Name = group.Name, Position = s.CenterCad };
                     mesh.Position = -s.CenterCad;
                     pivot.AddChild(mesh);
-                    cadRoot.AddChild(pivot);
+                    pivots[group.Name] = pivot;
+                    meshes.Add((group.Name, pivot));
                     _spinners.Add((pivot, s.AxisCad, s.Angle));
                 }
                 else
                 {
                     mesh.Name = group.Name;
-                    cadRoot.AddChild(mesh);
+                    meshes.Add((group.Name, mesh));
                 }
             }
             if (group.Colliders == null || group.Name.StartsWith("wheel_", StringComparison.Ordinal))
@@ -278,7 +301,7 @@ public partial class RobotBody : RigidBody3D
             }
             var specs = JsonSerializer.Deserialize<List<ColliderSpec>>(Godot.FileAccess.GetFileAsString(dir + group.Colliders), FieldLayout.Json)
                 ?? new List<ColliderSpec>();
-            if (mechanism?.Type == "paddle_wheel" && spin is { } paddle)
+            if (mechanism?.Type is "paddle_wheel" or "arm" && spin is { } paddle)
             {
                 // Paddles push elements kinematically; they never touch their own chassis (separate layer).
                 var body = new AnimatableBody3D
@@ -297,12 +320,70 @@ public partial class RobotBody : RigidBody3D
                 body.GlobalTransform = PaddleTransform(GlobalTransform, paddle.CenterCad, paddle.AxisCad, paddle.Angle());
                 continue;
             }
+            var carried = _moving.ContainsKey(group.Name) || mechanism?.MountedOn != null;
             foreach (var spec in specs)
             {
                 var shape = ShapeFactory.Create(spec);
-                shape.Transform = _meshToRobot * shape.Transform;   // CollisionShape3D must be a direct child of the body
+                if (carried)
+                {
+                    _movingShapes.Add((shape, shape.Transform, group.Name));   // re-posed every tick (MoveCarriedShapes)
+                }
+                shape.Transform = _meshToRobot * GroupTransformCad(group.Name) * shape.Transform;   // direct child of the body
                 AddChild(shape);
             }
+        }
+        // Meshes of mechanisms that ride on another one (a shooter on a turret) hang under the carrier's pivot.
+        foreach (var (groupName, node) in meshes)
+        {
+            var carrier = MechanismFor(groupName)?.MountedOn;
+            if (carrier != null && pivots.TryGetValue(carrier, out var parentPivot))
+            {
+                node.Position -= parentPivot.Position;
+                parentPivot.AddChild(node);
+            }
+            else
+            {
+                cadRoot.AddChild(node);
+            }
+        }
+    }
+
+    /// <summary>Pose of a CAD group relative to its CAD position (its own spin, then its carriers'), CAD frame.</summary>
+    private Transform3D GroupTransformCad(string group)
+    {
+        var t = Transform3D.Identity;
+        var mounted = MechanismFor(group)?.MountedOn;
+        if (_moving.TryGetValue(group, out var m))
+        {
+            t = new Transform3D(Basis.Identity, m.CenterCad) * new Transform3D(new Basis(m.AxisCad.Normalized(), (float)m.Angle()), Vector3.Zero)
+                * new Transform3D(Basis.Identity, -m.CenterCad);
+            mounted = m.MountedOn;
+        }
+        for (var depth = 0; mounted != null && depth < 4; depth++)
+        {
+            if (!_moving.TryGetValue(mounted, out var carrier))
+            {
+                break;
+            }
+            t = new Transform3D(Basis.Identity, carrier.CenterCad)
+                * new Transform3D(new Basis(carrier.AxisCad.Normalized(), (float)carrier.Angle()), Vector3.Zero)
+                * new Transform3D(Basis.Identity, -carrier.CenterCad) * t;
+            mounted = carrier.MountedOn;
+        }
+        return t;
+    }
+
+    /// <summary>Pose of a robot-frame point carried by a mechanism group (e.g. the launch point on a turret).</summary>
+    private Transform3D GroupTransformRobot(string group) => _meshToRobot * MeshToCadOnly(group);
+
+    private Transform3D MeshToCadOnly(string group) => GroupTransformCad(group) * _meshToRobot.AffineInverse();
+
+    /// <summary>Colliders of turret-borne groups follow the turret.</summary>
+    private void MoveCarriedShapes()
+    {
+        foreach (var (shape, cad, group) in _movingShapes)
+        {
+            shape.Transform = _meshToRobot * GroupTransformCad(group) * cad;
         }
     }
 
@@ -312,8 +393,8 @@ public partial class RobotBody : RigidBody3D
     private (MotorPort? Motor, ServoPort? Servo) DriverOf(MechanismDef mechanism)
     {
         var drives = "mechanism:" + mechanism.Id;
-        return (Powertrain.Hardware.Motors.FirstOrDefault(m => m.Device.Drives == drives),
-                Powertrain.Hardware.Servos.FirstOrDefault(s => s.Device.Drives == drives));
+        return (Powertrain.Hardware.Motors.FirstOrDefault(m => m.Device.Drives == drives || m.Device.Name == mechanism.DrivenBy),
+                Powertrain.Hardware.Servos.FirstOrDefault(s => s.Device.Drives == drives || s.Device.Name == mechanism.DrivenBy));
     }
 
     /// <summary>Axle (CAD frame) and angle source for a wheel or mechanism group; null for parts that do not spin.</summary>
@@ -339,10 +420,14 @@ public partial class RobotBody : RigidBody3D
         var sign = mechanism.DriveSign;
         if (motor != null)
         {
-            var ratio = motor.Device.SpeedRatio;
+            var ratio = mechanism.DrivenBy != null ? mechanism.FollowRatio : motor.Device.SpeedRatio;
             return (center, axisCad, () => motor.OutputAngle * ratio * sign);
         }
-        return servo != null ? (center, axisCad, () => Mathf.DegToRad(servo.Model.AngleDeg) * sign) : null;
+        // A positional servo's arm sits at its CAD pose at CadServoAngleDeg; gearing (speed_ratio) scales the turn.
+        var cadAngle = mechanism.CadServoAngleDeg;
+        return servo != null
+            ? (center, axisCad, () => Mathf.DegToRad(servo.Model.AngleDeg - cadAngle) * servo.Device.SpeedRatio * sign)
+            : null;
     }
 
     public override void _PhysicsProcess(double delta)
@@ -382,6 +467,10 @@ public partial class RobotBody : RigidBody3D
             ApplyForce(force, basis * new Vector3((float)f.Point.X, 0, (float)f.Point.Z));
         }
         MovePaddles(delta);
+        if (_movingShapes.Count > 0)
+        {
+            MoveCarriedShapes();
+        }
         TickProfiler.Stop("robot", t1);
         var t2 = TickProfiler.Start();
         Driver?.AfterStep(this, _tick);
@@ -454,6 +543,10 @@ public partial class RobotBody : RigidBody3D
             var ball = new Ball(V(body.GlobalPosition), props.RadiusM, V(body.LinearVelocity), V(body.AngularVelocity));
             foreach (var roller in _rollers)
             {
+                if (!roller.Contact)
+                {
+                    continue;
+                }
                 var axisPoint = transform * roller.AxisPoint;
                 var def = roller.Def;
                 var r = new Roller(V(axisPoint), V(transform.Basis * roller.Axis), def.Radius!.Value, (def.Width ?? 0) / 2, roller.Omega,
@@ -485,8 +578,9 @@ public partial class RobotBody : RigidBody3D
             return;
         }
         var intake = _rollers.FirstOrDefault(r => r.Motor != null && r.Def.Id == "intake_roller");
-        var flywheel = _rollers.FirstOrDefault(r => r.Motor != null && r.Def.Type == "flywheel");
-        var feeder = Powertrain.Hardware.Servos.FirstOrDefault(sv => sv.Device.Drives == "mechanism:windmill");
+        var flywheel = _rollers.FirstOrDefault(r => r.Motor != null && (path.Def.Launcher != null ? r.Def.Id == path.Def.Launcher : r.Def.Type == "flywheel"));
+        var feederDef = Definition.Mechanism(path.Def.Feeder);
+        var (feederMotor, feeder) = DriverOf(feederDef);
         var transform = GlobalTransform;
         var inverse = transform.AffineInverse();
 
@@ -509,17 +603,20 @@ public partial class RobotBody : RigidBody3D
             }
         }
 
-        // Feed: the feeder's rotation in the direction positive SDK power turns it (CODE:291 setPower(1) feeds).
-        if (feeder != null && flywheel?.Motor is { } launcher)
+        // Feed: the feeder's rotation in the direction positive SDK power turns it (CODE:291 setPower(1) feeds); a servo
+        // feeder turns by its own angle, a motor feeder by its output shaft × speed ratio.
+        var feedDevice = feeder?.Device ?? feederMotor?.Device;
+        if (feedDevice != null && flywheel?.Motor is { } launcher)
         {
-            var rawFeedSign = path.Def.FeedPowerSign * (feeder.Device.Direction == "REVERSE" ? -1 : 1);
-            var angle = feeder.Model.AngleDeg;
+            var rawFeedSign = path.Def.FeedPowerSign * (feedDevice.Direction == "REVERSE" ? -1 : 1);
+            var angle = feeder != null ? feeder.Model.AngleDeg : Mathf.RadToDeg(feederMotor!.OutputAngle * feederMotor.Device.SpeedRatio);
             var turned = (angle - _lastFeederAngle) * rawFeedSign;
             _lastFeederAngle = angle;
             var rim = Math.Abs(launcher.OutputOmega * launcher.Device.SpeedRatio) * flywheel.Def.Radius!.Value;
-            if (path.Feed(turned, rim) is { } id)
+            var gateOpen = path.Def.Gate is not { } gate || ServoOf(gate.Mechanism) is not { } gateServo || gate.IsOpen(gateServo.Model.AngleDeg);
+            if (path.Feed(turned, rim, gateOpen) is { } id)
             {
-                Launch(id, path, path.ExitSpeed(rim), launcher, flywheel.Def.Radius!.Value);
+                Launch(id, path, path.ExitSpeed(rim), launcher, flywheel);
             }
         }
 
@@ -572,14 +669,51 @@ public partial class RobotBody : RigidBody3D
         body.CollisionMask = 0;
     }
 
-    private void Launch(int id, GuidedBallPath path, double exitSpeed, MotorPort launcher, double rimRadius)
+    private ServoPort? ServoOf(string mechanism) => DriverOf(Definition.Mechanism(mechanism)).Servo;
+
+    /// <summary>
+    /// Where and which way the launcher throws now (robot frame): the CAD launch point and direction, the hood's
+    /// elevation (if any) about the horizontal launch heading, all turned with the turret.
+    /// </summary>
+    public (Vector3 Point, Vector3 Direction) LaunchGeometry()
+    {
+        var def = _ballPath!.Def;
+        var point = new Vector3(def.LaunchPoint.X, def.LaunchPoint.Y, def.LaunchPoint.Z);
+        var direction = new Vector3(def.LaunchDirection.X, def.LaunchDirection.Y, def.LaunchDirection.Z).Normalized();
+        if (def.Hood is { } hood && ServoOf(hood.Mechanism) is { } hoodServo)
+        {
+            var heading = new Vector3(direction.X, 0, direction.Z).Normalized();
+            var e = Mathf.DegToRad(hood.Elevation(hoodServo.Model.AngleDeg));
+            direction = heading * Mathf.Cos((float)e) + Vector3.Up * Mathf.Sin((float)e);
+        }
+        if (def.Turret is { } turret)
+        {
+            var carry = GroupTransformRobot(turret);
+            point = carry * point;
+            direction = carry.Basis * direction;
+        }
+        return (point, direction.Normalized());
+    }
+
+    private void Launch(int id, GuidedBallPath path, double idealSpeed, MotorPort launcher, RollerMechanism flywheel)
     {
         var (element, layer, mask) = _stored[id];
         _stored.Remove(id);
         var body = element.Body;
         var t = GlobalTransform;
-        var point = t * new Vector3(path.Def.LaunchPoint.X, path.Def.LaunchPoint.Y, path.Def.LaunchPoint.Z);
-        var direction = t.Basis * new Vector3(path.Def.LaunchDirection.X, path.Def.LaunchDirection.Y, path.Def.LaunchDirection.Z);
+        var rimRadius = flywheel.Def.Radius!.Value;
+        var mass = _physics.Element(element.Group).MassKg;
+        var exitSpeed = idealSpeed;
+        if (path.Def.SpringNip is { } nip)
+        {
+            var (stiffness, _, material, _) = _physics.ElementContact(PhysicsConfig.TypeOf(element.Group));
+            var friction = _physics.PairFriction(flywheel.Def.ContactMaterial ?? "default", material);
+            exitSpeed = nip.ExitSpeed(2 * _physics.Element(element.Group).RadiusM, stiffness, mass, idealSpeed, friction);
+        }
+        LastLaunch = (element.Group, idealSpeed, exitSpeed);
+        var (localPoint, localDirection) = LaunchGeometry();
+        var point = t * localPoint;
+        var direction = t.Basis * localDirection;
         body.GlobalTransform = new Transform3D(Basis.Identity, point);
         body.Freeze = false;
         body.CollisionLayer = layer;
@@ -587,7 +721,7 @@ public partial class RobotBody : RigidBody3D
         body.LinearVelocity = VelocityAt(point) + direction.Normalized() * (float)exitSpeed;
         body.AngularVelocity = Vector3.Zero;
         // The flywheel gives the element m·v·R of angular momentum: its shaft slows down (RPM drop per shot).
-        var impulse = GuidedBallPath.FlywheelImpulse(_physics.Element(element.Group).MassKg, exitSpeed, rimRadius);
+        var impulse = GuidedBallPath.FlywheelImpulse(mass, exitSpeed, rimRadius);
         if (launcher.LoadInertia is { } inertia && launcher.OutputOmega != 0)
         {
             var drop = impulse * launcher.Device.SpeedRatio / inertia;

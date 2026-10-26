@@ -110,6 +110,12 @@ class MaterialMatcher:
 
 def extract_source(cfg: dict, cache: Path, source_root: Path = REPO_ROOT) -> Path:
     src = cfg["source"]
+    if "path" in src:   # a plain STEP file, read in place (the user's original, never copied or changed)
+        stamp = cache / "source.sha256"
+        step = source_root / src["path"]
+        st = step.stat()
+        stamp.write_text(hashlib.sha256(f"{step.name}:{st.st_size}:{st.st_mtime_ns}".encode()).hexdigest())
+        return step
     archive = source_root / src["zip"]
     stamp = cache / "source.sha256"
     out = cache / Path(src["member"]).name
@@ -643,7 +649,7 @@ class Pipeline:
         lines = [
             f"# CAD pipeline report: {self.name}",
             "",
-            f"- Source: `{self.cfg['source']['zip']}` → `{self.cfg['source']['member']}`",
+            f"- Source: `{self.cfg['source'].get('path') or self.cfg['source']['zip'] + ' → ' + self.cfg['source']['member']}`",
             f"- Up axis: {self.up_axis}; units: metres (OCP document unit)",
             f"- Timings: {self.timings}",
             f"- Part instances: {len(self.instances)} ({len(kept)} kept, {len(self.instances) - len(kept)} dropped)",

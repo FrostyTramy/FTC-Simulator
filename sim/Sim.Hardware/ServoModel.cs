@@ -37,6 +37,13 @@ public sealed class ServoModel
 
     public double StallTorqueNm(double volts) => Spec.At(Spec.StallTorqueNm, volts);
 
+    /// <summary>Where the output shaft is before any command (the angle the robot was assembled at); it holds there.</summary>
+    public void Place(double angleDeg)
+    {
+        AngleDeg = angleDeg;
+        TargetAngleDeg = angleDeg;
+    }
+
     /// <summary>Servo.setPosition(p): p is clipped to 0..1 and scaled into the SDK PWM range.</summary>
     public void SetPosition(double position)
     {

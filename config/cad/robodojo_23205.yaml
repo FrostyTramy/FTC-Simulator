@@ -1,0 +1,59 @@
+# CAD pipeline settings for the FTC RoboDojo #23205 team robot ("robot assembly.step", the team's Fusion export).
+# Mechanisms per "FTC RoboDojo #23205 robot.pptx" (slides 1-6) and the team's answers (docs/notes/robodojo_23205.md).
+name: robodojo_23205
+source: {path: "robot assembly.step"}
+up_axis: Z          # wheel axles horizontal, turret on top along +Z (inventory 2026-10-25)
+
+drop:
+  - "(?i)screw|\\bnut\\b|washer|e-clip|^2800-|^2802-|^2812-|^2815-|^2817-|^2800-0003"
+  - "(?i)race$|^DIstantier$|^Rulment|ball:|^PATCH|^Pin \\(1\\)|^id\\d+$"
+  - "^REV-11-1271-1"   # Through Bore Encoder body with a broken STEP surface (bbox 0.35 x 0.35 x 0.71 m)
+  - "^pollen$"         # 4 POLLEN placed in the CAD to show the ball path (used for the storage slots, not as robot parts)
+
+# Moving parts become separate bodies (joints and drives: config/robots/robodojo_23205.yaml). First match wins.
+default_group: {name: chassis, kind: rigid}
+default_material: plastic_cad_color
+groups:
+  - {name: wheel_fl, kind: rigid, path_regex: "/Roata Stanga RD3-X <1>#0/"}     # "stanga" = left; front = intake side (CAD -Y)
+  - {name: wheel_bl, kind: rigid, path_regex: "/Roata Stanga RD3-X <2>#0/"}
+  - {name: wheel_fr, kind: rigid, path_regex: "/Roata Drepta RD3-X <1>#0/"}     # "dreapta" = right
+  - {name: wheel_br, kind: rigid, path_regex: "/Roata Drepta RD3-X <2>#0/"}
+  - {name: intake_roller, kind: rigid, path_regex: "/bara intake <1>#0/(Intake Wheel#[0-3]|Insertie PLA#[0124])$"}
+  - {name: transfer_stage2, kind: rigid, path_regex: "/bara transfer stage 2 <1>#0/GripForce"}
+  - {name: transfer_stage3, kind: rigid, path_regex: "/bara transfer stage 3 <1>#0/GripForce"}
+  - {name: transfer_out, kind: rigid, path_regex: "/Bara transfer-outtake <1>#0/GripForce"}
+  - {name: yellow_bar, kind: rigid, path_regex: "^robot assembly/(rampa floare|amortizoare rampa floare|1105 Series|1908 Series)|/bara pivot sistem luat din floare <1>#0/"}
+  - {name: gate_arm, kind: rigid, path_regex: "/servo gate <1>#0/(1102 Series|1910 Series)"}
+  # Shooter and hood first: the first matching group wins (tools/cad_pipeline/run.py _assign_groups).
+  - {name: shooter, kind: rigid, path_regex: "/Turrret V7 <1>#0/(3613-0014-0072|Flywheel|2106-4008-1680|2302-4008-0024 Main Gear:2__Body1_1)"}
+  - {name: hood, kind: rigid, path_regex: "/Turrret V7 <1>#0/(Hood Insert|Ciocan)"}   # USER: the servo turns the whole hood with the sprung insert
+  # Everything on the rotating platform; the turret motor, its gearbox, the pinions, the encoder and the fixed bearing
+  # base stay on the chassis (slide 6: "one motor from under the turret, 2 small gearwheels, one for encoder, one for motor").
+  - {name: turret, kind: rigid, path_regex: "/Turrret V7 <1>#0/(?!(5103|5000-0001-0001|5000-0002-0117|5000-0002-0001 body:1__Body1#0$|Pinion|6703|1516-4008|REV-11-1271|1613-0514|T5x3|Baza))"}
+
+render_proxies:
+  max_part_triangles: 4000
+  rules:
+    - {regex: "(?i)^roller tire$|^core$", mode: hull}
+
+tessellation:
+  default: {linear: 0.0008, angular: 0.5}
+  element: {linear: 0.0008, angular: 0.5}
+  coarse_regex: "(?i)grid|plate|channel|panou|sasiu|baza"
+  coarse: {linear: 0.0015, angular: 0.6}
+
+colliders:
+  default: hull
+  rules:
+    - {regex: "(?i)^rampa", mode: coacd, threshold: 0.05, max_hulls: 8}       # curved flower ramp and intake/transfer ramps
+    - {regex: "(?i)^hood insert", mode: coacd, threshold: 0.05, max_hulls: 6}
+    - {regex: "(?i)grid plate|^panou|^side plate|^plate", mode: box}
+  max_fit_error: 0.12
+  convex_ratio: 0.92
+  coacd_max_hulls: 8
+  coacd_threshold: 0.08
+
+validate:
+  - {what: "Robot fits the 18 in starting cube (x)", rule: robot_limits.start_cube, index: 0, measure: {path_regex: ".", axis: x, kind: extent_le}}
+  - {what: "Robot fits the 18 in starting cube (z)", rule: robot_limits.start_cube, index: 1, measure: {path_regex: ".", axis: z, kind: extent_le}}
+  - {what: "Robot fits the 18 in starting cube (y)", rule: robot_limits.start_cube, index: 2, measure: {path_regex: ".", axis: y, kind: extent_le}}

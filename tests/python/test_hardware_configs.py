@@ -111,7 +111,8 @@ def test_sdk_achievable_max_ticks_quirk() -> None:
 
 def test_servo_speed_from_seconds_per_60deg() -> None:
     """RPM listed by goBILDA agrees with its seconds-per-60-degree rating within 15 %."""
-    secs = {"gobilda_2000_0025_0002": [0.25, 0.20, 0.17], "gobilda_2000_0025_0003": [0.11, 0.09, 0.07]}
+    secs = {"gobilda_2000_0025_0002": [0.25, 0.20, 0.17], "gobilda_2000_0025_0003": [0.11, 0.09, 0.07],
+            "axon_max_mk2": [0.14, 0.12, 0.10, 0.09], "axon_mini_mk2": [0.11, 0.09, 0.08, 0.07]}
     for key, s in load("servos")["models"].items():
         for rpm, t60 in zip(s["no_load_speed"]["value"], secs[key], strict=True):
             assert abs(rpm - (60 / t60) / 6) / rpm < 0.15, key

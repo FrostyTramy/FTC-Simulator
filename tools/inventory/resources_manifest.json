@@ -24,6 +24,10 @@
    "size": 5428907,
    "sha256": "89b82c72061a0d862635be85a7a19e29df6fa4b58fbfad753d3a4196a51da15f"
   },
+  "FTC RoboDojo #23205 robot.pptx": {
+   "size": 2370155,
+   "sha256": "9e05b9c6570c664ad390d4180e3787c102a2e5300fba1d114c28759ad94db5ac"
+  },
   "Field Acceptance Checklist V26-27.2.pdf": {
    "size": 337949,
    "sha256": "c081e78ba7b35e687f766111608ba0fdc0a1fc0913c3801102e812416727584c"
@@ -55,6 +59,10 @@
   "field-cad-step.zip": {
    "size": 6607131,
    "sha256": "5e768b731f1ec8dcd14debba53225c43718877923c351ce08504305f68f7fe00"
+  },
+  "robot assembly.step": {
+   "size": 243862306,
+   "sha256": "a8d3a80e637eea29fb5019e55fef34fb212fa5a5ee7f21cc75d59b81de6df833"
   }
  }
 }
