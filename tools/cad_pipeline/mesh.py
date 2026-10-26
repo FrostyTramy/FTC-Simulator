@@ -135,8 +135,10 @@ def mass_props(shape: TopoDS_Shape) -> MassProps:
 
 
 def signature(props: MassProps) -> str:
-    """Geometry hash for instancing identical solids defined separately in the CAD
-    (volume, area and sorted bounding-box extents, rounded)."""
-    ext = sorted(round(b - a, 5) for a, b in zip(props.bbox_min, props.bbox_max, strict=True))
-    key = f"{props.volume:.4e}|{props.area:.4e}|{ext}"
+    """Geometry hash for instancing identical solids defined separately in the CAD: volume, area, and the bounding box
+    and centroid in the solid's own frame (rounded). The tessellation is shared in that frame, so solids only match
+    when their local geometry coincides; a mirrored copy (same volume, area and extents) has a different centroid or
+    box and keeps its own mesh."""
+    box = [round(v, 5) + 0.0 for v in (*props.bbox_min, *props.bbox_max, *props.center)]
+    key = f"{props.volume:.4e}|{props.area:.4e}|{box}"
     return hashlib.sha1(key.encode()).hexdigest()[:12]
