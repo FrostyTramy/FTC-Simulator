@@ -59,6 +59,24 @@ Sources for `config/robots/robodojo_23205.yaml` and `config/cad/robodojo_23205.y
   by a spring, with a gap at the back and 3 screws.
 - At turret 0 the robot shoots toward the intake side.
 
+## Answers 2026-10-26
+- **Missing details:** the intake corner ramps and the wheel protection plates are on both sides of the real robot, but
+  the sim showed them on one side only. Fix in the CAD pipeline (no robot-specific code):
+  - a part whose STEP faces do not mesh is now repaired (ShapeFix) or drawn from its mirrored twin instead of vanishing,
+    and every such part is listed in `report.md` ("Tessellation problems");
+  - mirrored twins no longer share one mesh by accident (the geometry signature includes the products of inertia);
+  - `symmetry` in `config/cad/robodojo_23205.yaml` mirrors one-sided ramps and guard plates about the wheel centre plane
+    (CAD x = +12 mm) when their mirror position is empty; `report.md` ("Symmetry") lists the copies and every remaining
+    one-sided part, so missing details are easy to spot;
+  - parts keep full detail up to 30k triangles (was 4k; Godot builds LODs).
+  Re-run `python tools/cad_pipeline/run.py --config config/cad/robodojo_23205.yaml` after pulling.
+- **Flower bar:** DOWN is as low as possible and touches the floor a little without colliding: the arm has a floor stop
+  (`floor_stop`, 2 mm into the foam, ASSUMED) computed from its colliders, it stays kinematic (pushes elements, never lifts
+  the robot), and the TeleOp commands DOWN = 1.0 so the bar rests on the tiles. Its ramp collider is finer (CoACD 0.02,
+  up to 24 hulls) so elements roll on it.
+- **Hood:** servo position 0 is the starting pose (CAD) and higher positions raise the hood (open point 3 below). The
+  TeleOp starts the hood at 0 (`HOOD_START`); dpad up raises it.
+
 ## Open points for the team (ASSUMED until checked)
 1. **Mecanum wheels in the CAD:** both left wheels ("Stanga") have their top rollers along the same diagonal, and so
    do both right wheels. That is not the X pattern, so the robot could not strafe. The sim uses FL/BR left slant and
@@ -67,11 +85,12 @@ Sources for `config/robots/robodojo_23205.yaml` and `config/cad/robodojo_23205.y
    turns the opposite way to the motor. The sim assumes it is plugged into the turret motor's port. Check which port
    it uses.
 3. **Hood:** pivot on the shooter shaft and gearing 10T to an arc of about 130.6 mm radius (≈ 23° of hood travel over
-   the servo's 315° SDK range); the CAD shows it fully back (vertical exit). Check the real angle range.
+   the servo's 315° SDK range). Position 0 = CAD pose (fully back, vertical exit; USER 2026-10-26); the exit elevation
+   at position 1 (66.8°) is still computed from the gearing, not measured.
 4. **Spring:** rate 600 N/m and preload 2 N are guesses. Measure the force needed to push the hood insert back 10 mm
    and 20 mm.
-5. **Flower bar:** UP (CAD) at servo -80° and DOWN at +82°, so it swings over the top to the front. Check the real
-   positions.
+5. **Flower bar:** UP (CAD) at servo -80°; it swings over the top to the front and rests on the floor (floor stop).
+   Check the real UP position and how hard the bar may press on the tiles.
 6. **Gate:** closed at the servo centre and open beyond +40°.
 7. **Ports and gear ratios:**
    - Hub ports are guesses.

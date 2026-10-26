@@ -149,8 +149,9 @@ mechanisms:
     parts: {value: "'rampa floare' (yellow bar with the flower ramp), 2 × 1105 arms, dampers", unit: label, source: "SLIDES 2; CAD"}
     axis_point: {value: [0.0, 0.149, -0.189], unit: m, source: "CAD Axon 1908 servo hub centre (y -358, z 103) mm"}
     axis: {value: [-1, 0, 0], unit: "1", source: "CAD pivot along X; robot -X = CAD +X so a positive servo turn swings the bar up and over to the front"}
-    cad_servo_angle: {value: -80, unit: deg, source: "ASSUMED: the CAD shows the bar UP (SLIDES 2 'now is up'); DOWN in front of the intake is 162° further (bar centre from 39° above the back to 21° below the front, 145 mm from the pivot), inside the ±157.5° SDK servo range only if UP is at -80° (CODE FLOWER_BAR_UP 0.25 / DOWN 0.76)"}
+    cad_servo_angle: {value: -80, unit: deg, source: "ASSUMED: the CAD shows the bar UP (SLIDES 2 'now is up'); DOWN in front of the intake is about 162° further (bar centre from 39° above the back to 21° below the front, 145 mm from the pivot), inside the ±157.5° SDK servo range only if UP is at -80° (CODE FLOWER_BAR_UP 0.25)"}
     drive_sign: {value: 1, unit: "1", source: "geometry above"}
+    floor_stop: {value: 0.002, unit: m, source: "USER 2026-10-26: DOWN is as low as possible, the bar touches the floor a little and must not collide; the arm stops where its lowest point is 2 mm into the foam tiles (depth ASSUMED); CODE FLOWER_BAR_DOWN commands past it"}
   - id: turret
     type: turret
     parts: {value: "'Turret Mounting Platform (rotating)' with a 112T ring on a ball-bearing ring, everything above it", unit: label, source: "SLIDES 6; CAD 'Turrret V7'"}
@@ -177,8 +178,8 @@ mechanisms:
     mounted_on: {value: turret, unit: mechanism, source: "SLIDES 6"}
     axis_point: {value: [-0.0005, 0.290, 0.026], unit: m, source: "ASSUMED: the hood pivots about the shooter shaft (its toothed arc is concentric: Gear 10T 140 mm from the shaft)"}
     axis: {value: [1, 0, 0], unit: "1", source: "CAD"}
-    cad_servo_angle: {value: 157.5, unit: deg, source: "ASSUMED: the CAD shows the hood fully back (vertical exit) at the servo end (position 1.0)"}
-    drive_sign: {value: -1, unit: "1", source: "ASSUMED: lowering the servo angle tilts the hood forward over the wheel"}
+    cad_servo_angle: {value: -157.5, unit: deg, source: "USER 2026-10-26: servo position 0 is the starting position (the CAD pose, hood fully back: vertical exit) and a higher position raises the hood"}
+    drive_sign: {value: -1, unit: "1", source: "geometry: the hood sits behind the shooter shaft, so turning about robot -X lifts it up and forward over the wheel; with drive_sign -1 a higher servo position does that (USER: higher = hood up)"}
 
 ball_path:
   description: {value: "floor → 5 silicone intake wheels (flower bar ramp feeds NECTAR from the FLOWER) → sprung transfer stages 2 and 3 → back Gecko pushes up past the gate into the turret → squeezed between the 72 mm Geckos and the sprung hood insert → leaves over the wheel toward the turret's front", unit: label, source: "SLIDES 2-6; CAD"}
@@ -195,7 +196,7 @@ ball_path:
   turret: {value: turret, unit: mechanism, source: "SLIDES 6"}
   launch_point: {value: [-0.0005, 0.341, 0.089], unit: m, source: "CAD: top of the nip between the Gecko rims (y -107) and the hood insert (y -55), z 295 mm, ball centre y -80"}
   launch_direction: {value: [0, 0.94, -0.34], unit: "1", source: "heading toward the turret front (USER: shoots toward the intake side); the elevation comes from the hood"}
-  hood: {value: {mechanism: hood, servo_angles: [157.5, -157.5], elevation: [90, 66.8]}, unit: deg, source: "CAD: hood insert vertical at the CAD pose → vertical exit; tilting forward by the servo turn × 0.0735 lowers the exit by as much (315° × 0.0735 = 23.2°); ASSUMED"}
+  hood: {value: {mechanism: hood, servo_angles: [-157.5, 157.5], elevation: [90, 66.8]}, unit: deg, source: "CAD: hood insert vertical at the CAD pose (servo position 0, USER) → vertical exit; raising the hood over the wheel by the servo turn × 0.0735 tilts the exit forward by as much (315° × 0.0735 = 23.2° at position 1); ASSUMED"}
   exit_speed_ratio: {value: 0.5, unit: "1", source: "kinematics: an element rolling without slip between the moving rim and the hood insert moves at half the rim speed"}
   min_launch_surface_speed: {value: 3.0, unit: m/s, source: "ASSUMED"}
   spring_nip: {value: {gap: 0.052, travel: 0.020, rate: 600, preload: 2.0, contact_length: 0.055}, unit: "m, N/m, N", source: "gap: CAD Gecko rims (y -107) to the hood insert (y -55); travel: CAD part name 'slides 0-20mm'; rate and preload ASSUMED (one spring and 3 screws, USER; measure it); contact length ≈ quarter of the 72 mm rim"}

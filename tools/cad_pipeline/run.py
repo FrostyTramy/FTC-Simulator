@@ -39,12 +39,13 @@ import yaml
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import colliders as coll  # noqa: E402
 import detect  # noqa: E402
-from mesh import MassProps, Mesh, mass_props, signature, tessellate  # noqa: E402
+import symmetry  # noqa: E402
+from mesh import MassProps, Mesh, edge_points, mass_props, signature, tessellate_checked  # noqa: E402
 from step_reader import StepReader  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 INCH = 0.0254
-PIPELINE_VERSION = 1  # bump to invalidate the tessellation cache when mesh.py changes
+PIPELINE_VERSION = 2  # bump to invalidate the tessellation cache when mesh.py changes
 COLLIDER_VERSION = 2  # bump to invalidate the collider cache when colliders.py changes
 
 # Rotations that bring the source up axis to Godot's +Y (right-handed, no mirroring).
@@ -73,6 +74,7 @@ class Instance:
     props: MassProps | None = None
     sig: str = ""
     world_bbox: tuple[list[float], list[float]] = field(default_factory=lambda: ([0, 0, 0], [0, 0, 0]))
+    mirrored_from: str | None = None  # id of the part this one is a mirrored copy of (config `symmetry.mirror_unpaired`)
 
 
 def load_yaml(path: Path) -> Any:
@@ -278,8 +280,11 @@ class Pipeline:
         return f"v{PIPELINE_VERSION}_{inst.sig}_{lin}_{ang}"
 
     def _load_meshes(self, kept: list[Instance]) -> dict[str, Mesh]:
-        """Tessellate every distinct (geometry, deflection) once; cached on disk."""
+        """Tessellate every distinct (geometry, deflection) once; cached on disk. Faces OCP cannot mesh are counted in
+        `self.tess_info` (faces, missing faces, repaired); a part with no meshed face at all gets the convex hull of
+        its B-rep edges, so it stays visible (reported)."""
         meshes: dict[str, Mesh] = {}
+        self.tess_info: dict[str, tuple[int, int, bool]] = {}
         for inst in kept:
             key = self._mesh_key(inst)
             if key in meshes:
@@ -288,13 +293,86 @@ class Pipeline:
             if path.exists():
                 data = np.load(path)
                 meshes[key] = Mesh(data["v"], data["n"], data["t"])
-            else:
-                lin, ang = self._deflection(inst)
-                meshes[key] = tessellate(self.reader.prototypes[inst.prototype].shape, lin, ang)
-                np.savez_compressed(
-                    path, v=meshes[key].vertices, n=meshes[key].normals, t=meshes[key].triangles
-                )
+                info = data["info"] if "info" in data else np.array([0, 0, 0])
+                self.tess_info[key] = (int(info[0]), int(info[1]), bool(info[2]))
+                continue
+            lin, ang = self._deflection(inst)
+            shape = self.reader.prototypes[inst.prototype].shape
+            tess = tessellate_checked(shape, lin, ang)
+            mesh = tess.mesh
+            if mesh.triangle_count == 0 and tess.faces > 0:
+                pts = edge_points(shape)
+                if len(pts) >= 4 and np.linalg.matrix_rank(pts - pts.mean(0)) == 3:
+                    mesh = hull_proxy(Mesh(pts.astype(np.float32), np.zeros_like(pts, np.float32), np.zeros((0, 3), np.int32)))
+            meshes[key] = mesh
+            self.tess_info[key] = (tess.faces, tess.missing_faces, tess.repaired)
+            np.savez_compressed(
+                path, v=mesh.vertices, n=mesh.normals, t=mesh.triangles,
+                info=np.array([tess.faces, tess.missing_faces, int(tess.repaired)]),
+            )
         return meshes
+
+    def _mesh_broken(self, inst: Instance) -> bool:
+        """True when a fifth or more of the part's faces did not mesh (holes or an edge-hull stand-in)."""
+        faces, missing, _ = self.tess_info.get(self._mesh_key(inst), (0, 0, False))
+        return faces > 0 and missing * 5 >= faces
+
+    # ---------------------------------------------------------------- symmetry
+    def _symmetry(self, kept: list[Instance]) -> None:
+        """Pairs parts across the config's mirror plane (symmetry.py). A part whose mesh is broken and whose twin is
+        healthy is drawn as the mirrored twin (`self.render_from`). Parts without a twin are reported; those matching a
+        `mirror_unpaired` rule get a mirrored copy when their mirror position is empty (USER-confirmed symmetric parts
+        that the CAD models on one side only). New copies are appended to `self.instances` and `kept`."""
+        self.render_from: dict[str, tuple[Instance, np.ndarray]] = {}
+        self.unpaired: list[Instance] = []
+        self.mirror_added: list[Instance] = []
+        cfg = self.cfg.get("symmetry")
+        if not cfg:
+            return
+        plane = symmetry.Plane.from_config(cfg["plane"], self.up)
+        tolerance = cfg.get("tolerance", 0.004)
+        parts = [i for i in kept if self.group_cfg[i.group].get("kind") != "element"]
+        boxes = [symmetry.as_box(i.world_bbox) for i in parts]
+        twin = symmetry.counterparts(boxes, plane, tolerance)
+        for k, inst in enumerate(parts):
+            j = twin[k]
+            if j is None:
+                self.unpaired.append(inst)
+            elif j != k and self._mesh_broken(inst) and not self._mesh_broken(parts[j]):
+                self.render_from[inst.id] = (parts[j], plane.matrix())
+        rules = [
+            (re.compile(r["part_regex"]), set(r.get("groups", [])), r.get("min_extent", 0.0), r.get("max_overlap", 0.25))
+            for r in cfg.get("mirror_unpaired", [])
+        ]
+        for inst in list(self.unpaired):
+            box = symmetry.as_box(inst.world_bbox)
+            for regex, groups, min_extent, max_overlap in rules:
+                if not regex.search(inst.name) or (groups and inst.group not in groups):
+                    continue
+                if float(np.max(box[1] - box[0])) < min_extent:
+                    continue
+                target = plane.mirror_box(box)
+                if symmetry.overlap_fraction(target, [b for b, p in zip(boxes, parts) if p is not inst]) > max_overlap:
+                    continue   # something already fills the mirror position: not a missing twin
+                copy = Instance(
+                    id=hashlib.sha1(f"{inst.path}#mirrored".encode()).hexdigest()[:12],
+                    name=inst.name,
+                    path=f"{inst.path}#mirrored",
+                    parent=inst.parent,
+                    prototype=inst.prototype,
+                    world=plane.matrix() @ inst.world,
+                    color=inst.color,
+                    group=inst.group,
+                    material=inst.material,
+                    props=inst.props,
+                    sig=inst.sig,
+                    mirrored_from=inst.id,
+                )
+                copy.world_bbox = bbox_world(copy.props, copy.world)
+                self.instances.append(copy)
+                kept.append(copy)
+                self.mirror_added.append(copy)
+                break
 
     def _render_mesh(self, inst: Instance, mesh: Mesh) -> Mesh:
         """Render mesh of a part: a smooth convex-hull proxy when a `render_proxies` rule matches its name
@@ -383,6 +461,7 @@ class Pipeline:
         t0 = time.perf_counter()
         meshes = self._load_meshes(kept)
         self.timings["tessellate_s"] = round(time.perf_counter() - t0, 1)
+        self._symmetry(kept)
         t0 = time.perf_counter()
         self.collider_info: dict[str, dict] = {}
         collider_shapes = self._fit_colliders(kept, meshes)
@@ -398,8 +477,12 @@ class Pipeline:
         self.part_triangles: dict[str, int] = {}
         self.proxied: dict[str, tuple[int, int]] = {}
         for inst in kept:
-            mesh = self._render_mesh(inst, meshes[self._mesh_key(inst)])
-            ckey = self.inst_collider_key[inst.id]
+            source, world = inst, inst.world
+            if inst.id in self.render_from:   # broken mesh: draw (and collide) as the mirrored healthy twin
+                source, mirror = self.render_from[inst.id]
+                world = mirror @ source.world
+            mesh = self._render_mesh(source, meshes[self._mesh_key(source)])
+            ckey = self.inst_collider_key[source.id]
             shapes = collider_shapes[ckey] if ckey else []
             self.part_triangles[inst.id] = mesh.triangle_count
             kind = self.group_cfg[inst.group].get("kind", "static")
@@ -416,8 +499,8 @@ class Pipeline:
                     )
                 self.element_instances[inst.group].append(inst)
             else:
-                self.group_meshes[inst.group][self._surface(inst)].append(mesh.transformed(inst.world))
-                self.group_colliders[inst.group] += coll.place(shapes, inst.world)
+                self.group_meshes[inst.group][self._surface(inst)].append(mesh.transformed(world))
+                self.group_colliders[inst.group] += coll.place(shapes, world)
         for name, g in self.group_cfg.items():
             if g.get("collider") == "floor":
                 lo = np.min([i.world_bbox[0] for i in self.instances if i.group == name], axis=0)
@@ -558,6 +641,7 @@ class Pipeline:
                     "center_of_mass": np.round(com, 6).tolist(),
                     "mass_kg_estimate": round(p.volume * density.get(inst.material, 1000), 5),
                     "triangles": self.part_triangles.get(inst.id, 0),
+                    **self._tessellation_fields(inst),
                 }
             )
         self._write_json(
@@ -579,6 +663,19 @@ class Pipeline:
             + yaml.safe_dump(self.detected, sort_keys=False),
             "utf-8",
         )
+
+    def _tessellation_fields(self, inst: Instance) -> dict:
+        if inst.dropped:
+            return {}
+        faces, missing, repaired = self.tess_info.get(self._mesh_key(inst), (0, 0, False))
+        fields: dict[str, Any] = {"faces": faces, "faces_not_meshed": missing}
+        if repaired:
+            fields["mesh_repaired"] = True
+        if inst.mirrored_from:
+            fields["mirrored_from"] = inst.mirrored_from
+        if inst.id in self.render_from:
+            fields["rendered_from_mirrored"] = self.render_from[inst.id][0].id
+        return fields
 
     def validate(self) -> list[dict]:
         results = []
@@ -700,6 +797,44 @@ class Pipeline:
                 f"| {n} | {b:,} | {a:,} |"
                 for n, (b, a) in sorted(self.proxied.items(), key=lambda kv: -kv[1][0])
             ]
+        broken = [i for i in kept if self.tess_info.get(self._mesh_key(i), (0, 0, False))[1] > 0]
+        if broken:
+            lines += [
+                "",
+                "## Tessellation problems (faces OCP could not mesh: holes, or an edge-hull stand-in when none meshed)",
+                "| Part | Group | Faces | Not meshed | Repaired | Drawn from mirrored twin |",
+                "|---|---|---|---|---|---|",
+            ]
+            for i in sorted(broken, key=lambda i: i.name):
+                faces, missing, repaired = self.tess_info[self._mesh_key(i)]
+                twin = self.render_from.get(i.id)
+                lines.append(
+                    f"| {i.name} | {i.group} | {faces} | {missing} | {'yes' if repaired else 'no'} | "
+                    f"{twin[0].name if twin else 'no'} |"
+                )
+        if self.cfg.get("symmetry"):
+            lines += [
+                "",
+                f"## Symmetry about {self.cfg['symmetry']['plane']} (CAD frame)",
+                f"- Parts without a mirrored twin: {len(self.unpaired)}; mirrored copies added: {len(self.mirror_added)}",
+                "",
+                "Mirrored copies added (`symmetry.mirror_unpaired`):",
+                "| Part | Group | Copy centre (m) |",
+                "|---|---|---|",
+            ]
+            for c in self.mirror_added:
+                centre = np.round((np.array(c.world_bbox[0]) + np.array(c.world_bbox[1])) / 2, 3).tolist()
+                lines.append(f"| {c.name} | {c.group} | {centre} |")
+            filled = {c.mirrored_from for c in self.mirror_added}
+            big = sorted(
+                (i for i in self.unpaired if i.id not in filled),
+                key=lambda i: -float(np.prod(np.array(i.world_bbox[1]) - np.array(i.world_bbox[0]))),
+            )
+            lines += ["", "Largest one-sided parts (check that they really exist on one side only):",
+                      "| Part | Group | Size (m) | Centre (m) |", "|---|---|---|---|"]
+            for i in big[:40]:
+                lo, hi = np.array(i.world_bbox[0]), np.array(i.world_bbox[1])
+                lines.append(f"| {i.name} | {i.group} | {np.round(hi - lo, 3).tolist()} | {np.round((lo + hi) / 2, 3).tolist()} |")
         lines += ["", "## Materials", "| Material | Parts |", "|---|---|"]
         lines += [f"| {m} | {c} |" for m, c in collections.Counter(i.material for i in kept).most_common()]
         lines += [

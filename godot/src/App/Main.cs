@@ -80,11 +80,10 @@ public partial class Main : Node3D
             var jar = args.TeamCodeJar ?? (hasOwnCode
                 ? System.IO.Path.Combine(RepoPaths.RepoRoot, "generated", "build", codeRobot, "libs", "teamcode.jar")
                 : System.IO.Path.Combine(RepoPaths.RepoRoot, "java", "build-adapter", "build", "libs", "teamcode.jar"));
-            if (args.TeamCodeJar == null && hasOwnCode && !System.IO.File.Exists(jar))
+            var ownSources = System.IO.Path.Combine(RepoPaths.RepoRoot, "tests", "compat", codeRobot, "TeamCode", "src", "main", "java");
+            if (args.TeamCodeJar == null && hasOwnCode && !Sim.Runner.TeamCodeBuilder.IsUpToDate(ownSources, jar))
             {
-                var built = Sim.Runner.TeamCodeBuilder.Build(
-                    System.IO.Path.Combine(RepoPaths.RepoRoot, "tests", "compat", codeRobot, "TeamCode", "src", "main", "java"),
-                    System.IO.Path.Combine(RepoPaths.RepoRoot, "generated", "build", codeRobot));
+                var built = Sim.Runner.TeamCodeBuilder.Build(ownSources, System.IO.Path.Combine(RepoPaths.RepoRoot, "generated", "build", codeRobot));
                 GD.Print(built.Success ? $"built {jar}" : $"TeamCode build failed: {built.Output}");
             }
             _program = new RobotProgram(robot, input, jar);
@@ -118,11 +117,11 @@ public partial class Main : Node3D
             // TeamCode (tests/compat/<robot>, or the goBILDA example) there so the original resources are never edited.
             var project = args.Project != null ? System.IO.Path.GetFullPath(args.Project)
                 : System.IO.Path.Combine(RepoPaths.RepoRoot, "workspace", hasOwnCode ? codeRobot : "starter");
+            var tools = System.IO.Path.Combine(RepoPaths.RepoRoot, "workspace", ".ftcsim", System.IO.Path.GetFileName(project));
             if (args.Project == null)
             {
-                EnsureStarterProject(project, hasOwnCode ? codeRobot : "gobilda_starter");
+                SyncStarterProject(project, hasOwnCode ? codeRobot : "gobilda_starter", tools);
             }
-            var tools = System.IO.Path.Combine(RepoPaths.RepoRoot, "workspace", ".ftcsim", System.IO.Path.GetFileName(project));
             layer.AddChild(new Sim.EditorUi.CodePanel(program, project, tools) { Name = "CodeEditor" });
             layer.AddChild(new Sim.EditorUi.GitPanel(project) { Name = "Git" });
             if (args.OpMode != null)
@@ -163,19 +162,20 @@ public partial class Main : Node3D
     }
 
     /// <summary>Copies tests/compat/&lt;source&gt;/TeamCode into a new workspace project (once).</summary>
-    private static void EnsureStarterProject(string project, string sourceName)
+    /// <summary>Copies the robot's TeamCode into the workspace project on first use and later brings in template
+    /// updates for files the team has not edited (edited files are kept and listed).</summary>
+    private static void SyncStarterProject(string project, string sourceName, string toolsDir)
     {
-        var target = System.IO.Path.Combine(project, "TeamCode");
-        if (System.IO.Directory.Exists(target))
-        {
-            return;
-        }
         var source = System.IO.Path.Combine(RepoPaths.RepoRoot, "tests", "compat", sourceName, "TeamCode");
-        foreach (var file in System.IO.Directory.GetFiles(source, "*", System.IO.SearchOption.AllDirectories))
+        var result = Sim.Editor.ProjectTemplate.Sync(source, System.IO.Path.Combine(project, "TeamCode"),
+            System.IO.Path.Combine(toolsDir, "template.json"));
+        if (result.Updated.Count > 0)
         {
-            var dest = System.IO.Path.Combine(target, System.IO.Path.GetRelativePath(source, file));
-            System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(dest)!);
-            System.IO.File.Copy(file, dest);
+            GD.Print($"{project}: updated from the template: {string.Join(", ", result.Updated)}");
+        }
+        if (result.KeptEdited.Count > 0)
+        {
+            GD.Print($"{project}: kept your edited files (the template has a newer version): {string.Join(", ", result.KeptEdited)}");
         }
     }
 

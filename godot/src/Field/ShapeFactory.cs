@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Godot;
 
 namespace Sim.Field;
@@ -31,6 +32,50 @@ public static class ShapeFactory
             b.Z = -b.Z;
         }
         return new Transform3D(b, t.Origin);
+    }
+
+    /// <summary>Points that outline a collider in its parent's frame: hull points, box corners, and the rims of
+    /// spheres and cylinders (12 around); used to measure where a moving part reaches.</summary>
+    public static IEnumerable<Vector3> Points(ColliderSpec spec)
+    {
+        switch (spec.Type)
+        {
+            case "convex":
+                foreach (var p in Require(spec.Points, "convex points"))
+                {
+                    yield return new Vector3((float)p[0], (float)p[1], (float)p[2]);
+                }
+                break;
+            case "box":
+                var t = RigidOnly(ToTransform(Require(spec.Transform, "box transform")));
+                var h = Vec(spec.Size, "box size") / 2;
+                for (var i = 0; i < 8; i++)
+                {
+                    yield return t * new Vector3((i & 1) == 0 ? -h.X : h.X, (i & 2) == 0 ? -h.Y : h.Y, (i & 4) == 0 ? -h.Z : h.Z);
+                }
+                break;
+            case "sphere":
+                var c = Vec(spec.Center, "sphere center");
+                var r = (float)Require(spec.Radius, "sphere radius");
+                foreach (var d in new[] { Vector3.Up, Vector3.Down, Vector3.Left, Vector3.Right, Vector3.Forward, Vector3.Back })
+                {
+                    yield return c + d * r;
+                }
+                break;
+            case "cylinder":
+                var ct = RigidOnly(ToTransform(Require(spec.Transform, "cylinder transform")));
+                var radius = (float)Require(spec.Radius, "cylinder radius");
+                var half = (float)Require(spec.Height, "cylinder height") / 2;
+                for (var k = 0; k < 12; k++)
+                {
+                    var a = k * Mathf.Tau / 12;
+                    foreach (var y in new[] { -half, half })
+                    {
+                        yield return ct * new Vector3(radius * Mathf.Cos(a), y, radius * Mathf.Sin(a));
+                    }
+                }
+                break;
+        }
     }
 
     public static CollisionShape3D Create(ColliderSpec spec)

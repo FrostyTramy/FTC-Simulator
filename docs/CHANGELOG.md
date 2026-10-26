@@ -1,5 +1,17 @@
 # Changelog
 
+## RoboDojo fixes and tooling — 2026-10-26
+- CAD pipeline: faces that do not mesh are counted, healed (ShapeFix) and reported; a part that still does not mesh is
+  drawn from its mirrored twin, or as the hull of its B-rep edges; mirror-aware geometry signatures (products of
+  inertia); `symmetry` config (pairing report, `mirror_unpaired` rules); pipeline version 2 (cache rebuilt).
+- RoboDojo #23205: symmetric ramps and wheel guards, 30k-triangle detail, finer flower-ramp collider; flower bar floor
+  stop (`floor_stop`, `Sim.Robots.FloorStop`); hood position 0 = starting pose, higher = hood up; TeleOp HOOD_START 0 and
+  FLOWER_BAR_DOWN 1.0.
+- App: a robot's own TeamCode jar is rebuilt when its sources are newer; workspace projects take template updates for
+  files the team has not edited (`Sim.Editor.ProjectTemplate`).
+- Tooling: scripts and tool lookups also run on Linux (pwsh); JDT LS needs Java 25.
+- Tests: test_cad_symmetry.py (4), ArmAndHoodTests (7), ProjectTemplateTests (1), 2 team robot checks.
+
 ## Team robot RoboDojo #23205 — 2026-10-25
 - CAD pipeline: plain STEP sources (`source: {path}`), zero-length normals rebuilt from triangles; config
   `config/cad/robodojo_23205.yaml` (wheels, intake, transfer stages, gate, flower bar, turret, shooter, hood).

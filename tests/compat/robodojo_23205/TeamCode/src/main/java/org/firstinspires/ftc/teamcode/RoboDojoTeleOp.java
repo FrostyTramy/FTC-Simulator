@@ -18,7 +18,7 @@ import com.qualcomm.robotcore.util.Range;
  *   right bumper hold  spin the shooter up; once it is at speed the gate opens and the transfer feeds
  *   B                  toggle near / far shooter speed
  *   dpad left / right  turn the turret         Y               turret back to the front
- *   dpad up / down     hood up / down          X               flower bar up / down
+ *   dpad up / down     hood up / down          X               flower bar up / down (down = resting on the floor)
  *
  * The turret turns 360 degrees between hard stops (it cannot spin through), so its target stays inside soft limits a
  * little short of the stops. Its encoder is a REV Through Bore Encoder (8192 counts per rev) on a 24T pinion that
@@ -45,11 +45,11 @@ public class RoboDojoTeleOp extends OpMode {
 
     static final double GATE_CLOSED = 0.5;
     static final double GATE_OPEN = 0.8;
-    static final double HOOD_MIN = 0.0;      // hood tilted forward: flattest shot
-    static final double HOOD_MAX = 1.0;      // hood back: steepest shot
+    static final double HOOD_START = 0.0;    // starting position: hood fully back (steepest shot)
+    static final double HOOD_MAX = 1.0;      // hood raised over the wheel: flattest shot
     static final double HOOD_STEP_PER_S = 0.5;
     static final double FLOWER_BAR_UP = 0.25;
-    static final double FLOWER_BAR_DOWN = 0.76;
+    static final double FLOWER_BAR_DOWN = 1.0;   // past the floor: the bar rests on the tiles, as low as it goes
 
     private DcMotor leftFront, rightFront, leftBack, rightBack;
     private DcMotor intake, transfer;
@@ -57,7 +57,7 @@ public class RoboDojoTeleOp extends OpMode {
     private Servo gate, hood, flowerBar;
 
     private double turretTargetDeg = 0;
-    private double hoodPosition = 0.5;
+    private double hoodPosition = HOOD_START;
     private boolean far = false;
     private boolean flowerBarDown = false;
     private boolean lastB, lastX;
@@ -131,7 +131,7 @@ public class RoboDojoTeleOp extends OpMode {
         } else if (gamepad1.dpad_down) {
             hoodPosition -= HOOD_STEP_PER_S * dt;
         }
-        hoodPosition = Range.clip(hoodPosition, HOOD_MIN, HOOD_MAX);
+        hoodPosition = Range.clip(hoodPosition, HOOD_START, HOOD_MAX);
         hood.setPosition(hoodPosition);
 
         // Toggles

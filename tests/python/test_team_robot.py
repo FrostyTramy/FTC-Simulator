@@ -88,3 +88,31 @@ def test_gate_positions_in_the_teleop_open_and_close_the_gate() -> None:
     opened = float(re.search(r"GATE_OPEN = ([\d.]+)", TELEOP).group(1))
     assert not lo <= angle(closed) <= hi
     assert lo <= angle(opened) <= hi
+
+
+def _teleop_constant(name: str) -> float:
+    return float(re.search(rf"{name} = (-?[\d.]+)", TELEOP).group(1))
+
+
+def _mechanism(mid: str) -> dict:
+    return next(m for m in ROBOT["mechanisms"] if m["id"] == mid)
+
+
+def test_hood_starts_at_position_0_and_higher_positions_raise_it() -> None:
+    """USER 2026-10-26: servo position 0 is the starting pose; increasing the position raises the hood."""
+    hood = _mechanism("hood")
+    assert hood["cad_servo_angle"]["value"] == -157.5            # position 0 = CAD pose
+    mapping = ROBOT["ball_path"]["hood"]["value"]
+    assert mapping["servo_angles"][0] == hood["cad_servo_angle"]["value"]
+    assert mapping["elevation"][0] > mapping["elevation"][1]     # raised over the wheel = flatter exit
+    assert _teleop_constant("HOOD_START") == 0.0
+    assert "hoodPosition = HOOD_START" in TELEOP
+
+
+def test_flower_bar_down_rests_on_the_floor_stop() -> None:
+    """USER 2026-10-26: DOWN is as low as possible, touching the floor a little."""
+    bar = _mechanism("yellow_bar")
+    assert 0 < bar["floor_stop"]["value"] <= 0.005
+    # DOWN must be commanded at least as far as the bar needs to reach the floor in front (≈162° past UP at -80°).
+    down_angle = -157.5 + 315 * _teleop_constant("FLOWER_BAR_DOWN")
+    assert down_angle - bar["cad_servo_angle"]["value"] >= 162

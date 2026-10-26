@@ -55,6 +55,9 @@ public partial class RobotBody : RigidBody3D
     /// <summary>Moving CAD groups (wheels, mechanisms) by group name: pivot in the CAD frame, angle source, carrier.</summary>
     private readonly Dictionary<string, (Vector3 CenterCad, Vector3 AxisCad, Func<double> Angle, string? MountedOn)> _moving = new();
 
+    /// <summary>Floor stops of servo arms (mechanism <c>floor_stop</c>), radians from the CAD pose, by CAD group name.</summary>
+    private readonly Dictionary<string, (double? Min, double? Max)> _floorStops = new();
+
     /// <summary>Chassis collision shapes of groups that move with a mechanism (a turret): CAD-frame shape transform.</summary>
     private readonly List<(CollisionShape3D Shape, Transform3D Cad, string Group)> _movingShapes = new();
 
@@ -260,6 +263,16 @@ public partial class RobotBody : RigidBody3D
         var toCad = _meshToRobot.AffineInverse();
         foreach (var group in layout.Groups)
         {
+            if (MechanismFor(group.Name) is { FloorStopPenetration: { } depth, AxisPoint: { } stopPivot, Axis: { } stopAxis } && group.Colliders != null)
+            {
+                var specs = JsonSerializer.Deserialize<List<ColliderSpec>>(Godot.FileAccess.GetFileAsString(dir + group.Colliders), FieldLayout.Json) ?? new();
+                var points = specs.SelectMany(ShapeFactory.Points).Select(p => _meshToRobot * p)
+                    .Select(p => new System.Numerics.Vector3(p.X, p.Y, p.Z)).ToList();
+                _floorStops[group.Name] = FloorStop.Limits(points, stopPivot, stopAxis, depth);
+            }
+        }
+        foreach (var group in layout.Groups)
+        {
             if (SpinFor(group.Name, toCad) is { } moving)
             {
                 _moving[group.Name] = (moving.CenterCad, moving.AxisCad, moving.Angle, MechanismFor(group.Name)?.MountedOn);
@@ -423,10 +436,12 @@ public partial class RobotBody : RigidBody3D
             var ratio = mechanism.DrivenBy != null ? mechanism.FollowRatio : motor.Device.SpeedRatio;
             return (center, axisCad, () => motor.OutputAngle * ratio * sign);
         }
-        // A positional servo's arm sits at its CAD pose at CadServoAngleDeg; gearing (speed_ratio) scales the turn.
+        // A positional servo's arm sits at its CAD pose at CadServoAngleDeg; gearing (speed_ratio) scales the turn. An
+        // arm with a floor stop rests on the tiles once it reaches them (the servo stalls against the floor).
         var cadAngle = mechanism.CadServoAngleDeg;
+        var stops = _floorStops.TryGetValue(group, out var s) ? s : ((double?)null, (double?)null);
         return servo != null
-            ? (center, axisCad, () => Mathf.DegToRad(servo.Model.AngleDeg - cadAngle) * servo.Device.SpeedRatio * sign)
+            ? (center, axisCad, () => FloorStop.Clamp(Mathf.DegToRad(servo.Model.AngleDeg - cadAngle) * servo.Device.SpeedRatio * sign, stops))
             : null;
     }
 

@@ -65,6 +65,17 @@ public static partial class TeamCodeBuilder
         return new BuildResult(success, success ? jar : null, ParseDiagnostics(text), text, started.Elapsed);
     }
 
+    /// <summary>True when <paramref name="jar"/> exists and is newer than every file under <paramref name="sourceDir"/>.</summary>
+    public static bool IsUpToDate(string sourceDir, string jar)
+    {
+        if (!File.Exists(jar))
+        {
+            return false;
+        }
+        var built = File.GetLastWriteTimeUtc(jar);
+        return Directory.GetFiles(sourceDir, "*", SearchOption.AllDirectories).All(f => File.GetLastWriteTimeUtc(f) <= built);
+    }
+
     /// <summary>javac lines "FILE.java:LINE: error: MESSAGE", the source line, then a caret under the column.</summary>
     public static IReadOnlyList<JavaDiagnostic> ParseDiagnostics(string output)
     {

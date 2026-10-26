@@ -31,10 +31,24 @@ groups:
   # base stay on the chassis (slide 6: "one motor from under the turret, 2 small gearwheels, one for encoder, one for motor").
   - {name: turret, kind: rigid, path_regex: "/Turrret V7 <1>#0/(?!(5103|5000-0001-0001|5000-0002-0117|5000-0002-0001 body:1__Body1#0$|Pinion|6703|1516-4008|REV-11-1271|1613-0514|T5x3|Baza))"}
 
+# The team robot is where detail matters (D-007): only parts above 30k triangles (tyre tread, gear teeth) become hulls.
+# Godot generates LODs on import, so the full meshes cost little at a distance.
 render_proxies:
-  max_part_triangles: 4000
+  max_part_triangles: 30000
   rules:
     - {regex: "(?i)^roller tire$|^core$", mode: hull}
+
+# Left/right symmetry about the wheel centre plane (CAD x = +12 mm: wheel centres x +148 / -124 mm). USER 2026-10-26:
+# the small intake corner ramps and the wheel protection plates are on BOTH sides of the real robot, but the sim showed
+# them on one side only. A part whose STEP faces do not mesh is drawn from its mirrored twin automatically; a part the
+# CAD has on one side only is mirrored when it matches a rule below and its mirror position is empty.
+# generated/robodojo_23205/report.md "Symmetry" lists what was added and every remaining one-sided part.
+symmetry:
+  plane: {normal: [1, 0, 0], point: [0.012, 0, 0]}
+  tolerance: 0.004
+  mirror_unpaired:
+    - {part_regex: "(?i)rampa|ramp", groups: [chassis], min_extent: 0.02}                          # intake corner ramps
+    - {part_regex: "(?i)plat|plac|protec|aparat|scut|guard|cover|bumper", groups: [chassis], min_extent: 0.04}   # wheel guards
 
 tessellation:
   default: {linear: 0.0008, angular: 0.5}
@@ -45,7 +59,10 @@ tessellation:
 colliders:
   default: hull
   rules:
-    - {regex: "(?i)^rampa", mode: coacd, threshold: 0.05, max_hulls: 8}       # curved flower ramp and intake/transfer ramps
+    # USER 2026-10-26: elements must be able to roll on the flower bar's ramp, so it gets a finer decomposition (no
+    # gaps between hulls) than the other ramps.
+    - {regex: "(?i)^rampa floare", mode: coacd, threshold: 0.02, max_hulls: 24}
+    - {regex: "(?i)^rampa", mode: coacd, threshold: 0.05, max_hulls: 8}       # intake/transfer ramps
     - {regex: "(?i)^hood insert", mode: coacd, threshold: 0.05, max_hulls: 6}
     - {regex: "(?i)grid plate|^panou|^side plate|^plate", mode: box}
   max_fit_error: 0.12

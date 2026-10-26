@@ -71,6 +71,12 @@ public sealed record MechanismDef(
     public string? DrivenBy { get; init; }
 
     public double FollowRatio { get; init; } = 1;
+
+    /// <summary>
+    /// A servo arm that rests on the floor when swung down (<see cref="FloorStop"/>): how far its lowest point presses
+    /// into the floor at the stop, m; null = no floor stop.
+    /// </summary>
+    public double? FloorStopPenetration { get; init; }
 }
 
 /// <summary>
@@ -207,6 +213,7 @@ public sealed class RobotDefinition
                     CadServoAngleDeg = m.ContainsKey("cad_servo_angle") ? Q(m, "cad_servo_angle") : 0,
                     DrivenBy = m.ContainsKey("driven_by") ? QRaw(m, "driven_by").ToString() : null,
                     FollowRatio = m.ContainsKey("follow_ratio") ? Q(m, "follow_ratio") : 1,
+                    FloorStopPenetration = m.ContainsKey("floor_stop") ? Q(m, "floor_stop") : null,
                 };
             }).ToList()
             : [];
